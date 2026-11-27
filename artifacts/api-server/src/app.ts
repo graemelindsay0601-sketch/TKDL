@@ -830,7 +830,7 @@ async function seedGameTypes() {
     { key: "cricket",              name: "Cricket",                  engine: "Cricket",     category: "competitive", description: "Close 15–20 and bull. Score when opponent hasn't closed.",                config: JSON.stringify({ cutThroat: false, includesBull: true }),                                                 enabled: true, sortOrder: 9  },
     { key: "cutthroat_cricket",    name: "Cut-Throat Cricket",       engine: "Cricket",     category: "competitive", description: "Scoring points hurts opponents instead of helping you.",                  config: JSON.stringify({ cutThroat: true,  includesBull: true }),                                                 enabled: true, sortOrder: 10 },
     // ── Practice — skill games ──────────────────────────────────────────────
-    { key: "around_the_world",     name: "Around the World",         engine: "Sequence",    category: "practice",    description: "Hit 1–20 in order, then bull to win.",                                    config: JSON.stringify({ type: "sequential", maxNumber: 20, includeBull: true  }),                               enabled: true, sortOrder: 11 },
+    { key: "around_the_world",     name: "Around the World",         engine: "Sequence",    category: "practice",    description: "1–20 in order (doubles and trebles skip ahead), then 25, then bullseye.", config: JSON.stringify({ type: "sequential", maxNumber: 20, includeBull: true  }),                               enabled: true, sortOrder: 11 },
     { key: "around_world_trebles", name: "Round the World (Trebles)",engine: "Sequence",    category: "practice",    description: "As above, but must hit the treble of each number.",                       config: JSON.stringify({ type: "sequential", maxNumber: 20, treblesOnly: true  }),                               enabled: true, sortOrder: 12 },
     { key: "round_the_clock",      name: "Round the Clock",          engine: "Sequence",    category: "practice",    description: "Hit 1–20 in order. No bull required.",                                    config: JSON.stringify({ type: "sequential", maxNumber: 20, includeBull: false }),                               enabled: true, sortOrder: 13 },
     { key: "shanghai",             name: "Shanghai",                 engine: "Sequence",    category: "practice",    description: "Rounds 1–7. Hit single, double, and treble of the round number to win.", config: JSON.stringify({ type: "shanghai", rounds: 7 }),                                                          enabled: true, sortOrder: 14 },
@@ -854,7 +854,7 @@ async function seedGameTypes() {
 
     // ── Practice ─────────────────────────────────────────────────────────────
     { key: "bobs_27",              name: "Bob's 27",                 engine: "HalveIt",     category: "practice",    description: "Start with 27 points. Hit each double in order (1–20). Miss = subtract that double's value. Highest score wins.", config: JSON.stringify({ startingScore: 27, targets: "doubles", sequence: "1-20" }),                             enabled: true, sortOrder: 29 },
-    { key: "bermuda_triangle",     name: "Bermuda Triangle",         engine: "Sequence",    category: "practice",    description: "Hit 12, 13, 14, Double Bull, 15, 16, 17, Triple Bull, 18, 19, 20, Bull in order. Miss costs you all darts that round.", config: JSON.stringify({ sequence: [12,13,14,"DB",15,16,17,"TB",18,19,20,"Bull"] }),                              enabled: true, sortOrder: 30 },
+    { key: "bermuda_triangle",     name: "Bermuda Triangle",         engine: "HalveIt",     category: "practice",    description: "13 rounds: 12–14, any double, 15–17, any treble, 18–20, 25, bullseye. Miss a round and your score halves.", config: "{}",                              enabled: true, sortOrder: 30 },
     { key: "round_the_board",      name: "Round the Board",          engine: "Sequence",    category: "practice",    description: "Hit 1 through 20 in order, then back from 20 to 1. First to finish wins.",  config: JSON.stringify({ sequence: "1-20-1", direction: "both" }),                                               enabled: true, sortOrder: 31 },
     { key: "high_score",           name: "High Score",               engine: "CountUp",     category: "practice",    description: "Each player throws 3 rounds of 3 darts. Most cumulative points wins.",      config: JSON.stringify({ rounds: 3, dartsPerRound: 3 }),                                                          enabled: true, sortOrder: 32 },
     { key: "doubles_challenge",    name: "Doubles Challenge",        engine: "Sequence",    category: "practice",    description: "Hit all 20 doubles in order then finish on double bull. Times each player.", config: JSON.stringify({ sequence: "doubles1-20+bull" }),                                                        enabled: true, sortOrder: 33 },
@@ -970,6 +970,21 @@ async function seedGameTypes() {
   await db.execute(sql`
     UPDATE game_types SET config = '{"callDouble":true,"startScore":301}'
     WHERE key = 'pick_a_double' AND config NOT LIKE '%startScore%'
+  `);
+
+  // Bermuda Triangle is Halve-It scoring over 13 set rounds, not a race:
+  // move existing rows onto the HalveIt engine with the right description.
+  await db.execute(sql`
+    UPDATE game_types SET engine = 'HalveIt', config = '{}',
+      description = '13 rounds: 12–14, any double, 15–17, any treble, 18–20, 25, bullseye. Miss a round and your score halves.'
+    WHERE key = 'bermuda_triangle' AND engine <> 'HalveIt'
+  `);
+
+  // Around the World now finishes 25 then bullseye, with doubles/trebles
+  // skipping ahead — refresh the old one-line description to match.
+  await db.execute(sql`
+    UPDATE game_types SET description = '1–20 in order (doubles and trebles skip ahead), then 25, then bullseye.'
+    WHERE key = 'around_the_world' AND description = 'Hit 1–20 in order, then bull to win.'
   `);
 
   // Add rules_text column if not present (safe to run every boot)

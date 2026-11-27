@@ -3,6 +3,8 @@ import { useSnapState } from "./snap-state";
  * Game engine scorer components — each handles its own state + dart input.
  * All scorers receive: p1Name, p2Name, config (parsed from game_type), onWin(0|1, detail?), onAbandon
  */
+import { type GameDart, cricketGameStats, atwGameStats } from "@/lib/game-stats";
+import { TargetBoard } from "@/components/scoring/TargetBoard";
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize, Shuffle, Grid3X3, Dices, Rabbit, Lock, Swords, Ship, EyeOff, Footprints, Award, PawPrint, ArrowDownToLine, LayoutGrid, Flame } from "lucide-react";
@@ -2512,6 +2514,15 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 }) {
   const safeTimeout = useSafeTimeout();
   const NUMS = numsProp ?? CRICKET_NUMS;
+  // Every dart each player throws, for the league Cricket records. A game
+  // resumed from recovery, or a Card Clash / Chaos Lab game, sends none.
+  const cricketGameLogRef = useRef<[GameDart[], GameDart[]]>([[], []]);
+  const cricketResumedRef = useRef(!!initialRecovery);
+  const cricketGameStatsPayload = () => {
+    if (cricketResumedRef.current || isCardClash || isChaosMode || isChaosLabMode) return {};
+    const nums = includesBull ? NUMS : NUMS.filter(n => n !== 25);
+    return { gameStats: [cricketGameStats(cricketGameLogRef.current[0], nums), cricketGameStats(cricketGameLogRef.current[1], nums)] };
+  };
   const ZERO = () => Array(NUMS.length).fill(0) as number[];
   const numCount = includesBull ? NUMS.length : NUMS.length - 1;
   const legs = legsProp;
@@ -3227,6 +3238,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       turn,
       visitDarts: [...visitDarts],
     }]);
+    cricketGameLogRef.current[turn].push({ seg: dart.segment, mult: dart.multiplier, newVisit: visitDarts.length === 0 });
     
     // CARD CLASH: Preprocess dart for Mark Flood and Aim Shift effects
     const effectiveDart = isCardClash
@@ -3757,7 +3769,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           if (w !== null && !legWinPendingRef.current) {
             legWinPendingRef.current = true;
             safeTimeout(() => {
-              onPracticeStats?.({ sessionData: { mode: "cricket" } });
+              onPracticeStats?.({ sessionData: { mode: "cricket", ...cricketGameStatsPayload() } });
               handleLegWin(w);
             }, 300);
           }
@@ -3772,6 +3784,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const handleUndo = () => {
     if (snapHistory.length === 0) return;
     const snap = snapHistory[snapHistory.length - 1];
+    cricketGameLogRef.current[snap.turn].pop();
     const prevTurn = turn;
     setMarks(snap.marks);
     setScores(snap.scores);
@@ -4304,18 +4317,12 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
       return [...fwd, ...bck];
     }
     if (gameKey === "around_the_world" || gameKey === "atw") {
-      return [...Array.from({length:20},(_,i)=>({seg:i+1,mult:1,label:`${i+1}`})), {seg:25,mult:1,label:"Bull"}];
+      // 1–20, then the outer bull (25), then the bullseye (50). Doubles and
+      // trebles skip ahead on the numbers, but never past the 25 (see handleDart).
+      return [...Array.from({length:20},(_,i)=>({seg:i+1,mult:1,label:`${i+1}`})), {seg:25,mult:1,label:"25"}, {seg:25,mult:2,label:"Bullseye"}];
     }
     if (gameKey === "round_the_clock" || gameKey === "round_the_clock_darts") {
       return Array.from({length:20},(_,i)=>({seg:i+1,mult:1,label:`${i+1}`}));
-    }
-    // Bermuda triangle
-    if (gameKey === "bermuda_triangle") {
-      return [12,13,14,"DB",15,16,17,"Bull",18,19,20,"DB"].map((v,i) => {
-        if (v === "DB") return {seg:25,mult:2,label:"DB"};
-        if (v === "Bull") return {seg:25,mult:1,label:"Bull"};
-        return {seg:v as number,mult:1,label:`${v}`};
-      });
     }
     if (gameKey === "chase_the_dragon") {
       const trebles = Array.from({length:11},(_,i)=>({seg:i+10,mult:3 as const,label:`T${i+10}`}));
@@ -4379,6 +4386,16 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   const [turn, setTurn]             = useSnapState<0|1>("SequenceScorer.turn", 0);
   const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("SequenceScorer.visitDarts", []);
   const [soloDarts, setSoloDarts]   = useSnapState<number>("SequenceScorer.soloDarts", 0);
+  // Each player's darts, for the league Around the World records.
+  const seqGameLogRef = useRef<[GameDart[], GameDart[]]>([[], []]);
+  const logSeqDart = (d: Dart, advance: number, newVisit: boolean, onBull: boolean) =>
+    seqGameLogRef.current[turn].push({ seg: d.segment, mult: d.multiplier, newVisit, advance, onBull });
+  const seqGameStatsPayload = () => (gameKey === "around_the_world" || gameKey === "atw") && !soloMode
+    ? { gameStats: [atwGameStats(seqGameLogRef.current[0]), atwGameStats(seqGameLogRef.current[1])] } : {};
+  // Positions before each dart of this visit, so Undo also takes back a move.
+  const [visitPosHist, setVisitPosHist] = useSnapState<[number,number][]>("SequenceScorer.visitPosHist", []);
+  const positionsRef = useRef(positions);
+  positionsRef.current = positions;
   const seats = soloMode ? [0] : [0, 1];
 
   const maxRounds = config?.rounds ?? 7;
@@ -4397,6 +4414,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
     const nv = [...visitDarts, dart];
+    setVisitPosHist(h => [...h.slice(0, visitDarts.length), positions]);
+    const seqStart = positions[turn];
     const thrown = soloDarts + 1;
     if (soloMode) setSoloDarts(thrown);
     const target = sequence[positions[turn]] as (typeof sequence[number] & { ring?: "inner" | "outer" }) | undefined;
@@ -4406,18 +4425,37 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
     const hits = !!target && dart.segment === target.seg && (
       isStraightLine
         ? dart.multiplier === target.mult && (target.mult !== 1 || dart.ring === (target as any).ring)
-        : dart.multiplier >= target.mult
+        // Around the World's 25 and bullseye are separate steps: only the exact ring counts.
+        : (gameKey === "around_the_world" || gameKey === "atw") && target.seg === 25
+          ? dart.multiplier === target.mult
+          : dart.multiplier >= target.mult
     );
     if (hits) {
       let pos = positions[turn] + 1;
-      // Allow extra advances from treble/double on single-required targets
-      if (!isStraightLine && target!.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
+      // A double or treble on a number target skips ahead (moves 2 or 3), but
+      // a skip never jumps over a bull step: the 25 and the bullseye have to
+      // be hit in their own right.
+      if (!isStraightLine && target!.mult === 1 && target!.seg !== 25) {
+        const nextBull = sequence.findIndex((t, i) => i > positions[turn] && t.seg === 25);
+        pos += (dart.multiplier - 1);
+        if (nextBull !== -1) pos = Math.min(pos, nextBull);
+      }
       const newPos = Math.min(pos, sequence.length);
       setPositions(prev => { const n:[number,number]=[...prev] as [number,number]; n[turn]=newPos; return n; });
-      if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, soloMode ? `Finished in ${thrown} darts` : `Finished the sequence!`); }, 200); return; }
-    }
+      logSeqDart(dart, newPos - seqStart, visitDarts.length === 0, target!.seg === 25);
+      if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence", ...seqGameStatsPayload()} }); onWin(turn, soloMode ? `Finished in ${thrown} darts` : `Finished the sequence!`); }, 200); return; }
+    } else if (target) logSeqDart(dart, 0, visitDarts.length === 0, target.seg === 25);
     setVisitDarts(nv);
-    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = soloMode ? 0 : turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
+    if (nv.length === 3) { setVisitDarts([]); setVisitPosHist([]); const nt: 0|1 = soloMode ? 0 : turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
+  };
+  const undoSeqDart = () => {
+    if (visitDarts.length === 0) return;
+    seqGameLogRef.current[turn].pop();
+    const before = visitPosHist[visitDarts.length - 1];
+    if (before) setPositions(before);
+    setVisitPosHist(h => h.slice(0, visitDarts.length - 1));
+    setVisitDarts(p => p.slice(0, -1));
+    if (soloMode) setSoloDarts(n => Math.max(0, n - 1));
   };
 
   const curTarget = sequence[positions[turn]];
@@ -4430,10 +4468,17 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   const isBotTurnSeq = !!botConfig && turn === 1;
   useEffect(() => {
     if (!botConfig || turn !== 1 || !botSeqTarget || sequence.length === 0) return;
-    const [d1, d2, d3] = botSequenceVisit(botSeqTarget.seg, (botSeqTarget.mult ?? 1) as 1|2|3, botConfig, (botSeqTarget as any).ring);
-    const t1 = safeTimeout(() => handleDartRefSeq.current(d1), 700);
-    const t2 = safeTimeout(() => handleDartRefSeq.current(d2), 1400);
-    const t3 = safeTimeout(() => handleDartRefSeq.current(d3), 2100);
+    // Each dart aims at whatever the bot needs at that moment, so a hit on
+    // dart one moves dart two on to the next target.
+    const throwOne = () => {
+      const t = sequence[positionsRef.current[1]];
+      if (!t) return;
+      const [d] = botSequenceVisit(t.seg, (t.mult ?? 1) as 1|2|3, botConfig, (t as any).ring);
+      handleDartRefSeq.current(d);
+    };
+    const t1 = safeTimeout(throwOne, 700);
+    const t2 = safeTimeout(throwOne, 1400);
+    const t3 = safeTimeout(throwOne, 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4606,6 +4651,15 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   // Shanghai's early return above, etc.) keeps its existing progress-bar
   // rendering unchanged regardless of the flag's state.
   const showGrandNationalTrack = !!newScoringUI && gameKey === "grand_national";
+  const isAtw = gameKey === "around_the_world" || gameKey === "atw";
+  const atwNote = !curTarget ? undefined
+    : curTarget.seg === 25 && curTarget.mult === 2 ? "Bullseye to finish"
+    : curTarget.seg === 25 ? "Outer bull (25) next · no skipping the bulls"
+    : (() => {
+        const bullAt = sequence.findIndex(t => t.seg === 25);
+        const n = curTarget.seg, land = (m: number) => sequence[Math.min(positions[turn] + m, bullAt === -1 ? sequence.length - 1 : bullAt)]?.label;
+        return [`${n} → ${land(1)}`, `D${n} → ${land(2)}`, `T${n} → ${land(3)}`].join("\u2003|\u2003");
+      })();
 
   if (modernSeq) {
     const lab = curTarget?.label ?? "";
@@ -4618,21 +4672,37 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
         sub={soloMode ? `${soloDarts} darts thrown` : undefined}
         turn={turn}
         cards={[0, 1].map(i => ({ score: positions[i], unit: `/${sequence.length}`, line: { label: "Next", value: sequence[positions[i]]?.label ?? "Done" }, stats: [{ label: "Done", value: positions[i] }, { label: "To go", value: sequence.length - positions[i] }] })) as [any, any]}
-        targets={curTarget ? [curTarget.seg] : undefined}
-        targetLabels={curTarget ? [curTarget.seg === 25 ? "Bull" : String(curTarget.seg)] : undefined}
-        panel={showGrandNationalTrack
+        targets={isAtw && curTarget?.seg === 25 ? [25, 25] : curTarget ? [curTarget.seg] : undefined}
+        targetLabels={isAtw && curTarget?.seg === 25 ? ["25", "Bullseye"] : curTarget ? [curTarget.seg === 25 ? "Bull" : String(curTarget.seg)] : undefined}
+        targetMults={isAtw && curTarget?.seg === 25 ? [1, 2] : undefined}
+        hiTargets={isAtw && curTarget?.seg === 25 ? [curTarget.mult === 2 ? 1 : 0] : undefined}
+        panel={isAtw
+          ? <div style={{ display: "flex", alignItems: "center", gap: 14, width: "100%" }}>
+              <div style={{ flex: "none" }}><TargetBoard target={curTarget as any} size={172} /></div>
+              <div style={{ minWidth: 0, fontFamily: "Oswald, sans-serif" }}>
+                <div style={{ fontSize: 11, letterSpacing: ".14em", color: "rgba(255,255,255,.45)", textTransform: "uppercase" }}>{names[turn]} needs</div>
+                <div style={{ fontSize: curTarget?.seg === 25 ? 34 : 54, fontWeight: 700, lineHeight: 1, color: "#ffd24a", textShadow: "0 0 18px rgba(255,210,74,.35)" }}>{curTarget?.label ?? "Done"}</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,.55)", marginTop: 8 }}>
+                  {curTarget?.seg === 25 ? (curTarget.mult === 2 ? "Only the bullseye counts" : "Only the outer bull counts · bullseye next")
+                    : sequence.slice(positions[turn] + 1, positions[turn] + 5).map(t => t.label).join(" · ") || "Last one"}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.35)", marginTop: 4 }}>{positions[turn]} of {sequence.length} done</div>
+              </div>
+            </div>
+          : showGrandNationalTrack
           ? <RaceTrack max={sequence.length} tickLabels={["START", "LAP 2", "POST"]} lanes={[
               { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0 as const, leadFill: true },
               { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 as const },
             ].slice(0, seats.length)} />
           : <TargetChips items={sequence.map(t => t.label)} current={positions[turn]} />}
-        note={lab ? `Aim at ${lab}` : undefined}
+        note={isAtw ? atwNote : lab ? `Aim at ${lab}` : undefined}
         visitDarts={visitDarts}
+        {...(isAtw ? { visitLabel: "Moved", visitValue: `+${positions[turn] - (visitPosHist[0]?.[turn] ?? positions[turn])}` } : {})}
         disabled={isBotTurnSeq}
         waitingMsg={isBotTurnSeq ? `${p2Name} throwing` : undefined}
         onDart={handleDart}
         onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
-        onUndo={() => { if (visitDarts.length > 0) { setVisitDarts(p => p.slice(0, -1)); if (soloMode) setSoloDarts(n => Math.max(0, n - 1)); } }}
+        onUndo={undoSeqDart}
         highlight={curTarget ? [curTarget.seg] : []}
         ringMode={isStraightLine}
         onAbandon={onAbandon}
@@ -4685,7 +4755,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-          onUndo={() => { if (visitDarts.length > 0) { setVisitDarts(p => p.slice(0, -1)); if (soloMode) setSoloDarts(n => Math.max(0, n - 1)); } }}
+          onUndo={undoSeqDart}
           highlightSegments={curTarget ? [curTarget.seg] : []}
           disabled={isBotTurnSeq}
           distinguishSingleRing={isStraightLine}
@@ -4884,6 +4954,10 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
 // ── Halve-It Scorer (+ Bob's 27, Bermuda Triangle) ─────────────────────────────
 const HALVEIT_TARGETS = [20,16,"D",17,"Bull",18,19,"T"];
 const HALVEIT_LABELS  = ["20","16","Any Double","17","Bull","18","19","Any Treble"];
+// Bermuda Triangle: 13 rounds, Halve-It scoring. Round 12 is the bull with
+// both rings worth 25; round 13 is the bullseye only, worth 50.
+const BERMUDA_TARGETS = [12,13,14,"D",15,16,17,"T",18,19,20,"Bull25","Bull50"];
+const BERMUDA_LABELS  = ["12","13","14","Any Double","15","16","17","Any Treble","18","19","20","25 (either bull)","Bullseye"];
 
 export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, soloMode }: {
   p1Name: string; p2Name: string; gameKey: string; botConfig?: BotConfig;
@@ -4895,12 +4969,13 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
 }) {
   const safeTimeout = useSafeTimeout();
   const isBobs = gameKey === "bobs_27";
-  const targets = isBobs
+  const isBermuda = gameKey === "bermuda_triangle";
+  const targets: (number | string)[] = isBobs
     ? Array.from({length:20},(_,i)=>i+1)  // doubles 1-20
-    : HALVEIT_TARGETS;
+    : isBermuda ? BERMUDA_TARGETS : HALVEIT_TARGETS;
   const targetLabels = isBobs
     ? targets.map(n=>`D${n}`)
-    : HALVEIT_LABELS;
+    : isBermuda ? BERMUDA_LABELS : HALVEIT_LABELS;
 
   const [round, setRound]           = useSnapState("HalveItScorer.round", 0);
   const [turnInRound, setTIR]       = useSnapState<0|1>("HalveItScorer.turnInRound", 0);
@@ -4922,9 +4997,12 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     }
     if (curTarget === "D") return dart.multiplier === 2;
     if (curTarget === "T") return dart.multiplier === 3;
-    if (curTarget === "Bull") return dart.segment === 25;
+    if (curTarget === "Bull" || curTarget === "Bull25") return dart.segment === 25;
+    if (curTarget === "Bull50") return dart.segment === 25 && dart.multiplier === 2;
     return dart.segment === curTarget;
   };
+  // What a dart on target adds: face value, except Bermuda's round 12 where either bull is 25.
+  const hitValue = (dart: Dart) => (curTarget === "Bull25" ? 25 : dart.value);
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -4932,12 +5010,12 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     setVisitDarts(nv);
     if (dartHitsTarget(dart)) {
       setHit(true);
-      setRoundScore(prev => prev + dart.value);
+      setRoundScore(prev => prev + hitValue(dart));
     }
     if (nv.length === 3) {
       // End of this player's visit for this round
       const hitTarget = hit || dartHitsTarget(dart);
-      const rs = roundScore + (dartHitsTarget(dart) ? dart.value : 0);
+      const rs = roundScore + (dartHitsTarget(dart) ? hitValue(dart) : 0);
       setScores(prev => {
         const ns: [number,number] = [...prev] as [number,number];
         if (hitTarget || rs > 0) ns[turn] += rs;
@@ -4986,6 +5064,15 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     }
   };
 
+  // Undo also takes the dart's points (and the "hit") back out of the round.
+  const undoHalveDart = () => {
+    if (visitDarts.length === 0) return;
+    const left = visitDarts.slice(0, -1);
+    setVisitDarts(left);
+    setRoundScore(left.reduce((n, d) => n + (dartHitsTarget(d) ? hitValue(d) : 0), 0));
+    setHit(left.some(dartHitsTarget));
+  };
+
   const handleDartRefHalve = useRef(handleDart);
   useEffect(() => { handleDartRefHalve.current = handleDart; });
   const isBotTurnHalve = !!botConfig && turn === 1;
@@ -4996,7 +5083,8 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     if (isBobs) { tSeg = ct as number; tMult = 2; }
     else if (ct === "D") { tSeg = 20; tMult = 2; }
     else if (ct === "T") { tSeg = 20; tMult = 3; }
-    else if (ct === "Bull") { tSeg = 25; tMult = 1; }
+    else if (ct === "Bull" || ct === "Bull25") { tSeg = 25; tMult = 1; }
+    else if (ct === "Bull50") { tSeg = 25; tMult = 2; }
     else { tSeg = ct as number; tMult = 1; }
     const [d1, d2, d3] = botHalveItVisit(tSeg, tMult, botConfig);
     const t1 = safeTimeout(() => handleDartRefHalve.current(d1), 700);
@@ -5010,9 +5098,9 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     const label = String(targetLabels[round]);
     return (
       <ModernParty
-        heading={isBobs ? "Bob's 27" : "Halve-It"}
+        heading={isBobs ? "Bob's 27" : isBermuda ? "Bermuda Triangle" : "Halve-It"}
         sub={`Round ${round + 1} of ${targets.length}`}
-        rules={isBobs ? "Twenty rounds, D1 to D20. Every double you hit adds its value; miss all three and you lose the double's value. Highest score wins." : "Hit the round's target with your three darts to add what you score. Miss it with all three and your total is halved. Highest score after the last round wins."}
+        rules={isBermuda ? "Thirteen rounds: 12, 13, 14, any double, 15, 16, 17, any treble, 18, 19, 20, the bull (either ring scores 25), then the bullseye (50). Every dart on the round's target adds what it scores. Miss it with all three and your total is halved. Highest score after round 13 wins." : isBobs ? "Twenty rounds, D1 to D20. Every double you hit adds its value; miss all three and you lose the double's value. Highest score wins." : "Hit the round's target with your three darts to add what you score. Miss it with all three and your total is halved. Highest score after the last round wins."}
         names={[p1Name, p2Name]}
         solo={soloMode}
         turn={turn}
@@ -5021,8 +5109,11 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
           line: { label: "Target", value: label },
           stats: [{ label: "Round", value: `${round + 1}/${targets.length}` }, { label: "This round", value: i === turn ? roundScore : "–" }],
         })) as [any, any]}
-        targets={typeof curTarget === "number" ? [curTarget] : curTarget === "Bull" ? [25] : undefined}
-        panel={<TargetChips items={targetLabels.map(t => String(t).replace("Any Double", "D").replace("Any Treble", "T"))} current={round} />}
+        targets={typeof curTarget === "number" ? [curTarget] : curTarget === "Bull" ? [25] : curTarget === "Bull25" || curTarget === "Bull50" ? [25, 25] : undefined}
+        targetLabels={curTarget === "Bull25" || curTarget === "Bull50" ? ["25", "Bullseye"] : undefined}
+        targetMults={curTarget === "Bull25" || curTarget === "Bull50" ? [1, 2] : undefined}
+        hiTargets={curTarget === "Bull25" ? [0, 1] : curTarget === "Bull50" ? [1] : undefined}
+        panel={<TargetChips items={targetLabels.map(t => String(t).replace("Any Double", "D").replace("Any Treble", "T").replace("25 (either bull)", "25").replace("Bullseye", "50"))} current={round} />}
         note={hit ? `${label} hit · +${roundScore}` : visitDarts.length ? `Still need ${label}` : `Aim at ${label}`}
         visitDarts={visitDarts}
         visitLabel="Round"
@@ -5031,7 +5122,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
         waitingMsg={isBotTurnHalve ? `${p2Name} throwing` : undefined}
         onDart={handleDart}
         onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
-        onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onUndo={undoHalveDart}
         highlight={typeof curTarget === "number" ? [curTarget] : curTarget === "Bull" ? [25] : undefined}
         onAbandon={onAbandon}
         onClassic={() => setClassicHalve(true)}
@@ -5044,7 +5135,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"}</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{isBobs ? "Bob's 27" : isBermuda ? "Bermuda Triangle" : "Halve-It"}</h2>
         <p className="text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
           Round {round+1}/{targets.length} — Target: {targetLabels[round]}
         </p>
@@ -5072,7 +5163,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
             border: i===round ? "1.5px solid #ffd24a" : i < round ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,255,255,0.08)",
             color: i < round ? "#22c55e" : i===round ? "#ffd24a" : "rgba(255,255,255,0.3)",
           }}>
-            {typeof t === "number" ? (isBobs ? `D${t}` : `${t}`) : t}
+            {typeof t === "number" ? (isBobs ? `D${t}` : `${t}`) : String(targetLabels[i]).replace("Any Double", "D").replace("Any Treble", "T").replace("25 (either bull)", "25").replace("Bullseye", "50")}
           </div>
         ))}
       </div>
@@ -5082,8 +5173,8 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-          onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
-          highlightSegments={typeof curTarget === "number" ? [curTarget] : curTarget==="Bull" ? [25] : undefined}
+          onUndo={undoHalveDart}
+          highlightSegments={typeof curTarget === "number" ? [curTarget] : curTarget==="Bull" || curTarget==="Bull25" || curTarget==="Bull50" ? [25] : undefined}
           disabled={isBotTurnHalve}
         />
         <AbandonBtn onAbandon={onAbandon} />

@@ -2,19 +2,20 @@ import { Glow, DartboardBackdrop, Chapter } from "@/components/premium/Premium";
 import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Banknote, Crown, History, Percent } from "lucide-react";
+import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Banknote, Crown, History, Percent, Globe2, CircleSlash, CircleDot } from "lucide-react";
 import { TierBadge } from "@/components/tier-badge";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, type CosmeticDefinition } from "@/lib/cosmetics";
 import { useFetch } from "@/hooks/use-fetch";
-import { LeagueRecordsBook } from "@/components/league-records-book";
 
-type PlayerRecord = { id: number; name: string; careerWins: number; careerLosses: number; careerGamesPlayed: number; careerWinRate: number; careerPeakElo: number; careerPoints: number; leagueTitles: number; longestWinStreak: number; longestLossStreak: number; careerBiggestPointsFall: number; sessions: number; total180s: number; tourTrophies: number; achievements: number; eliminationsCount: number; timesEliminated: number; biggestSingleLoss: number };
+type PlayerRecord = { id: number; name: string; careerWins: number; careerLosses: number; careerGamesPlayed: number; careerWinRate: number; careerPeakElo: number; careerPoints: number; leagueTitles: number; longestWinStreak: number; longestLossStreak: number; careerBiggestPointsFall: number; sessions: number; total180s: number; tourTrophies: number; achievements: number; eliminationsCount: number; timesEliminated: number; biggestSingleLoss: number; cricketWins?: number; atwWins?: number; nineMarkVisits?: number; trebleSkips?: number; cricketBlanks?: number; bullTrouble?: number; atwStalls?: number };
 type Champion = { id: number; name: string; championId: number; championName: string; endDate: string | null };
 type HofData = {
   mostTitles: PlayerRecord[]; mostWins: PlayerRecord[]; highestElo: PlayerRecord[]; mostPoints: PlayerRecord[]; longestStreak: PlayerRecord[];
   mostSessions: PlayerRecord[]; most180s: PlayerRecord[]; mostTourTrophies: PlayerRecord[]; mostAchievements: PlayerRecord[];
   lowestWinRate: PlayerRecord[]; longestLossStreak: PlayerRecord[]; biggestPointsFall: PlayerRecord[];
   mostEliminations: PlayerRecord[]; mostTimesEliminated: PlayerRecord[]; biggestSingleLoss: PlayerRecord[]; champions: Champion[];
+  mostCricketWins?: PlayerRecord[]; mostAtwWins?: PlayerRecord[]; mostNineMarks?: PlayerRecord[]; mostTrebleSkips?: PlayerRecord[];
+  mostCricketBlanks?: PlayerRecord[]; worstBullTrouble?: PlayerRecord[]; mostAtwStalls?: PlayerRecord[];
 };
 
 const MEDAL_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
@@ -124,14 +125,17 @@ function SectionTitle({ icon, eyebrow, title, description, accent }: { icon: Rea
   </div>;
 }
 
-export default function HallOfFame() {
+export default function HallOfFame() { return <HallPage />; }
+
+/** One page per board: Hall of Fame (default) or Hall of Shame (`shame`). Same data and cards. */
+export function HallPage({ shame = false }: { shame?: boolean }) {
   const { data, loading } = useFetch<HofData>("/api/stats/hall-of-fame");
 
   // Winner ids for the positive records (never the wall-of-shame ones —
   // see usePlayerNameStyles' comment above), deduped and order-stable so the
   // fetch effect doesn't re-fire every render.
   const goodWinnerIds = data
-    ? [data.mostTitles, data.mostWins, data.highestElo, data.mostPoints, data.longestStreak, data.mostEliminations, data.mostSessions, data.most180s, data.mostTourTrophies, data.mostAchievements]
+    ? [data.mostTitles, data.mostWins, data.highestElo, data.mostPoints, data.longestStreak, data.mostEliminations, data.mostSessions, data.most180s, data.mostTourTrophies, data.mostAchievements, data.mostCricketWins, data.mostAtwWins, data.mostNineMarks, data.mostTrebleSkips]
         .map(top => top?.[0]?.id).filter((id): id is number => !!id)
     : [];
   const nameStylesById = usePlayerNameStyles(goodWinnerIds);
@@ -143,12 +147,33 @@ export default function HallOfFame() {
     <div className="space-y-6 pm-page">
       {/* Header */}
       <div>
-        <Link href="/leaderboard" className="inline-flex items-center gap-1.5 text-xs mb-4 transition-opacity hover:opacity-70"
-          style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
-          <ArrowLeft className="w-3 h-3" /> LEAGUE
-        </Link>
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <Link href="/records" className="inline-flex items-center gap-1.5 text-xs transition-opacity hover:opacity-70"
+            style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+            <ArrowLeft className="w-3 h-3" /> RECORDS
+          </Link>
+          <span className="flex-1" />
+          <Link href={shame ? "/hall-of-fame" : "/hall-of-shame"} className="pm-chip" style={{ color: shame ? "#ffd24a" : "#ff005c", borderColor: shame ? "rgba(255,210,74,.45)" : "rgba(255,0,92,.45)" }}>
+            {shame ? "Hall of Fame →" : "Hall of Shame →"}
+          </Link>
+          <Link href="/records" className="pm-chip" style={{ color: "#19c3c8", borderColor: "rgba(25,195,200,.45)" }}>League Records →</Link>
+        </div>
 
-        <div className="relative overflow-hidden" style={{ borderRadius: 24, border: "1px solid rgba(255,210,74,.35)", background: "linear-gradient(160deg, rgba(255,210,74,.2) 0%, #17112a 48%, #06060b 100%)", boxShadow: "0 20px 50px rgba(0,0,0,.55), 0 0 40px rgba(255,210,74,.1)" }}>
+        {shame && (
+          <div className="relative overflow-hidden" style={{ borderRadius: 24, border: "1px solid rgba(255,0,92,.4)", background: "linear-gradient(160deg, rgba(255,0,92,.24) 0%, #170a14 50%, #06060b 100%)", boxShadow: "0 20px 50px rgba(0,0,0,.55), 0 0 40px rgba(255,0,92,.12)" }}>
+            <Glow x="85%" y="5%" color="#ff005c" size={440} opacity={0.28} />
+            <DartboardBackdrop size={460} opacity={0.07} style={{ right: -170, top: -100, transform: "rotate(8deg)" }} />
+            <div className="relative p-5" style={{ zIndex: 1 }}>
+              <span className="pm-lab inline-flex items-center gap-1.5" style={{ color: "#ff005c" }}><Skull className="w-3.5 h-3.5" /> TKDL · All-time</span>
+              <h1 className="pm-title uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2.4rem, 11vw, 3.6rem)", letterSpacing: "0.03em", lineHeight: 0.98, marginTop: 6, background: "linear-gradient(180deg, #ffd0dd 0%, #ff4d85 55%, #ff005c 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", filter: "drop-shadow(0 0 18px rgba(255,0,92,.35))" }}>
+                Hall of Shame
+              </h1>
+              <p className="text-sm mt-2" style={{ color: "#c9a3b3" }}>Every league needs a villain arc. Worn with pride, or at least denial.</p>
+            </div>
+          </div>
+        )}
+
+        {!shame && <div className="relative overflow-hidden" style={{ borderRadius: 24, border: "1px solid rgba(255,210,74,.35)", background: "linear-gradient(160deg, rgba(255,210,74,.2) 0%, #17112a 48%, #06060b 100%)", boxShadow: "0 20px 50px rgba(0,0,0,.55), 0 0 40px rgba(255,210,74,.1)" }}>
           <Glow x="85%" y="5%" color="#ffd24a" size={440} opacity={0.3} />
           <Glow x="5%" y="95%" color="#a855f7" size={380} opacity={0.22} />
           <DartboardBackdrop size={460} opacity={0.08} style={{ right: -170, top: -100, transform: "rotate(8deg)" }} />
@@ -159,7 +184,7 @@ export default function HallOfFame() {
             </h1>
             <p className="text-sm mt-2" style={{ color: "#a9a4bd" }}>All-time records. Permanent legacy.</p>
           </div>
-        </div>
+        </div>}
       </div>
 
       {loading ? (
@@ -173,6 +198,7 @@ export default function HallOfFame() {
         </div>
       ) : (
         <>
+          {!shame && <>
           <div data-testid="hall-legends">
           <SectionTitle icon={<Crown className="w-4 h-4"/>} eyebrow="THE HONOURS BOARD" title="League Legends" description="Championships and competitive records from the TKDL league." accent="#ffd24a" />
           {data.champions.length > 0 && <div className="pm-card overflow-hidden mb-4" style={{ ["--pm-acc" as any]: "#ffd24a" }}>
@@ -189,8 +215,6 @@ export default function HallOfFame() {
           </div>
           </div>
 
-          <LeagueRecordsBook />
-
           <MonthlyLeagueReports />
           <div data-testid="hall-skill">
           <SectionTitle icon={<Target className="w-4 h-4"/>} eyebrow="BEYOND THE TABLE" title="Skill, Practice & Tour" description="Records earned across practice, achievements and Tour Mode." accent="#a78bfa" />
@@ -202,36 +226,30 @@ export default function HallOfFame() {
           </div>
           </div>
 
-          <div data-testid="wall-shame">
-          <div className="relative overflow-hidden rounded-3xl px-5 py-6 mb-4 mt-10"
-            style={{ background: "linear-gradient(160deg, rgba(255,0,92,.22) 0%, #170a14 50%, #06060b 100%)", border: "1px solid rgba(255,0,92,.4)", boxShadow: "0 20px 50px rgba(0,0,0,.5), 0 0 30px rgba(255,0,92,.12)" }}>
-            <Glow x="90%" y="10%" color="#ff005c" size={360} opacity={0.26} />
-            <div className="relative flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.3)" }}>
-                <Skull className="w-5 h-5" style={{ color: "#ff005c", filter: "drop-shadow(0 0 6px rgba(255,0,92,0.6))" }} />
-              </div>
-              <div>
-                <div className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,0,92,0.5)", fontSize: "0.6rem", letterSpacing: "0.2em" }}>
-                  TKDL
-                </div>
-                <h2 className="font-black uppercase leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(1.4rem, 3.5vw, 2.1rem)", color: "#ff005c", letterSpacing: "0.06em" }}>
-                  WALL OF SHAME
-                </h2>
-              </div>
-            </div>
-            <p className="relative text-sm mt-2" style={{ color: "#c9a3b3", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
-              Every league needs a villain arc. Worn with pride, or at least denial.
-            </p>
+          {[data.mostCricketWins, data.mostAtwWins, data.mostNineMarks, data.mostTrebleSkips].some(t => t?.length) && <div data-testid="hall-games">
+          <SectionTitle icon={<Globe2 className="w-4 h-4"/>} eyebrow="AWAY FROM 501" title="Cricket & Around the World" description="Wins count from every result. Marks and skips come from games played on the TKDL scorer." accent="#22c55e" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {!!data.mostCricketWins?.length && <RecordCard icon={<Target className="w-4 h-4" />} label="Cricket King" accent="#22c55e" top={data.mostCricketWins} valueKey="cricketWins" subtitle="MOST CRICKET WINS" nameStyle={nameStyleFor(data.mostCricketWins[0]?.id)} />}
+            {!!data.mostNineMarks?.length && <RecordCard icon={<Zap className="w-4 h-4" />} label="Nine-Mark Club" accent="#22c55e" top={data.mostNineMarks} valueKey="nineMarkVisits" subtitle="MOST 9-MARK VISITS" description="Three trebles on cricket numbers in one visit." nameStyle={nameStyleFor(data.mostNineMarks[0]?.id)} />}
+            {!!data.mostAtwWins?.length && <RecordCard icon={<Globe2 className="w-4 h-4" />} label="Globetrotter" accent="#19c3c8" top={data.mostAtwWins} valueKey="atwWins" subtitle="MOST AROUND THE WORLD WINS" nameStyle={nameStyleFor(data.mostAtwWins[0]?.id)} />}
+            {!!data.mostTrebleSkips?.length && <RecordCard icon={<Flame className="w-4 h-4" />} label="Express Route" accent="#19c3c8" top={data.mostTrebleSkips} valueKey="trebleSkips" subtitle="MOST TREBLE SKIPS" description="Trebles that jumped three numbers in Around the World." nameStyle={nameStyleFor(data.mostTrebleSkips[0]?.id)} />}
           </div>
+          </div>}
 
+          </>}
+
+          {shame && <div data-testid="wall-shame">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <RecordCard icon={<Percent className="w-4 h-4" />} label="Cold Finish" accent="#ff005c" top={data.lowestWinRate} valueKey="careerWinRate" suffix="%" medals={["🧊","😬","😅"]} rankColors={SHAME_COLORS} subtitle="LOWEST CAREER WIN RATE" description="Minimum 10 competitive matches, so new and occasional players are not unfairly ranked." context={p=>`${p.careerGamesPlayed} played`} />
             {data.mostTimesEliminated?.length > 0 && <RecordCard icon={<Skull className="w-4 h-4" />} label="Last One Standing... Elsewhere" accent="#ff005c" top={data.mostTimesEliminated} valueKey="timesEliminated" medals={["💀","🪦","😵"]} rankColors={SHAME_COLORS} subtitle="MOST TIMES ELIMINATED" description="Counts confirmed occasions this player was reduced to zero points. Tracking begins with this update." />}
             <RecordCard icon={<TrendingDown className="w-4 h-4" />} label="The Choke Award"    accent="#ff005c" top={data.longestLossStreak}  valueKey="longestLossStreak" medals={["🫠","😬","😅"]} rankColors={SHAME_COLORS} subtitle="LONGEST LOSING STREAK" />
             <RecordCard icon={<Skull className="w-4 h-4" />}       label="The Collapse"       accent="#ff005c" top={data.biggestPointsFall}  valueKey="careerBiggestPointsFall" suffix=" pts" medals={["💀","😬","😅"]} rankColors={SHAME_COLORS} subtitle="BIGGEST FALL FROM PEAK (ALL-TIME)" />
+            {!!data.worstBullTrouble?.length && <RecordCard icon={<CircleDot className="w-4 h-4" />} label="Bull Trouble" accent="#ff005c" top={data.worstBullTrouble} valueKey="bullTrouble" suffix=" darts" medals={["🐂","😬","😅"]} rankColors={SHAME_COLORS} subtitle="MOST DARTS STUCK ON THE BULLS" description="Most darts thrown at the 25 and bullseye in one Around the World game." />}
+            {!!data.mostAtwStalls?.length && <RecordCard icon={<Globe2 className="w-4 h-4" />} label="Going Nowhere" accent="#ff005c" top={data.mostAtwStalls} valueKey="atwStalls" medals={["🧭","😬","😅"]} rankColors={SHAME_COLORS} subtitle="AROUND THE WORLD VISITS WITHOUT MOVING" />}
+            {!!data.mostCricketBlanks?.length && <RecordCard icon={<CircleSlash className="w-4 h-4" />} label="Bowled Out" accent="#ff005c" top={data.mostCricketBlanks} valueKey="cricketBlanks" medals={["🦆","😬","😅"]} rankColors={SHAME_COLORS} subtitle="CRICKET VISITS WITH NO MARKS" />}
             <RecordCard icon={<Banknote className="w-4 h-4" />}    label="Highway Robbery"    accent="#ff005c" top={data.biggestSingleLoss}  valueKey="biggestSingleLoss" suffix=" pts" medals={["💸","😬","😅"]} rankColors={SHAME_COLORS} subtitle="BIGGEST SINGLE-MATCH LOSS" />
           </div>
-          </div>
+          </div>}
         </>
       )}
     </div>

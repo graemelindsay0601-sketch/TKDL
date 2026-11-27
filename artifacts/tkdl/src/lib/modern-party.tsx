@@ -63,6 +63,9 @@ export type ModernPartyProps = {
   targets?: number[];
   /** Labels for targets (default: the number, "Bull" for 25). */
   targetLabels?: string[];
+  /** Fixed ring per target button (e.g. separate 25 and Bullseye buttons); highlights only the listed indexes when `hiTargets` is set. */
+  targetMults?: (1 | 2 | undefined)[];
+  hiTargets?: number[];
 };
 
 const fmtLabel = (seg: number, m: 1 | 2 | 3, ring?: "inner" | "outer") =>
@@ -215,7 +218,7 @@ export function ModernParty(p: ModernPartyProps) {
                   {p.targets.map((n, k) => {
                     const isBull = n === 25;
                     return (
-                      <button key={`${n}-${k}`} className={`${isBull ? "bull" : ""}${p.highlight?.includes(n) ? " hi" : ""}`} disabled={busy || (isBull && mult === 3)} onClick={() => fire(n)}>
+                      <button key={`${n}-${k}`} className={`${isBull ? "bull" : ""}${(p.hiTargets ? p.hiTargets.includes(k) : p.highlight?.includes(n)) ? " hi" : ""}`} disabled={busy || (isBull && mult === 3 && !p.targetMults?.[k])} onClick={() => fire(n, p.targetMults?.[k])}>
                         <span>{p.targetLabels?.[k] ?? (isBull ? (mult === 2 ? "D-Bull" : "Bull") : n)}</span>
                       </button>
                     );
