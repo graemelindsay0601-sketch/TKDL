@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { isFeatureAvailable } from "../services/feature-flags-service";
 import { LADDER, KIND_INFO, MIN_MATCHES, monthKey, nextStep } from "../lib/league-target";
-import { LEAGUE_TARGET_FLAG, currentTarget, hitsByPlayer, monthStats, settleLeagueTargets, type TargetRow } from "../lib/league-target-db";
+import { LEAGUE_TARGET_FLAG, adminVoidTarget, currentTarget, hitsByPlayer, monthStats, settleLeagueTargets, type TargetRow } from "../lib/league-target-db";
 
 const router = Router();
 
@@ -32,7 +32,7 @@ async function snapshot(playerId: number | null) {
   }
   return {
     live, month: t.month, kind: t.kind, label: info.label, unit: info.unit, blurb: info.blurb, target: t.target, value: stats[t.kind],
-    daysLeft: daysLeft(now), minMatches: MIN_MATCHES, sharing: [...stats.perPlayer.values()].filter(n => n >= MIN_MATCHES).length,
+    daysLeft: daysLeft(now), voided: !!t.voided, minMatches: MIN_MATCHES, sharing: [...stats.perPlayer.values()].filter(n => n >= MIN_MATCHES).length,
     history: history.filter(h => !live || h.live).map(h => ({ month: h.month, label: KIND_INFO[h.kind].label, target: h.target, value: h.final_value, hit: h.hit, live: h.live })),
     me,
   };
@@ -57,6 +57,14 @@ router.get("/admin/league-target", async (req, res): Promise<void> => {
     FROM league_targets t ORDER BY month DESC LIMIT 12`)).rows;
   res.json({ ...snap, months: all, thisMonth: monthKey(new Date()) });
   } catch (err) { logger.error({ err }, "League Target admin view failed"); res.status(500).json({ error: "League Target unavailable" }); }
+});
+
+router.post("/admin/league-target/void", async (req, res): Promise<void> => {
+  if ((req.session as any)?.isAdmin !== true) { res.status(403).json({ error: "Admin only" }); return; }
+  const t = await currentTarget();
+  await adminVoidTarget(t.month);
+  logger.info({ month: t.month, by: (req.session as any)?.playerId }, "Admin voided the League Target month");
+  res.json({ ok: true });
 });
 
 export default router;

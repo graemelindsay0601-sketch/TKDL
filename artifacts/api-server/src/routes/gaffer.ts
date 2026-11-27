@@ -6,7 +6,7 @@ import { isFeatureAvailable } from "../services/feature-flags-service";
 import { monthKey, shiftMonth } from "../lib/league-target";
 import { CHALLENGES, CHALLENGE_ORDER, GAFFER_LADDER, LEVELS, SQUAD_LADDER, nextStep, type ChallengeKey, type LadderStep } from "../lib/gaffer";
 import {
-  GAFFER_FLAG, candidatesFor, challengeProgress, currentGaffer, gafferHits, gameOptions, optionsFor, pickChallenge, pickDeadline,
+  GAFFER_FLAG, candidatesFor, challengeReady, challengeProgress, currentGaffer, gafferHits, gameOptions, optionsFor, pickChallenge, pickDeadlineFor, adminSetGaffer, adminVoidGaffer,
   settleGaffer, squadHits, voteOpens, type GafferRow,
 } from "../lib/gaffer-db";
 
@@ -29,7 +29,7 @@ async function snapshot(playerId: number | null) {
   const month = g.month, next = shiftMonth(month, 1);
   const live = await isFeatureAvailable(GAFFER_FLAG, false);
   const nm = await names([g.gaffer_id]);
-  const picking = !!g.gaffer_id && !g.challenge && now < pickDeadline(month);
+  const picking = !g.voided && !!g.gaffer_id && !g.challenge && now < pickDeadlineFor(g);
 
   let challenge = null;
   let me: any = null;
@@ -53,6 +53,8 @@ async function snapshot(playerId: number | null) {
         const perGame = [];
         for (const game of games) perGame.push({ param: game.key, label: game.label, targets: await optionsFor(key, month, game.key) });
         options.push({ key, label: def.label, blurb: def.blurb, unit: def.unit, games: perGame });
+      } else if (!(await challengeReady(key, month))) {
+        options.push({ key, label: def.label, blurb: def.blurb, unit: def.unit, locked: "Needs more league matches on the app's scorer" });
       } else options.push({ key, label: def.label, blurb: def.blurb, unit: def.unit, targets: await optionsFor(key, month, null) });
     }
   }
@@ -82,7 +84,7 @@ async function snapshot(playerId: number | null) {
   const end = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1));
   return {
     live, month, gaffer: g.gaffer_id ? { id: g.gaffer_id, name: nm.get(g.gaffer_id) ?? "?" } : null, chosenBy: g.chosen_by,
-    youAreGaffer: !!playerId && playerId === g.gaffer_id, picking, pickBy: pickDeadline(month).toISOString(), options,
+    youAreGaffer: !!playerId && playerId === g.gaffer_id, picking, pickBy: pickDeadlineFor(g).toISOString(), voided: !!g.voided, options,
     challenge, me, vote, ladders, history, daysLeft: Math.max(1, Math.ceil((end.getTime() - now.getTime()) / 86400000)),
   };
 }
@@ -118,6 +120,7 @@ router.post("/gaffer/pick", async (req, res): Promise<void> => {
   if (g.challenge) { res.status(400).json({ error: "This month's challenge is already set" }); return; }
   const key = String(req.body?.challenge) as ChallengeKey, level = Number(req.body?.level);
   if (!CHALLENGE_ORDER.includes(key) || ![1, 2, 3].includes(level)) { res.status(400).json({ error: "Pick a challenge and a level" }); return; }
+  if (!(await challengeReady(key, g.month))) { res.status(400).json({ error: "That challenge needs more league matches on the app's scorer" }); return; }
   let param: string | null = null;
   if (key === "gotm") {
     param = String(req.body?.param ?? "");
@@ -135,6 +138,25 @@ router.get("/admin/gaffer", async (req, res): Promise<void> => {
     const months = (await db.execute(sql`SELECT * FROM gaffer_months ORDER BY month DESC LIMIT 12`)).rows;
     res.json({ ...(await snapshot(sess(req).playerId ?? null)), months });
   } catch (err) { logger.error({ err }, "Gaffer admin view failed"); res.status(500).json({ error: "The Gaffer is unavailable" }); }
+});
+
+router.post("/admin/gaffer/set", async (req, res): Promise<void> => {
+  if (sess(req).isAdmin !== true) { res.status(403).json({ error: "Admin only" }); return; }
+  const pid = Number(req.body?.playerId);
+  const exists = (await db.execute(sql`SELECT 1 FROM players WHERE id = ${pid}`)).rows.length;
+  if (!exists) { res.status(400).json({ error: "Pick a player" }); return; }
+  const g = await currentGaffer();
+  await adminSetGaffer(g.month, pid);
+  logger.info({ month: g.month, playerId: pid, by: sess(req).playerId }, "Admin changed the Gaffer");
+  res.json({ ok: true });
+});
+
+router.post("/admin/gaffer/void", async (req, res): Promise<void> => {
+  if (sess(req).isAdmin !== true) { res.status(403).json({ error: "Admin only" }); return; }
+  const g = await currentGaffer();
+  await adminVoidGaffer(g.month);
+  logger.info({ month: g.month, by: sess(req).playerId }, "Admin voided the Gaffer month");
+  res.json({ ok: true });
 });
 
 export default router;

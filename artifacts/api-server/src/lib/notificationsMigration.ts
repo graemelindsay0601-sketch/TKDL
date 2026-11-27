@@ -121,6 +121,11 @@ export async function seedNotificationTables() {
       ALTER TABLE notification_preferences
         ADD COLUMN IF NOT EXISTS career_reminders BOOLEAN DEFAULT true
     `);
+    // League Target and The Gaffer (lib/league-challenge-notify.ts).
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS league_challenges BOOLEAN DEFAULT true
+    `);
 
     // direct_messages — DM notifications (routes/messages.ts) originally
     // went through a second, parallel createNotification() that used to

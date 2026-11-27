@@ -7,10 +7,10 @@ import "./gaffer.css";
 
 type Step = { hits: number; id: string; name: string; category: string; rarity: string; owned: boolean };
 type Ladder = { hits: number; steps: Step[]; next: number | null };
-type Option = { key: string; label: string; blurb: string; unit: string; targets?: [number, number, number]; games?: { param: string; label: string; targets: [number, number, number] }[] };
+type Option = { key: string; label: string; blurb: string; unit: string; locked?: string; targets?: [number, number, number]; games?: { param: string; label: string; targets: [number, number, number] }[] };
 export type Gaffer = {
   available: boolean; live: boolean; month: string; daysLeft: number;
-  gaffer: { id: number; name: string } | null; chosenBy: string; youAreGaffer: boolean; picking: boolean; pickBy: string;
+  gaffer: { id: number; name: string } | null; chosenBy: string; voided?: boolean; youAreGaffer: boolean; picking: boolean; pickBy: string;
   options: Option[] | null;
   challenge: null | { key: string; label: string; unit: string; blurb: string; contributes: string; level: number; levelName: string; target: number; value: number; paramLabel: string | null; contributors: number };
   me: null | { contributing: boolean; value: number };
@@ -51,7 +51,7 @@ export function GafferView({ g, onChange }: { g: Gaffer; onChange?: () => void }
         <span className="gf-avatar">{g.gaffer ? g.gaffer.name.slice(0, 1) : "–"}</span>
         <div className="min-w-0">
           <div className="gf-name">{g.gaffer ? g.gaffer.name : "No Gaffer this month"}{g.youAreGaffer && <span className="gf-you">You</span>}</div>
-          <div className="gf-how">{g.chosenBy === "vote" ? "Voted in by the league" : g.chosenBy === "most_matches" ? "No votes — most matches last month" : "Nobody played enough last month"}</div>
+          <div className="gf-how">{g.chosenBy === "vote" ? "Voted in by the league" : g.chosenBy === "admin" ? "Appointed by the league admin" : g.chosenBy === "most_matches" ? "No votes — most matches last month" : "Nobody played enough last month"}</div>
         </div>
       </div>
 
@@ -60,7 +60,9 @@ export function GafferView({ g, onChange }: { g: Gaffer; onChange?: () => void }
         <p className="gf-wait">{g.gaffer?.name} is picking this month's challenge — until {new Date(g.pickBy).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}.</p>
       )}
 
-      {c && (
+      {g.voided && <p className="gf-wait">This month's challenge has been called off. Voting for next month still runs as normal.</p>}
+
+      {c && !g.voided && (
         <>
           <div className="lt-main">
             <div className="lt-big"><b>{c.value}</b><span>/ {c.target}{c.key === "finishing" ? "%" : ""}</span></div>
@@ -143,8 +145,9 @@ function Picker({ options, pickBy, onDone }: { options: Option[]; pickBy: string
       <div className="gf-psub">Until {new Date(pickBy).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} — otherwise Meet the League (Steady) runs.</div>
       {options.map(o => (
         <div key={o.key}>
-        <button className={`gf-opt${open === o.key ? " on" : ""}`} onClick={() => { setOpen(o.key); setLevel(null); setGame(o.games?.[0]?.param ?? null); }}>
-          <b>{o.label}</b><span>{o.blurb}</span>
+        <button className={`gf-opt${open === o.key ? " on" : ""}${o.locked ? " locked" : ""}`} disabled={!!o.locked}
+          onClick={() => { setOpen(o.key); setLevel(null); setGame(o.games?.[0]?.param ?? null); }}>
+          <b>{o.label}{o.locked && <Lock className="w-3 h-3 inline ml-1.5 -mt-0.5" />}</b><span>{o.locked ?? o.blurb}</span>
         </button>
       {sel && open === o.key && (
         <div className="gf-dial">
