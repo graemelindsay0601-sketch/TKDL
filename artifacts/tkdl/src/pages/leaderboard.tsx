@@ -8,7 +8,8 @@ import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users, Bu
 import { useMemo, useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
 import { apiFetchJson } from "@/lib/api-fetch";
-import { useCosmeticsCatalog, glowRowStyle, leaderboardTagStyle, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, glowRowStyle, leaderboardTagStyle, tagIcon, isExclusiveUnlock, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
+import { GafferArmband } from "@/components/gaffer/Armband";
 import { StandingsWhatIf } from "@/components/standings-what-if";
 
 type Mode = "season" | "doubles" | "shiftwars" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
@@ -121,9 +122,9 @@ function NameFlair({ icon, tag }: { icon?: CosmeticDefinition; tag?: CosmeticDef
     <>
       {Icon && <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: icon!.color ?? "#fff" }} />}
       {tag && (
-        <span className="text-[0.55rem] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0"
+        <span className={`text-[0.55rem] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0${isExclusiveUnlock(tag) ? " cosmetic-tag-exclusive" : ""}`}
           style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em", ...leaderboardTagStyle(tag) }}>
-          {tag.name}
+          {tagIcon(tag) && <span className="mr-1">{tagIcon(tag)}</span>}{tag.name}
         </span>
       )}
     </>
@@ -272,6 +273,7 @@ function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: n
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-black uppercase leading-tight" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "1.2rem" : "1rem", letterSpacing: "0.04em", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.85)" }}>{entry.playerName}</span>
+            <GafferArmband playerId={entry.playerId} />
             <NameFlair icon={icon} tag={tag} />
             {isTop3 && <span className="text-base leading-none">{POS_MEDALS[idx]}</span>}
             {streak >= 3 && <span className="flex items-center gap-0.5 text-xs font-bold shrink-0" style={{ color: "#ff005c" }}><Flame className="w-3 h-3 streak-fire" />{streak}W</span>}

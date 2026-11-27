@@ -21,7 +21,7 @@ import { TimeOfDayPerformance } from "@/components/stats/time-of-day-performance
 import { DrillProgressTracker } from "@/components/stats/drill-progress-tracker";
 import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
 import { LogDrillModal, type LoggableDrill } from "@/components/stats/log-drill-modal";
-import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, bubbleColorStyle, avatarBadgeIcon, taglineStyleCSS, stickerEmoji, accountAccentColor, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, frameClassName, bubbleColorStyle, avatarBadgeIcon, taglineStyleCSS, stickerEmoji, accountAccentColor, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
 import { DartsLocker, type DartsSetup } from "@/components/DartsLocker";
 import { TrophyCase } from "@/components/TrophyCase";
 import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
@@ -1239,7 +1239,7 @@ export default function AccountPage() {
 
         <div className="relative p-5" style={{ zIndex: 1 }}>
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative group/avatar"
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative group/avatar ${frameClassName(equippedFrame)}`}
               style={{ background: `radial-gradient(circle at 35% 30%, ${tCol}40, #0d0b14)`, border: `1.5px solid ${tCol}aa`, boxShadow: `0 0 20px ${tCol}55`, overflow: "hidden", ...frameStyle(equippedFrame) }}>
               {player?.avatarUpdatedAt ? (
                 <img src={`/api/players/${user.playerId}/avatar-image?v=${encodeURIComponent(player.avatarUpdatedAt)}`}

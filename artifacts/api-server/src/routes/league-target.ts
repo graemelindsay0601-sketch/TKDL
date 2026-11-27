@@ -59,6 +59,19 @@ router.get("/admin/league-target", async (req, res): Promise<void> => {
   } catch (err) { logger.error({ err }, "League Target admin view failed"); res.status(500).json({ error: "League Target unavailable" }); }
 });
 
+/** Months a player helped hit a League Target or a Gaffer challenge (live months only): pennants in their Clubhouse. */
+router.get("/players/:id/challenge-honours", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid id" }); return; }
+  const q = async (query: ReturnType<typeof sql>) => { try { return (await db.execute(query)).rows as any[]; } catch { return []; } };
+  const rows = [
+    ...(await q(sql`SELECT 'target' kind, t.month FROM league_target_shares s JOIN league_targets t ON t.month = s.month WHERE s.player_id = ${id} AND t.hit AND t.live`)),
+    ...(await q(sql`SELECT 'gaffer' kind, month FROM gaffer_months WHERE gaffer_id = ${id} AND hit AND live`)),
+    ...(await q(sql`SELECT 'squad' kind, g.month FROM gaffer_contributors c JOIN gaffer_months g ON g.month = c.month WHERE c.player_id = ${id} AND g.hit AND g.live AND g.gaffer_id IS DISTINCT FROM ${id}`)),
+  ];
+  res.json(rows.map(r => ({ kind: r.kind, month: r.month })).sort((a, b) => b.month.localeCompare(a.month)));
+});
+
 router.post("/admin/league-target/void", async (req, res): Promise<void> => {
   if ((req.session as any)?.isAdmin !== true) { res.status(403).json({ error: "Admin only" }); return; }
   const t = await currentTarget();

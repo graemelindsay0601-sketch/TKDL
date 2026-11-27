@@ -98,6 +98,14 @@ router.get("/gaffer", async (req, res): Promise<void> => {
   catch (err) { logger.error({ err }, "Gaffer snapshot failed"); res.status(500).json({ error: "The Gaffer is unavailable" }); }
 });
 
+/** Who's wearing the armband right now (for Standings and profiles). Null while the feature isn't visible to this viewer. */
+router.get("/gaffer/current", async (req, res): Promise<void> => {
+  res.set("Cache-Control", "no-store");
+  if (!(await gate(req))) { res.json({ id: null }); return; }
+  try { const g = await currentGaffer(); res.json({ id: g.voided ? null : g.gaffer_id, month: g.month }); }
+  catch { res.json({ id: null }); }
+});
+
 router.post("/gaffer/vote", async (req, res): Promise<void> => {
   const me = sess(req).playerId;
   if (!me) { res.status(401).json({ error: "Sign in to vote" }); return; }

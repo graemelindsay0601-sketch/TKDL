@@ -49,3 +49,9 @@
 .gf-card .lt-step.next .lt-step-n { background: #22c55e; color: #062014; }
 .gf-opt.locked { opacity: .55; cursor: default; }
 .gf-opt.locked span { color: #ffd24a; }
+.gf-armband { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; font: 700 .55rem/1 Oswald, sans-serif; letter-spacing: .1em; text-transform: uppercase;
+  padding: 3px 6px 3px 5px; border-radius: 5px; color: #1b1405; background: linear-gradient(180deg, #fff1b8, #ffd24a 55%, #c99a2e);
+  box-shadow: 0 0 0 1px rgba(255,210,74,.5), 0 0 10px rgba(255,210,74,.45); position: relative; overflow: hidden; }
+.gf-armband::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.7) 50%, transparent 65%); transform: translateX(-120%); animation: cosmetic-tag-glint 4s ease-in-out infinite; }
+.gf-armband.lg { font-size: .7rem; padding: 5px 9px 5px 7px; border-radius: 7px; }
+@media (prefers-reduced-motion: reduce) { .gf-armband::after { animation: none; } }

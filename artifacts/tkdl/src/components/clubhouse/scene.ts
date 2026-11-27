@@ -19,7 +19,25 @@ export type ClubData = {
   walkon: { nickname: string; a: string; b: string } | null;
   /** CLUBHOUSE_ROOM theme key; null = the default pub room. */
   theme?: string | null;
+  /** Months they helped hit a League Target or a Gaffer challenge (newest first): bunting along the back wall. */
+  pennants?: { kind: "target" | "gaffer" | "squad"; month: string }[];
 };
+
+const PENNANT = { target: { colour: "#19c3c8", label: "TARGET", what: "League Target hit" },
+  gaffer: { colour: "#ffd24a", label: "GAFFER", what: "Gaffer — challenge hit" }, squad: { colour: "#22c55e", label: "SQUAD", what: "Gaffer's challenge hit" } } as const;
+
+function pennantTex(colour: string, label: string, month: string) {
+  return canvasTex(256, 360, g => {
+    g.clearRect(0, 0, 256, 360);
+    g.beginPath(); g.moveTo(8, 8); g.lineTo(248, 8); g.lineTo(128, 352); g.closePath();
+    const grd = g.createLinearGradient(0, 0, 256, 360); grd.addColorStop(0, colour); grd.addColorStop(1, "#0c0a12");
+    g.fillStyle = grd; g.fill();
+    g.lineWidth = 10; g.strokeStyle = "#f3efe0"; g.stroke();
+    g.fillStyle = "#0c0a12"; g.fillRect(8, 8, 240, 34);
+    g.fillStyle = "#f3efe0"; g.textAlign = "center"; g.font = "bold 52px Oswald, Arial"; g.fillText(label, 128, 96, 150);
+    g.font = "bold 46px Oswald, Arial"; g.fillText(month, 128, 148, 120);
+  });
+}
 
 const W = 7.2, D = 7, H = 4.2; // room size
 
@@ -235,6 +253,52 @@ export function buildClubhouse(el: HTMLElement, data: ClubData, font: Font | nul
   const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.05, 40), wood); tableTop.position.set(2.6, 1.05, -1.95); tableTop.castShadow = true; scene.add(tableTop);
   const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.05, 12), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.8, roughness: 0.3 })); leg.position.set(2.6, 0.52, -1.95); scene.add(leg);
   const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 30), leg.material); foot.position.set(2.6, 0.015, -1.95); scene.add(foot);
+
+  // Challenge pennants: one per month they helped hit a League Target or a Gaffer challenge (earned only, never sold)
+  const pennants = (data.pennants ?? []).slice(0, 12).reverse();
+  if (pennants.length) {
+    const lineY = 3.98, z = -D / 2 + 0.08, step = 0.56, span = pennants.length * step;
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, span + 0.4, 6), new THREE.MeshStandardMaterial({ color: 0xd8c8a0, roughness: 0.8 }));
+    cord.rotation.z = Math.PI / 2; cord.position.set(0, lineY, z); scene.add(cord);
+    pennants.forEach((p, i) => {
+      const k = PENNANT[p.kind];
+      const mLabel = new Date(`${p.month}-01T12:00:00Z`).toLocaleString("en-GB", { month: "short", year: "2-digit", timeZone: "UTC" }).toUpperCase();
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.67), new THREE.MeshStandardMaterial({ map: pennantTex(k.colour, k.label, mLabel), transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85 }));
+      flag.position.set(-span / 2 + step / 2 + i * step, lineY - 0.34, z + 0.01); flag.rotation.z = ((i * 37) % 7 - 3) * 0.012; scene.add(flag);
+      tag(flag, { title: `${k.label === "GAFFER" ? "👑 " : ""}${new Date(`${p.month}-01T12:00:00Z`).toLocaleString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}`, lines: [k.what, "Earned, never bought."] });
+    });
+  }
+
+  // Exclusive rooms get their own props
+  if (data.theme === "shopfloor") {
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.42, 0.04), [wood, wood, wood, wood, new THREE.MeshStandardMaterial({ roughness: 0.4, map: canvasTex(1024, 205, g => {
+      g.fillStyle = "#0b3a8a"; g.fillRect(0, 0, 1024, 205); g.fillStyle = "#e11d2e"; g.fillRect(0, 0, 150, 205);
+      g.fillStyle = "#fff"; g.font = "bold 110px Oswald, Arial"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("180", 75, 108);
+      g.textAlign = "left"; g.font = "bold 84px Oswald, Arial"; g.fillText("AISLE · DARTS & FLIGHTS", 190, 108);
+    }) }), wood]);
+    sign.position.set(0, 3.55, -1.3); scene.add(sign);
+    for (const sx of [-0.9, 0.9]) { const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.65, 6), new THREE.MeshStandardMaterial({ color: 0xcfd6e0, metalness: 0.8 })); wire.position.set(sx, 4.0, -1.3); scene.add(wire); }
+    tag(sign, { title: "The Shop Floor", lines: ["Unlocked by helping hit 9 League Targets.", "Never in the Store."] });
+  }
+  if (data.theme === "gaffer") {
+    const easel = new THREE.Group();
+    const boardMesh = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.9, 0.04), [wood, wood, wood, wood, new THREE.MeshStandardMaterial({ roughness: 0.6, map: canvasTex(640, 460, g => {
+      g.fillStyle = "#f4f6f2"; g.fillRect(0, 0, 640, 460);
+      g.strokeStyle = "#1f8a3c"; g.lineWidth = 6; g.strokeRect(24, 24, 592, 412); g.beginPath(); g.moveTo(320, 24); g.lineTo(320, 436); g.stroke();
+      g.beginPath(); g.arc(320, 230, 70, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = "#c8102e"; g.font = "bold 56px Oswald, Arial"; for (const [x, y] of [[150, 140], [150, 330], [230, 235]]) g.fillText("X", x, y);
+      g.fillStyle = "#0b3a8a"; for (const [x, y] of [[450, 140], [450, 330], [400, 235]]) { g.beginPath(); g.arc(x, y - 18, 22, 0, Math.PI * 2); g.lineWidth = 7; g.strokeStyle = "#0b3a8a"; g.stroke(); }
+      g.strokeStyle = "#c8102e"; g.lineWidth = 5; g.setLineDash([14, 10]); g.beginPath(); g.moveTo(250, 215); g.quadraticCurveTo(330, 120, 420, 205); g.stroke(); g.setLineDash([]);
+      g.fillStyle = "#151515"; g.font = "bold 40px Oswald, Arial"; g.fillText("THE PLAN: T20, T20, D16", 120, 418);
+    }) }), wood]);
+    boardMesh.position.set(0, 1.35, 0); easel.add(boardMesh);
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0c, roughness: 0.6 });
+    for (const [lx, lz, rz] of [[-0.5, 0.06, 0.1], [0.5, 0.06, -0.1], [0, -0.35, 0]] as const) {
+      const legM = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.9, 8), legMat); legM.position.set(lx, 0.92, lz); legM.rotation.z = rz; if (lz < 0) legM.rotation.x = -0.2; easel.add(legM);
+    }
+    easel.position.set(1.25, 0, -2.3); easel.rotation.y = -0.25; scene.add(easel);
+    tag(boardMesh, { title: "The Gaffer's Office", lines: ["Unlocked by being the Gaffer for 3 challenges that were hit.", "Never in the Store."] });
+  }
 
   // Camera: stand at the oche-ish spot and look round the room
   const camera = new THREE.PerspectiveCamera(w / h < 0.8 ? 74 : 54, w / h, 0.1, 50);
