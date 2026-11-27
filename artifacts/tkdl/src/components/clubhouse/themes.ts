@@ -12,5 +12,7 @@ export const ROOM_THEMES: Record<string, RoomTheme> = {
   stage:    { wallTop: "#06121c", wallBottom: "#020509", stripe: "rgba(25,195,200,.04)", wood: 0x0d141c, rail: 0x19c3c8, floor: [18, 20, 26], ambient: 0xd8f6ff, warm: 0x5fd8ff, neon: "#ffd24a", neonGlow: 0xffd24a, spot: 0xffffff },
   // League Target exclusive (never sold): supermarket-blue walls, red trim, bright strip lights.
   shopfloor: { wallTop: "#0b3a8a", wallBottom: "#062457", stripe: "rgba(255,255,255,.05)", wood: 0x1b2b44, rail: 0xe11d2e, floor: [40, 42, 48], ambient: 0xf2f7ff, warm: 0xdbe8ff, neon: "#ff3b3b", neonGlow: 0xff2d2d, spot: 0xffffff },
+  // Gaffer exclusive (never sold): dugout green, brass and floodlight white.
+  gaffer: { wallTop: "#0f3d24", wallBottom: "#062014", stripe: "rgba(255,210,74,.05)", wood: 0x2a1a0c, rail: 0xffd24a, floor: [30, 26, 18], ambient: 0xf4fff6, warm: 0xffe2a8, neon: "#ffd24a", neonGlow: 0xffc23a, spot: 0xffffff },
 };
 export const themeFor = (key: string | null | undefined): RoomTheme => ROOM_THEMES[key ?? "pub"] ?? ROOM_THEMES.pub;

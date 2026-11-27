@@ -5,6 +5,7 @@ import { z } from "zod";
 import { logger } from "../lib/logger";
 import { EARNED_BY } from "../lib/achievements-v2/rewards.ts";
 import { LADDER_EARNED_BY } from "../lib/league-target.ts";
+import { GAFFER_EARNED_BY } from "../lib/gaffer.ts";
 import { isFeatureAvailable } from "../services/feature-flags-service";
 
 const router = Router();
@@ -31,9 +32,10 @@ router.get("/cosmetics/catalog", async (req, res): Promise<void> => {
       .orderBy(asc(cosmeticDefinitionsTable.category), asc(cosmeticDefinitionsTable.sortOrder));
     // League Target unlocks stay out of sight while the feature is running silently.
     const showTarget = await isFeatureAvailable("league_target", (req.session as any)?.isAdmin === true);
+    const showGaffer = await isFeatureAvailable("gaffer", (req.session as any)?.isAdmin === true);
     // award-only cosmetics from achievements and the League Target ladder say how they're earned
-    res.json(rows.filter(r => showTarget || !(r.id in LADDER_EARNED_BY)).map(r => {
-      const earnedBy = EARNED_BY[r.id] ?? LADDER_EARNED_BY[r.id];
+    res.json(rows.filter(r => (showTarget || !(r.id in LADDER_EARNED_BY)) && (showGaffer || !(r.id in GAFFER_EARNED_BY))).map(r => {
+      const earnedBy = EARNED_BY[r.id] ?? LADDER_EARNED_BY[r.id] ?? GAFFER_EARNED_BY[r.id];
       return earnedBy ? { ...r, earnedBy } : r;
     }));
   } catch (err) {

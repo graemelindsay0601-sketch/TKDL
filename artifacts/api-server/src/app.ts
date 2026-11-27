@@ -1863,6 +1863,10 @@ async function initRuntime() {
     const { initializeLeagueTargetScheduler } = await import("./lib/league-target-db");
     initializeLeagueTargetScheduler();
   });
+  await runInitStep("initializeGafferScheduler", async () => {
+    const { initializeGafferScheduler } = await import("./lib/gaffer-db");
+    initializeGafferScheduler();
+  });
   // One-off storage clean-ups for long careers, after startup and one after the other (each records when it is done).
   void (async () => {
     const { removeTournamentMatchCopies } = await import("./career/world/compact");
