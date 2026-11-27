@@ -424,6 +424,13 @@ export async function initializeFeatureFlags() {
       ON CONFLICT (feature_name) DO NOTHING
     `);
 
+    // The Gaffer: same silent-then-live pattern as League Target.
+    await db.execute(sql`
+      INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+      VALUES (${FEATURES.GAFFER}, false, true, ${"The Gaffer - monthly voted-in captain who picks the league's challenge. Runs silently in the background; unlocks only once switched on for everyone"})
+      ON CONFLICT (feature_name) DO NOTHING
+    `);
+
     // Career starts Hidden. Never overwrite an administrator's staged choice.
     await db.execute(sql`
       INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)

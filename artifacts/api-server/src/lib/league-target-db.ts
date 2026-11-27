@@ -35,14 +35,14 @@ export function ensureLeagueTargetTables(): Promise<void> {
   return ready;
 }
 
-const bounds = (key: string) => ({ from: londonMidnightUtc(`${key}-01`), to: londonMidnightUtc(`${shiftMonth(key, 1)}-01`) });
+export const bounds = (key: string) => ({ from: londonMidnightUtc(`${key}-01`), to: londonMidnightUtc(`${shiftMonth(key, 1)}-01`) });
 
 async function rows(q: ReturnType<typeof sql>): Promise<any[]> {
   try { return (await db.execute(q)).rows as any[]; } catch { return []; } // a table missing on an old database just counts as empty
 }
 
 /** Everything the targets count for one month, plus each player's match count. */
-export async function monthStats(key: string): Promise<MonthStats & { perPlayer: Map<number, number> }> {
+export async function monthStats(key: string): Promise<MonthStats & { perPlayer: Map<number, number>; pairList: string[] }> {
   const { from, to } = bounds(key);
   const perPlayer = new Map<number, number>();
   const pairs = new Set<string>();
@@ -96,7 +96,7 @@ export async function monthStats(key: string): Promise<MonthStats & { perPlayer:
   }
 
   const players = [...perPlayer.values()].filter(n => n >= MIN_MATCHES).length;
-  return { matches, pairings: pairs.size, oneEighties, players, perPlayer };
+  return { matches, pairings: pairs.size, oneEighties, players, perPlayer, pairList: [...pairs] };
 }
 
 export type TargetRow = { month: string; kind: TargetKind; target: number; final_value: number | null; hit: boolean | null; live: boolean };
