@@ -417,6 +417,13 @@ export async function initializeFeatureFlags() {
       ON CONFLICT (feature_name) DO NOTHING
     `);
 
+    // League Target: runs silently in the background; admins can preview, unlocks only once live for everyone.
+    await db.execute(sql`
+      INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+      VALUES (${FEATURES.LEAGUE_TARGET}, false, true, ${"League Target - monthly league-wide goal. Tracks silently in the background; unlocks only given out once switched on for everyone"})
+      ON CONFLICT (feature_name) DO NOTHING
+    `);
+
     // Career starts Hidden. Never overwrite an administrator's staged choice.
     await db.execute(sql`
       INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)

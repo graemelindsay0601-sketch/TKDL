@@ -4,6 +4,8 @@ import { eq, and, asc } from "drizzle-orm";
 import { z } from "zod";
 import { logger } from "../lib/logger";
 import { EARNED_BY } from "../lib/achievements-v2/rewards.ts";
+import { LADDER_EARNED_BY } from "../lib/league-target.ts";
+import { isFeatureAvailable } from "../services/feature-flags-service";
 
 const router = Router();
 
@@ -20,15 +22,20 @@ function sessionPlayerId(req: any): number | null {
 // needed: the shop UI reads this to render what's for sale, and anyone
 // rendering another player's equipped cosmetic (e.g. player-detail) needs
 // to look its colour/gradient/icon up here too.
-router.get("/cosmetics/catalog", async (_req, res): Promise<void> => {
+router.get("/cosmetics/catalog", async (req, res): Promise<void> => {
   try {
     const rows = await db
       .select()
       .from(cosmeticDefinitionsTable)
       .where(eq(cosmeticDefinitionsTable.enabled, true))
       .orderBy(asc(cosmeticDefinitionsTable.category), asc(cosmeticDefinitionsTable.sortOrder));
-    // award-only cosmetics from achievements say how they're earned
-    res.json(rows.map(r => EARNED_BY[r.id] ? { ...r, earnedBy: EARNED_BY[r.id] } : r));
+    // League Target unlocks stay out of sight while the feature is running silently.
+    const showTarget = await isFeatureAvailable("league_target", (req.session as any)?.isAdmin === true);
+    // award-only cosmetics from achievements and the League Target ladder say how they're earned
+    res.json(rows.filter(r => showTarget || !(r.id in LADDER_EARNED_BY)).map(r => {
+      const earnedBy = EARNED_BY[r.id] ?? LADDER_EARNED_BY[r.id];
+      return earnedBy ? { ...r, earnedBy } : r;
+    }));
   } catch (err) {
     logger.error({ err }, "Failed to get cosmetics catalog");
     res.status(500).json({ error: "Failed to get cosmetics catalog" });

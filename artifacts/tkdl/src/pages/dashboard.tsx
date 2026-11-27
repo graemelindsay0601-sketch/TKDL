@@ -24,6 +24,7 @@ import { MatchSpotlight } from "@/components/MatchSpotlight";
 import { SeasonBadge } from "@/components/SeasonalTheme";
 import { DailyDrill } from "@/components/DailyDrill";
 import { RecordBanner } from "@/components/RecordBanner";
+import { LeagueTargetCard } from "@/components/league-target/LeagueTargetCard";
 import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -766,6 +767,8 @@ export default function Dashboard() {
       <RecordBanner />
 
       <StateBand leaderboard={leaderboard} summary={summary} currentPlayer={currentPlayer} form={formData?.results ?? null} />
+
+      <LeagueTargetCard />
 
       <QuickActions liveScorerEnabled={appSettings?.live_scorer_enabled ?? false} />
 

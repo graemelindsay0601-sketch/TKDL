@@ -10,5 +10,7 @@ export const ROOM_THEMES: Record<string, RoomTheme> = {
   gold:     { wallTop: "#1b1610", wallBottom: "#0a0806", stripe: "rgba(255,210,74,.06)", wood: 0x0b0806, rail: 0xffc21a, floor: [4, 2, 6], ambient: 0xfff1d0, warm: 0xffc04a, neon: "#ff9d00", neonGlow: 0xffa000, spot: 0xfff2d6 },
   arcade:   { wallTop: "#1e0b3a", wallBottom: "#0b041c", stripe: "rgba(0,240,255,.05)", wood: 0x1a1030, rail: 0x19e3ff, floor: [30, 22, 44], ambient: 0xe6d8ff, warm: 0xc084fc, neon: "#19e3ff", neonGlow: 0x19e3ff, spot: 0xf2e8ff },
   stage:    { wallTop: "#06121c", wallBottom: "#020509", stripe: "rgba(25,195,200,.04)", wood: 0x0d141c, rail: 0x19c3c8, floor: [18, 20, 26], ambient: 0xd8f6ff, warm: 0x5fd8ff, neon: "#ffd24a", neonGlow: 0xffd24a, spot: 0xffffff },
+  // League Target exclusive (never sold): supermarket-blue walls, red trim, bright strip lights.
+  shopfloor: { wallTop: "#0b3a8a", wallBottom: "#062457", stripe: "rgba(255,255,255,.05)", wood: 0x1b2b44, rail: 0xe11d2e, floor: [40, 42, 48], ambient: 0xf2f7ff, warm: 0xdbe8ff, neon: "#ff3b3b", neonGlow: 0xff2d2d, spot: 0xffffff },
 };
 export const themeFor = (key: string | null | undefined): RoomTheme => ROOM_THEMES[key ?? "pub"] ?? ROOM_THEMES.pub;
