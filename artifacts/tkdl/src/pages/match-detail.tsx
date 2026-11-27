@@ -6,7 +6,7 @@ import { ShareCardButton } from "@/components/ShareCardButton";
 import "./match-centre.css";
 
 type Side={name:string;pointsDelta:number|null;eloDelta:number|null};
-type Detail={key:string;mode:string;isCombined:boolean;isMulti?:boolean;playedAt:string;seasonName:string|null;gameType:string;notes:string|null;stake:number;winner:Side;loser:Side;participants:any[];stats:{winner:any;loser:any}|null;context?:{meetingNumber:number;winnerWinsBefore:number;loserWinsBefore:number}|null;poster?:{id:number;status:string;kicker:string;reason:string|null;createdAt:string}|null;report?:{records?:string[];headline:string;standfirst:string;paragraphs:string[];keyStats:{label:string;winner:string;loser:string}[]}|null};
+type Detail={key:string;mode:string;isCombined:boolean;isMulti?:boolean;playedAt:string;seasonName:string|null;gameType:string;notes:string|null;stake:number;winner:Side;loser:Side;participants:any[];stats:{winner:any;loser:any}|null;context?:{meetingNumber:number;winnerWinsBefore:number;loserWinsBefore:number}|null;poster?:{id:number;status:string;kicker:string;reason:string|null;createdAt:string}|null;report?:{records?:string[];headline:string;standfirst:string;paragraphs:string[];keyStats:{label:string;winner:string;loser:string}[]}|null;scoredLive?:boolean};
 const labels:Record<string,string>={singles:"Singles",team:"Uneven Teams",doubles:"Doubles Event",shift_wars:"Shift Wars"};
 const game=(s:string)=>s.replace(/^(team_|doubles_|shift_wars_)/,"").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
 const signed=(n:number|null,suffix="")=>n==null?"—":`${n>0?"+":""}${n}${suffix}`;
@@ -30,7 +30,7 @@ export default function MatchDetail(){
   return <div className="mc-shell md-shell">
     <Link href="/match-centre" className="md-back"><ArrowLeft size={15}/> Back to Match Centre</Link>
     <header className="md-hero">
-      <div className="md-meta"><span>{labels[data.mode]??data.mode}</span>{data.isCombined&&<b>UNEVEN FORMAT</b>}{data.isMulti&&<b>MULTI-TEAM</b>}<span>{game(data.gameType)}</span></div>
+      <div className="md-meta"><span>{labels[data.mode]??data.mode}</span>{data.isCombined&&<b>UNEVEN FORMAT</b>}{data.isMulti&&<b>MULTI-TEAM</b>}<span>{game(data.gameType)}</span>{data.scoredLive&&<b className="md-live-badge" title="Played on the TKDL scorer: its 180s and checkouts count toward league challenges"><Target size={11}/> SCORED LIVE</b>}</div>
       <div className="md-date"><CalendarDays size={14}/>{format(new Date(data.playedAt),"EEEE, d MMMM yyyy · HH:mm")}{data.seasonName&&<> · {data.seasonName}</>}</div>
       <div className="md-scoreboard">
         <div className="md-team winner"><small>WINNER</small><Trophy/><h1>{data.winner.name}</h1><div>{signed(data.winner.pointsDelta," PTS")} {data.winner.eloDelta!=null&&<span>{signed(data.winner.eloDelta," ELO")}</span>}</div></div>

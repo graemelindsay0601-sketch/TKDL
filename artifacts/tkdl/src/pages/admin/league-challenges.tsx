@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { RefreshCw, Target, Crown, Ban } from "lucide-react";
 
 type Month = { month: string; [k: string]: unknown };
-type TargetAdmin = { live: boolean; month: string; label: string; unit: string; target: number; value: number; sharing: number; voided?: boolean; months: Month[] };
+type TargetAdmin = { live: boolean; month: string; label: string; unit: string; target: number; value: number; sharing: number; voided?: boolean; months: Month[];
+  scorerUse?: { month: string; scored: number; total: number }[] };
 type GafferAdmin = { live: boolean; month: string; gaffer: { id: number; name: string } | null; chosenBy: string; picking: boolean; pickBy: string; voided?: boolean;
   challenge: null | { label: string; levelName: string; target: number; value: number; paramLabel: string | null; contributors: number }; months: Month[] };
 
@@ -35,6 +36,23 @@ export function LeagueChallenges({ players }: { players: { id: number; name: str
         <button onClick={load} disabled={busy} className={btn} style={{ border: "1px solid rgba(255,255,255,.13)", color: "rgba(255,255,255,.7)" }}><RefreshCw size={14} className={busy ? "animate-spin" : ""} /><span className="hidden sm:inline">Refresh</span></button>
       </div>
       {err && <div className="rounded-lg p-3 text-sm" style={{ border: "1px solid rgba(255,0,92,.3)", color: "#ff7aa8" }}>{err}</div>}
+
+      {lt?.scorerUse && (
+        <div className="rounded-xl p-4 space-y-2.5" style={{ border: "1px solid rgba(34,197,94,.25)", background: "rgba(34,197,94,.04)" }}>
+          <b className="uppercase text-sm" style={{ fontFamily: "Oswald, sans-serif" }}>Played on the app's scorer</b>
+          <p className="text-xs text-white/45">Results with darts recorded, so their 180s and checkouts count. The rest were entered by hand.</p>
+          {lt.scorerUse.map(u => {
+            const pct = u.total ? Math.round((u.scored / u.total) * 100) : 0;
+            return (
+              <div key={u.month} className="flex items-center gap-3 text-xs">
+                <span className="w-16 shrink-0 text-white/60">{MONTH(u.month)}</span>
+                <span className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,.07)" }}><span className="block h-full rounded-full" style={{ width: `${pct}%`, background: "#22c55e" }} /></span>
+                <span className="shrink-0 text-right text-white/75 tabular-nums whitespace-nowrap">{u.scored}/{u.total} · {pct}%</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {lt && (
         <div className="rounded-xl p-4 space-y-3" style={{ border: "1px solid rgba(25,195,200,.25)", background: "rgba(25,195,200,.04)" }}>

@@ -18,6 +18,8 @@ import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Swords, AlertCircle, Crown, Skull, X, Trophy, Users, Target, Building2, Zap } from "lucide-react";
+import { Link } from "wouter";
+import { useFeature } from "@/lib/useFeature";
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -1199,6 +1201,22 @@ function SinglesPlayerCard({ player: p, isYou, isWinner, isLoser, isOther, disab
   );
 }
 
+/** Results entered here carry no darts, so 180s, checkouts and averages are lost. Point people at the live scorer. */
+function ScorerNudge() {
+  const target = useFeature("league_target"), gaffer = useFeature("gaffer");
+  const challenges = target || gaffer;
+  return (
+    <Link href="/play" className="flex items-center gap-3 rounded-xl px-3.5 py-3"
+      style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.28)" }}>
+      <span className="w-8 h-8 rounded-lg grid place-items-center shrink-0" style={{ background: "rgba(34,197,94,0.14)", color: "#4ade80" }}><Target className="w-4 h-4" /></span>
+      <span className="text-xs leading-snug" style={{ color: "rgba(255,255,255,0.75)" }}>
+        <b style={{ color: "#4ade80" }}>Play it on the TKDL scorer next time.</b>{" "}
+        A result entered here has no darts, so 180s, checkouts and averages{challenges ? ", and this month's League Target and Gaffer challenges," : ""} miss out.
+      </span>
+    </Link>
+  );
+}
+
 export default function SubmitMatch() {
   const { data: appSettings } = useSettings();
   const doublesEventEnabled = appSettings?.doubles_event_enabled ?? true;
@@ -1339,6 +1357,8 @@ export default function SubmitMatch() {
           </p>
         </div>
       </div>
+
+      <ScorerNudge />
 
       {/* ── MODE TOGGLE ── */}
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${1 + (doublesEventEnabled ? 1 : 0) + (shiftWarsEnabled ? 1 : 0)}, minmax(0, 1fr))` }}>
