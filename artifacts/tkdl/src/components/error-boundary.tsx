@@ -53,56 +53,34 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
       const chunkError = isChunkLoadError(this.state.error);
       return (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-5 px-6 text-center">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center"
-            style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.25)" }}
-          >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ff005c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-          </div>
-          <div>
-            <h2
-              className="font-black uppercase mb-2"
-              style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.4rem", letterSpacing: "0.1em", color: "#fff" }}
-            >
-              {chunkError ? "Update in progress" : "Something went wrong"}
-            </h2>
-            <p className="text-sm max-w-xs mx-auto" style={{ color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>
-              {chunkError
-                ? "The app was mid-update when this loaded. Reload to grab the latest version."
-                : this.state.error.message || "An unexpected error occurred."}
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={this.handleReset}
-              className="px-5 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-all hover:opacity-90"
-              style={{
-                background: "rgba(255,0,92,0.15)",
-                border: "1px solid rgba(255,0,92,0.4)",
-                color: "#ff005c",
-                fontFamily: "Oswald, sans-serif",
-                letterSpacing: "0.1em",
-              }}
-            >
-              {chunkError ? "Reload" : "Try Again"}
-            </button>
-            <button
-              onClick={() => window.location.href = "/"}
-              className="px-5 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest transition-all hover:opacity-90"
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "rgba(255,255,255,0.5)",
-                fontFamily: "Oswald, sans-serif",
-                letterSpacing: "0.1em",
-              }}
-            >
-              Go Home
-            </button>
+        <div className="flex items-center justify-center min-h-[50vh] px-4 py-8">
+          <div className="relative overflow-hidden w-full max-w-md text-center" style={{ borderRadius: 24, border: "1px solid rgba(255,92,147,.35)", background: "linear-gradient(160deg, rgba(255,0,92,.18) 0%, #14102a 45%, #06060b 100%)", boxShadow: "0 20px 50px rgba(0,0,0,.55), 0 0 40px rgba(255,0,92,.1)", padding: "28px 22px" }}>
+            <div className="absolute pointer-events-none" style={{ right: -80, top: -80, width: 260, height: 260, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,210,74,.25), transparent 65%)" }} />
+            <div className="absolute pointer-events-none" style={{ left: -60, bottom: -80, width: 240, height: 240, borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,.28), transparent 65%)" }} />
+            <div className="relative">
+              <span className="pm-chip" style={{ color: "#ff8fb3", borderColor: "rgba(255,92,147,.5)", background: "rgba(255,0,92,.12)" }}>
+                {chunkError ? "New version" : "Bounce out"}
+              </span>
+              <h2 className="pm-chrome uppercase mt-3" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "2rem", lineHeight: 1, letterSpacing: ".03em" }}>
+                {chunkError ? "Update in progress" : "Something went wrong"}
+              </h2>
+              <p className="text-sm max-w-xs mx-auto mt-3" style={{ color: "#b9b3cc", lineHeight: 1.6 }}>
+                {chunkError
+                  ? "The app was mid-update when this loaded. Reload to grab the latest version."
+                  : "This page hit a problem. Try again, or head back to the Hub."}
+              </p>
+              {!chunkError && this.state.error.message && (
+                <p className="text-xs mt-2 mx-auto max-w-xs" style={{ color: "rgba(255,255,255,.3)", fontFamily: "monospace", overflowWrap: "anywhere" }}>{this.state.error.message}</p>
+              )}
+              <div className="flex gap-3 justify-center mt-5">
+                <button onClick={this.handleReset} className="px-5 py-2.5 rounded-full uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: 13, letterSpacing: ".14em", color: "#1a1200", background: "linear-gradient(180deg,#ffe58a,#e0a800)", boxShadow: "0 0 22px rgba(255,210,74,.35)" }}>
+                  {chunkError ? "Reload" : "Try again"}
+                </button>
+                <button onClick={() => window.location.href = "/"} className="px-5 py-2.5 rounded-full uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: 13, letterSpacing: ".14em", color: "#e4e0f0", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.14)" }}>
+                  Back to the Hub
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       );

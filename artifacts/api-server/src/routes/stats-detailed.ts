@@ -703,7 +703,7 @@ router.get("/players/:id/stats/dart-profile", async (req, res) => {
         SELECT (dart->>'seg')::int AS seg
         FROM practice_sessions ps,
              jsonb_array_elements(ps.session_data->'dartLog') AS t(dart)
-        WHERE ps.player1_id = ${playerId} AND ps.session_data ? 'dartLog'
+        WHERE ps.player1_id = ${playerId} AND ps.session_data ? 'dartLog' AND NOT (dart ? 'typed')
       ),
       counted AS (
         SELECT seg, COUNT(*)::int AS hits

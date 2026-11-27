@@ -120,6 +120,14 @@ describe("interpolateTemplate (17.1 fact firewall)", () => {
     );
   });
 
+  test("rounds fractional numbers and names internal metrics", () => {
+    assert.equal(
+      interpolateTemplate("A career-best {{metric}} — {{value}}.", { metric: "scoringRate30", value: 2.9333333333333336 as unknown as string }),
+      "A career-best scoring rate — 2.93.",
+    );
+    assert.equal(interpolateTemplate("{{n}} wins", { n: 64 as unknown as string }), "64 wins");
+  });
+
   test("a template with no placeholders passes through unchanged", () => {
     assert.equal(interpolateTemplate("plain text", {}), "plain text");
   });

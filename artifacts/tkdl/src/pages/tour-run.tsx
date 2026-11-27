@@ -1,3 +1,4 @@
+import { Glow, DartboardBackdrop } from "@/components/premium/Premium";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { createPortal } from "react-dom";
@@ -124,8 +125,8 @@ function KOBracketView({ bracket, onPlay }: { bracket: KOBracket; onPlay: () => 
       {status === "active" && (
         <div className="mb-4">
           <button onClick={onPlay}
-            className="w-full py-3 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:opacity-90"
-            style={{ fontFamily: "Oswald, sans-serif", background: "#ff005c", color: "#fff", fontSize: "0.85rem", letterSpacing: "0.12em" }}>
+            className="w-full py-3.5 rounded-full uppercase flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
+            style={{ fontFamily: "Oswald, sans-serif", background: "linear-gradient(180deg, #ffe58a, #e0a800)", color: "#1a1200", border: "1px solid #ffd24a", boxShadow: "0 0 24px rgba(255,210,74,.45)", fontSize: "0.9rem", letterSpacing: "0.14em" }}>
             <Swords className="w-4 h-4" />
             Play Next Match
           </button>
@@ -518,59 +519,54 @@ export default function TourRun() {
   }
 
   return (
-    <div className="space-y-4 pb-10">
+    <div className="space-y-4 pb-10 pm-page">
       {/* Header */}
-      <div className="pdc-card p-4">
-        <div className="flex items-center gap-3 mb-3">
-          <button onClick={() => navigate("/tour")} className="p-1.5 rounded-lg transition-all hover:bg-white/[0.07]"
-            style={{ color: "rgba(255,255,255,0.4)" }}>
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-xl">{run.emoji}</span>
-            <div>
-              <div className="font-black uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", color: "#fff" }}>
-                {run.tour_name}
+      {(() => {
+        const stC = run.status === "completed" ? "#22c55e" : run.status === "eliminated" ? "#ff005c" : "#ffd24a";
+        return (
+          <div className="relative overflow-hidden" style={{ borderRadius: 24, border: `1px solid ${diffColor}66`, background: `linear-gradient(160deg, ${diffColor}2a 0%, #14102a 46%, #06060b 100%)`, boxShadow: `0 20px 50px rgba(0,0,0,.55), 0 0 36px ${diffColor}18` }}>
+            <Glow x="88%" y="5%" color="#ff005c" size={380} opacity={0.26} />
+            <Glow x="5%" y="95%" color={diffColor} size={340} opacity={0.22} />
+            <DartboardBackdrop size={420} opacity={0.07} style={{ right: -160, top: -110, transform: "rotate(8deg)" }} />
+            <div className="relative p-5" style={{ zIndex: 1 }}>
+              <div className="flex items-center gap-3">
+                <button onClick={() => navigate("/tour")} className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(255,255,255,.07)", border: "1px solid rgba(255,255,255,.14)", color: "#e4e0f0" }} aria-label="Back to Tour">
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <span className="pm-lab" style={{ color: "#ff7aa6" }}>Tour mode · Tier {run.tier}</span>
+                <span className="pm-chip ml-auto" style={{ color: stC, borderColor: `${stC}77`, background: `${stC}18` }}>{run.status}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", background: "rgba(255,255,255,0.06)", color: diffColor }}>
-                  {run.difficulty.toUpperCase()}
-                </span>
-                <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.62rem" }}>
-                  Tier {run.tier} · {bracket.format === "premier_league" ? "Premier League" : `${(bracket as KOBracket).bracketSize}-player Knockout`}
-                </span>
+              <div className="flex items-center gap-3 mt-3">
+                <div className="shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-3xl" style={{ background: `radial-gradient(circle at 35% 30%, ${diffColor}55, #0d0b14 75%)`, border: `1px solid ${diffColor}aa`, boxShadow: `0 0 20px ${diffColor}55` }}>{run.emoji}</div>
+                <div className="min-w-0">
+                  <h1 className="pm-title uppercase leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(1.8rem, 8vw, 2.8rem)", letterSpacing: ".03em" }}>{run.tour_name}</h1>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="pm-chip" style={{ fontSize: 9.5, color: diffColor, borderColor: `${diffColor}77`, background: `${diffColor}18` }}>{run.difficulty}</span>
+                    <span className="pm-chip" style={{ fontSize: 9.5 }}>{bracket.format === "premier_league" ? "Premier League" : `${(bracket as KOBracket).bracketSize}-player knockout`}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          {/* Status pill */}
-          <div className="shrink-0">
-            <span className="text-xs font-black px-2 py-1 rounded-full uppercase"
-              style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.1em",
-                background: run.status === "completed" ? "rgba(34,197,94,0.15)" : run.status === "eliminated" ? "rgba(255,0,92,0.15)" : "rgba(255,255,255,0.06)",
-                color: run.status === "completed" ? "#22c55e" : run.status === "eliminated" ? "#ff005c" : "rgba(255,255,255,0.4)",
-              }}>
-              {run.status}
-            </span>
-          </div>
-        </div>
 
-        {/* Opponent preview */}
-        {opponent && run.status === "active" && (
-          <div className="rounded-lg px-4 py-3 flex items-center gap-3" style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.15)" }}>
-            <span className="text-2xl">{opponent.flag}</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", color: "#fff" }}>
-                {opponent.name}
-              </div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.62rem" }}>{opponent.tagline}</div>
-            </div>
-            <div className="text-right">
-              <div className="font-black" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", fontSize: "1.1rem" }}>{opponent.avg}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.55rem" }}>avg</div>
+              {/* Next opponent */}
+              {opponent && run.status === "active" && (
+                <div className="mt-4 rounded-2xl p-3 flex items-center gap-3" style={{ background: "linear-gradient(90deg, rgba(255,0,92,.22), rgba(0,0,0,.25) 60%)", border: "1px solid rgba(255,0,92,.45)", boxShadow: "0 0 16px rgba(255,0,92,.15)" }}>
+                  <span className="w-12 h-12 rounded-full flex items-center justify-center text-2xl shrink-0" style={{ background: "rgba(0,0,0,.35)", border: "1px solid rgba(255,255,255,.14)" }}>{opponent.flag}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="pm-lab" style={{ fontSize: 8.5, color: "#ff7aa6" }}>Next opponent</div>
+                    <div className="uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: 18, letterSpacing: ".03em", color: "#fff" }}>{opponent.name}</div>
+                    <div className="text-xs leading-snug" style={{ color: "#a9a4bd" }}>{opponent.tagline}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, color: "#ffd24a", fontSize: 28, textShadow: "0 0 14px rgba(255,210,74,.55)" }}>{opponent.avg}</div>
+                    <div className="pm-lab justify-end" style={{ fontSize: 8.5 }}>avg</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Result banner */}
       {lastResult && (
@@ -602,7 +598,7 @@ export default function TourRun() {
       {advancing ? (
         <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>Recording result…</div>
       ) : bracket.format === "knockout" ? (
-        <div className="pdc-card p-4">
+        <div className="pm-card p-4" style={{ ["--pm-acc" as any]: "#ff005c" }}>
           <KOBracketView
             bracket={bracket as KOBracket}
             onPlay={() => {

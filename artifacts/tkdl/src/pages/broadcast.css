@@ -56,14 +56,11 @@
 .ls-table-head span:nth-child(n+3) { text-align:center; } .ls-table-head span:last-child { text-align:right; }
 .ls-row { min-height:65px; padding:7px 19px; border-top:1px solid rgba(255,255,255,.05); }
 .ls-row.first { background:linear-gradient(90deg,rgba(255,210,74,.09),rgba(255,210,74,.015) 70%); border-left:3px solid var(--gold); }
-.ls-row.first .ls-position,.ls-row.first b { color:var(--gold); text-shadow:0 0 16px rgba(255,210,74,.34); }
 .ls-row.top-1 { position:relative; overflow:hidden; background:linear-gradient(90deg,rgba(255,210,74,.12),rgba(255,210,74,.015) 72%); border-left:3px solid var(--gold); }
 .ls-row.top-1::after { content:""; position:absolute; top:-70%; left:-20%; width:12%; height:240%; rotate:18deg; background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent); animation:ls-sweep 7s ease-in-out infinite; }
-.ls-row.top-1 .ls-position,.ls-row.top-1 b { color:var(--gold); text-shadow:0 0 16px rgba(255,210,74,.34); }
 .ls-row.top-2 { border-left:3px solid rgba(190,205,225,.42); background:linear-gradient(90deg,rgba(190,205,225,.045),transparent 65%); }
 .ls-row.top-3 { border-left:3px solid rgba(205,127,50,.48); background:linear-gradient(90deg,rgba(205,127,50,.045),transparent 65%); }
 .ls-row.out { opacity:.42; }
-.ls-position { color:rgba(255,255,255,.38); font:16px Oswald,sans-serif; }
 .ls-player { min-width:0; } .ls-player strong { display:block; overflow:hidden; color:rgba(255,255,255,.94); font:800 14px Oswald,sans-serif; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; }
 .ls-player small { display:block; overflow:hidden; margin-top:3px; color:rgba(255,255,255,.38); font-size:8px; text-overflow:ellipsis; white-space:nowrap; }
 .ls-wins,.ls-losses { text-align:center; font:11px "Share Tech Mono",monospace; } .ls-wins { color:#63dd8e; } .ls-losses { color:#ff739f; }
@@ -230,3 +227,24 @@
 @media(max-width:900px) { .ls-draw-show{grid-template-rows:auto 3px minmax(390px,1fr) auto auto}.ls-draw-team-ribbon{grid-template-columns:repeat(2,minmax(0,1fr))}.ls-draw-team-ribbon article:last-child:nth-child(odd){grid-column:1/-1}.ls-draw-reveal{width:min(88vw,700px)} }
 @media(max-width:650px) { .ls-draw-header{align-items:flex-start}.ls-draw-actions button span{display:none}.ls-draw-actions button{padding:0;width:38px;min-width:38px}.ls-draw-stage{min-height:390px;padding-inline:12px}.ls-draw-reveal{width:92vw;min-height:165px;padding:20px}.ls-draw-reveal h2{font-size:44px}.ls-draw-team-ribbon{grid-template-columns:1fr}.ls-draw-team-ribbon article:last-child:nth-child(odd){grid-column:auto}.ls-draw-footer{grid-template-columns:1fr 1fr}.ls-draw-footer small{display:none} }
 @media(prefers-reduced-motion:reduce) { .ls-draw-show * { animation-duration:.01ms!important; animation-iteration-count:1!important; } }
+
+/* ── Premium pass (Nov 2026): the app's hero-card look ─────────────── */
+.league-screen {
+  background:
+    radial-gradient(60% 40% at 88% 6%, rgba(255,210,74,.18), transparent 60%),
+    radial-gradient(55% 45% at 4% 70%, rgba(168,85,247,.22), transparent 60%),
+    radial-gradient(50% 40% at 80% 105%, rgba(255,0,92,.14), transparent 60%),
+    linear-gradient(160deg, #1a1430 0%, #0d0a18 45%, #06060b 100%) !important;
+}
+.league-screen .ls-masthead h1 { font-weight: 700; letter-spacing: .02em;
+  background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 6px 18px rgba(0,0,0,.6)); }
+.league-screen .ls-masthead h1 span { background: linear-gradient(180deg, #fff7d6 0%, #ffd24a 45%, #b8860b 70%, #ffe9a3 100%); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; }
+.league-screen .ls-panel, .league-screen .ls-app-card {
+  border: 1px solid transparent !important;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(255,210,74,.09), transparent 55%) padding-box,
+    linear-gradient(180deg, rgba(23,20,31,.95), rgba(12,10,18,.96)) padding-box,
+    linear-gradient(140deg, rgba(255,210,74,.55) 0%, rgba(255,255,255,.1) 28%, rgba(255,255,255,.03) 60%, rgba(255,210,74,.3) 100%) border-box !important;
+}
+.league-screen .ls-row { margin: 4px 8px; border-radius: 12px; border: 1px solid rgba(255,255,255,.06) !important; background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01)); }
+.league-screen .ls-player strong, .league-screen .ls-player b { background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }

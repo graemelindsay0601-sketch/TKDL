@@ -4,3 +4,69 @@
 @media(max-width:760px){.md-control-hero{flex-direction:column;padding:20px}.md-status{align-self:stretch}.md-control-grid{grid-template-columns:1fr}.md-pickers{grid-template-columns:1fr}.md-pickers>b{padding:0}.md-versus{grid-template-columns:1fr;gap:9px}.md-versus>div{display:flex;align-items:center;justify-content:center;gap:4px}.md-versus>div svg{width:22px}.md-show{min-height:auto}.md-show main{padding:24px 14px}.md-show h1{margin-bottom:18px}.md-versus article{padding:18px}.md-tale{grid-template-columns:1fr}.md-tale div{border-right:0;border-bottom:1px solid rgba(255,255,255,.07)}.md-show-actions{flex-direction:column}.md-show header span{display:none}}
 .md-auto-promo,.md-spotlight-reason{margin-top:14px;padding:10px 12px;border:1px solid rgba(255,210,74,.25);border-radius:10px;background:rgba(255,210,74,.065);color:rgba(255,255,255,.46);font-size:.68rem}.md-auto-promo strong{display:block;color:#ffd24a;font:900 .64rem Oswald,sans-serif;letter-spacing:.12em}.md-auto-promo span{display:block;margin-top:3px}.md-spotlight-reason{display:inline-block;margin:-18px auto 22px;color:#ffd24a}.md-launch-actions{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;margin-top:17px}.md-launch-actions .md-build{margin-top:0}@media(max-width:760px){.md-launch-actions{grid-template-columns:1fr}.md-show-actions{align-items:stretch}.md-show-actions>button{justify-content:center}}
 .md-kit{display:block!important;margin-top:8px;color:#ffd24a!important;font-size:.58rem!important;letter-spacing:.04em!important}
+
+/* ── Premium pass (2026-11-20) ───────────────────────────────────────────── */
+.md-control-hero {
+  border: 1px solid rgba(255,0,92,.4) !important; border-radius: 24px !important;
+  background:
+    radial-gradient(circle at 92% 2%, rgba(255,0,92,.32), transparent 36%),
+    radial-gradient(circle at 0% 95%, rgba(0,102,255,.24), transparent 42%),
+    linear-gradient(165deg, #1b1030 0%, #0e0b18 45%, #06060b 100%) !important;
+  box-shadow: 0 20px 50px rgba(0,0,0,.55), 0 0 40px rgba(255,0,92,.1), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.md-control-hero::after {
+  content: ""; position: absolute; top: -110px; right: -170px; width: 460px; height: 460px; border-radius: 50%; opacity: .07; transform: rotate(8deg); pointer-events: none;
+  background: repeating-conic-gradient(from 9deg, #fff 0 18deg, transparent 18deg 36deg);
+  -webkit-mask: radial-gradient(circle, #000 0 22%, transparent 22.5% 30%, #000 30.5% 62%, transparent 62.5% 70%, #000 70.5%);
+          mask: radial-gradient(circle, #000 0 22%, transparent 22.5% 30%, #000 30.5% 62%, transparent 62.5% 70%, #000 70.5%);
+}
+.md-control-hero > * { position: relative; z-index: 1; }
+.md-control-hero h1 { background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: .01em !important; }
+.md-control-hero h1 em { -webkit-text-fill-color: #ff2f72; text-shadow: 0 0 26px rgba(255,0,92,.55); }
+.md-control-hero p { color: #a9a4bd !important; }
+.md-status { border-radius: 18px !important; background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015)) !important; border: 1px solid rgba(255,255,255,.14) !important; }
+.md-launch, .md-control-grid > aside {
+  border: 1px solid transparent !important; border-radius: 20px !important;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.06), rgba(20,17,30,.96) 40%, rgba(10,9,15,.98)) padding-box,
+    linear-gradient(160deg, rgba(255,0,92,.6), rgba(255,255,255,.08) 45%, rgba(168,85,247,.35)) border-box !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07);
+}
+.md-section-title > svg { width: 34px; height: 34px; padding: 8px; border-radius: 10px; color: #ff5c93 !important; background: rgba(255,0,92,.16); border: 1px solid rgba(255,0,92,.5); box-shadow: 0 0 12px rgba(255,0,92,.3); }
+.md-section-title h2 { background: linear-gradient(180deg, #fff7d6 0%, #ffd24a 45%, #b8860b 70%, #ffe9a3 100%); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: .05em; }
+.md-competitions button { border-radius: 999px !important; }
+.md-competitions button.active { background: linear-gradient(180deg, #ffe58a, #e0a800) !important; color: #1a1200 !important; border-color: #ffd24a !important; box-shadow: 0 0 12px rgba(255,210,74,.4); }
+.md-pickers select { border-radius: 999px !important; }
+.md-build:not(:disabled) { background: linear-gradient(180deg, #ffe58a, #e0a800) !important; color: #1a1200 !important; border: 1px solid #ffd24a !important; box-shadow: 0 0 22px rgba(255,210,74,.45) !important; border-radius: 999px !important; }
+.md-build { border-radius: 999px !important; }
+.md-result { border-radius: 14px; padding-left: 10px !important; padding-right: 10px !important; background: linear-gradient(90deg, rgba(255,210,74,.08), transparent 60%); margin-top: 6px; }
+.md-result b { color: #ffd24a !important; font-family: Oswald, sans-serif; text-shadow: 0 0 12px rgba(255,210,74,.5); }
+.md-links a { border-radius: 14px !important; }
+
+/* ── Deeper premium pass ─────────────────────────────────────────────────── */
+.md-plaques { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 16px; }
+.md-plaques > div { text-align: center; padding: 10px 2px 9px; border-radius: 16px; background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.02)); border: 1px solid rgba(255,255,255,.13); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
+.md-plaques b { display: block; font: 700 24px/1 Oswald, sans-serif; }
+.md-plaques span { display: block; margin-top: 5px; font: 500 8.5px Oswald, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #a9a4bd; white-space: nowrap; }
+.md-plaques .pink, .md-tape .pink { color: #ff7aa6; text-shadow: 0 0 14px rgba(255,0,92,.5); }
+.md-plaques .gold { color: #ffd24a; text-shadow: 0 0 14px rgba(255,210,74,.55); }
+.md-plaques .blue, .md-tape .blue { color: #9cc6ff; text-shadow: 0 0 14px rgba(0,102,255,.55); }
+
+/* Numbered steps */
+.md-control-grid { counter-reset: mdstep; }
+.md-section-title { counter-increment: mdstep; }
+.md-section-title small::before { content: counter(mdstep, decimal-leading-zero) " · "; color: #ffd24a; }
+
+/* Tale of the tape */
+.md-tape { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 4px; }
+.md-tape .side { position: relative; overflow: hidden; padding: 14px 12px 12px; border-radius: 18px; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 22px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07); }
+.md-tape .side.a { background: linear-gradient(160deg, rgba(255,0,92,.28), rgba(20,17,30,.96) 60%); border-color: rgba(255,0,92,.5); }
+.md-tape .side.b { background: linear-gradient(200deg, rgba(0,102,255,.3), rgba(20,17,30,.96) 60%); border-color: rgba(0,102,255,.55); text-align: right; }
+.md-tape small { display: block; font: 500 9px Oswald, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #a9a4bd; }
+.md-tape strong { display: block; margin-top: 3px; font: 700 22px/1.05 Oswald, sans-serif; letter-spacing: .03em; text-transform: uppercase; overflow-wrap: anywhere; background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.md-tape .nums { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px; margin-top: 10px; }
+.md-tape .nums > div { text-align: center; padding: 6px 0 5px; border-radius: 10px; background: rgba(0,0,0,.28); }
+.md-tape .nums b { display: block; font: 700 17px/1 Oswald, sans-serif; color: #fff; white-space: nowrap; }
+.md-tape .nums em { font-style: normal; } .md-tape .nums .w { color: #4ade80; } .md-tape .nums .l { color: #ff7a9c; }
+.md-tape .nums span { display: block; margin-top: 3px; font: 500 8px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #8f8aa3; }
+.md-tape .vs { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font: 700 15px Oswald, sans-serif; color: #1a1200; background: linear-gradient(180deg, #ffe58a, #d99a00); border: 2px solid #0b0910; box-shadow: 0 0 18px rgba(255,210,74,.55); z-index: 2; }

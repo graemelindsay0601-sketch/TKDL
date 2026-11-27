@@ -1,7 +1,10 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { Link, useLocation } from "wouter";
+import { ResumeNudge } from "@/components/ResumeNudge";
+import { SeasonalTheme } from "@/components/SeasonalTheme";
+import { WelcomeTour } from "@/components/WelcomeTour";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase, ChevronDown, ChevronRight } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -370,6 +373,7 @@ export function Layout({ children }: { children: ReactNode }) {
   // as the rest isn't a change to the feature, just to this row's paint.
   const NAV_SECTIONS: Array<{ key: string; label: string; items: NavItem[]; color: string; show: boolean }> = [
     { key: "hub",          label: "Hub",          items: hubNav,               color: "#0066ff", show: true },
+    { key: "league",       label: "League",       items: leagueNav,            color: "#38bdf8", show: true },
     { key: "community",    label: "Off the Oche", items: communityNav,         color: "#22c55e", show: communityEnabled || !!authUser?.isAdmin },
     { key: "play",         label: "Play",         items: dynamicPlayNav,       color: "#ff005c", show: dynamicPlayNav.length > 0 },
     { key: "practice",     label: "Practice",     items: practiceNav,          color: "#00e5a0", show: true },
@@ -381,7 +385,6 @@ export function Layout({ children }: { children: ReactNode }) {
     { key: "bossbattle",   label: "Boss Battle",  items: dynamicBossBattleNav, color: "#ef4444", show: dynamicBossBattleNav.length > 0 },
     { key: "boardcurse",   label: "Board Curse",  items: dynamicBoardCurseNav, color: "#eab308", show: dynamicBoardCurseNav.length > 0 },
     { key: "tkdllive",     label: "TKDL LIVE",    items: dynamicTkdlLiveNav,   color: "#ffd24a", show: dynamicTkdlLiveNav.length > 0 },
-    { key: "league",       label: "League",       items: leagueNav,            color: "#38bdf8", show: true },
     { key: "achievements", label: "Achievements", items: achievementsNav,      color: "#8b5cf6", show: true },
     { key: "admin",        label: "Admin",        items: configNav,            color: "#8a8a94", show: !!authUser?.isAdmin },
   ];
@@ -403,7 +406,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
     return (
       <Link href={item.href}
-        className={`nav-item sidebar-fade-in flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-sm relative ${
+        className={`nav-item sidebar-fade-in flex items-center gap-3 px-2.5 py-2 rounded-xl transition-colors duration-200 text-sm relative ${
           isActive ? "active text-white" : "text-white/60 hover:text-white"
         } ${collapsed ? "justify-center px-2" : ""}`}
         style={{ "--c": color, animationDelay: `${delayMs}ms` } as React.CSSProperties}
@@ -427,22 +430,55 @@ export function Layout({ children }: { children: ReactNode }) {
     );
   }
 
-  function NavSection({ label, items, color, sectionIndex }: { label: string; items: NavItem[]; color: string; sectionIndex: number }) {
-    return (
-      <div>
-        <div className={`px-3 mb-1 flex items-center gap-1.5 sidebar-fade-in ${collapsed ? "justify-center px-0" : ""}`}
-          style={{ animationDelay: `${150 + sectionIndex * 45}ms` } as React.CSSProperties}>
-          <span className="nav-section-dot shrink-0" style={{ "--c": color, width: 5, height: 5, borderRadius: "50%" } as React.CSSProperties} />
-          {!collapsed && (
-            <span className="nav-section-label" style={{ "--c": color, fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.15em", fontWeight: 700, textTransform: "uppercase" } as React.CSSProperties}>
-              {label}
-            </span>
-          )}
-        </div>
-        <div className="space-y-0.5">
-          {items.map((item, i) => <NavLink key={item.href} item={item} color={color} sectionIndex={sectionIndex} itemIndex={i} />)}
-        </div>
+  // Each section is a premium card. One-page sections go straight to their
+  // page; the rest open to show their pages, and the section you're in is
+  // open already. The line under each title lists what's inside.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  function NavSection({ sectionKey, label, items, color, sectionIndex }: { sectionKey: string; label: string; items: NavItem[]; color: string; sectionIndex: number }) {
+    const hasActive = items.some(item => location === item.href || (item.href !== "/" && location.startsWith(item.href)));
+    const Icon = items[0].icon;
+    const list = (
+      <div className="navx-items">
+        {items.map((item, i) => <NavLink key={item.href} item={item} color={color} sectionIndex={sectionIndex} itemIndex={i} />)}
       </div>
+    );
+    if (collapsed) return <section className="navx navx-collapsed" style={{ "--c": color } as React.CSSProperties}>{list}</section>;
+    const head = (inner: React.ReactNode) => (
+      <>
+        <span className="navx-ico"><Icon className="w-4 h-4" /></span>
+        <span className="navx-titles">
+          <span className="navx-title pm-metal">{label}</span>
+          {items.length > 1 && <span className="navx-sub">{items.map(i => i.label).join(" · ")}</span>}
+        </span>
+        {inner}
+      </>
+    );
+    if (items.length === 1) {
+      const it = items[0];
+      return (
+        <section className={`navx navx-acc ${hasActive ? "has-active" : ""}`} style={{ "--c": color } as React.CSSProperties}>
+          <Link href={it.href} className="navx-acc-head">
+            {head(<>
+              {it.href === "/community" && communityUnread > 0 && <span className="navx-badge">{communityUnread > 9 ? "9+" : communityUnread}</span>}
+              <ChevronRight className="navx-chev w-4 h-4" />
+            </>)}
+          </Link>
+        </section>
+      );
+    }
+    const open = openSections[sectionKey] ?? hasActive;
+    return (
+      <section className={`navx navx-acc ${open ? "open" : ""} ${hasActive ? "has-active" : ""}`} style={{ "--c": color } as React.CSSProperties}>
+        <button type="button" className="navx-acc-head" aria-expanded={open}
+          onClick={() => setOpenSections(prev => ({ ...prev, [sectionKey]: !open }))}>
+          {head(<>
+            <span className="navx-count">{items.length}</span>
+            <ChevronDown className="navx-chev w-4 h-4" />
+          </>)}
+        </button>
+        {open && list}
+      </section>
     );
   }
 
@@ -487,7 +523,7 @@ export function Layout({ children }: { children: ReactNode }) {
       {leader && (
         <Link href={`/players/${leader.playerId}`}>
           <div className={`sidebar-fade-in mt-3 rounded-xl cursor-pointer transition-opacity hover:opacity-80 ${collapsed ? "mx-2 px-2 py-2 flex flex-col items-center" : "mx-3 px-3 py-2.5"}`}
-            style={{ animationDelay: "70ms", background: "linear-gradient(135deg, rgba(255,210,74,0.12) 0%, rgba(255,210,74,0.03) 100%)", border: "1px solid rgba(255,210,74,0.22)", boxShadow: "0 4px 16px rgba(255,210,74,0.04)" } as React.CSSProperties}>
+            style={{ animationDelay: "70ms", border: "1px solid transparent", background: "radial-gradient(90% 120% at 100% 0%, rgba(255,210,74,.22), transparent 60%) padding-box, linear-gradient(160deg, rgba(30,24,16,.96), rgba(12,10,18,.98)) padding-box, linear-gradient(160deg, rgba(255,210,74,.75), rgba(255,255,255,.08) 50%, rgba(255,210,74,.3)) border-box", boxShadow: "0 8px 20px rgba(0,0,0,.4), 0 0 18px rgba(255,210,74,.12)" } as React.CSSProperties}>
             {collapsed ? (
               <>
                 <div style={{ fontSize: "0.8rem" }}>🏆</div>
@@ -501,7 +537,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.47rem", letterSpacing: "0.2em", color: "rgba(255,210,74,0.45)", textTransform: "uppercase", marginBottom: "0.3rem" }}>
                     🏆 Season Leader
                   </div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.88rem", fontWeight: 800, color: "#ffd24a", letterSpacing: "0.04em", lineHeight: 1.1 }} className="truncate">
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.05rem", fontWeight: 700, letterSpacing: "0.04em", lineHeight: 1.1, textTransform: "uppercase" }} className="truncate pm-metal">
                     {leader.playerName}
                   </div>
                   <div style={{ fontSize: "0.55rem", color: "rgba(255,255,255,0.28)", marginTop: 2 }}>
@@ -509,7 +545,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.55rem", fontWeight: 900, color: "#ff005c", lineHeight: 1, textShadow: "0 0 14px rgba(255,0,92,0.6)" }}>
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.7rem", fontWeight: 700, color: "#ffd24a", lineHeight: 1, textShadow: "0 0 16px rgba(255,210,74,0.6)" }}>
                     {leader.points}
                   </div>
                   <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.22)", lineHeight: 1 }}>pts</div>
@@ -521,14 +557,9 @@ export function Layout({ children }: { children: ReactNode }) {
       )}
 
       {/* Navigation — one accent colour per section, see NAV_SECTIONS above */}
-      <nav className="nav-edge-fade flex-1 overflow-y-auto py-3 px-2 space-y-2">
+      <nav className="nav-edge-fade flex-1 overflow-y-auto py-3 px-2.5 navx-wrap">
         {visibleNavSections.map((section, si) => (
-          <div key={section.key}>
-            <NavSection label={section.label} items={section.items} color={section.color} sectionIndex={si} />
-            {si < visibleNavSections.length - 1 && (
-              <div className="h-px mx-2 mt-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-            )}
-          </div>
+          <NavSection key={section.key} sectionKey={section.key} label={section.label} items={section.items} color={section.color} sectionIndex={si} />
         ))}
       </nav>
 
@@ -634,9 +665,11 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
           ) : <div aria-hidden className="h-11 w-11" />}
         </header>
+        <SeasonalTheme />
 
         <main className="tkdl-main flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 1 }}>
           <div className="tkdl-content-frame max-w-5xl mx-auto p-4 md:p-6 lg:p-8">
+            <ResumeNudge />
             {children}
           </div>
         </main>
@@ -645,6 +678,7 @@ export function Layout({ children }: { children: ReactNode }) {
       {!inCareerSave && <LiveTicker />}
 
       <NotificationOptInPrompt />
+      <WelcomeTour />
 
       {updateReady && !matchInProgressRoute && (
         <div className="fixed z-40 left-1/2 -translate-x-1/2 bottom-20 lg:bottom-10 flex items-center gap-3 rounded-xl px-4 py-3 shadow-2xl"

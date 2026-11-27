@@ -1,3 +1,4 @@
+import { Glow, DartboardBackdrop } from "@/components/premium/Premium";
 import { useState, useEffect } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, Trophy, Lock, Coins, Package, Zap, Users } from "lucide-react";
@@ -121,46 +122,49 @@ export default function AchievementDetailPage() {
       </Link>
 
       {/* ══ TROPHY HERO ══ */}
-      <div className="relative overflow-hidden rounded-2xl"
+      <div className="relative overflow-hidden"
         style={{
-          background: `linear-gradient(135deg, ${rm.bg} 0%, rgba(9,9,15,0.98) 60%, ${rm.bg} 100%)`,
-          border: `1px solid ${rm.border}`,
+          borderRadius: 24,
+          background: `linear-gradient(160deg, ${rm.color}30 0%, #14102a 46%, #06060b 100%)`,
+          border: `1px solid ${rm.color}66`,
+          boxShadow: `0 20px 50px rgba(0,0,0,.55), 0 0 40px ${rm.color}1a`,
         }}>
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: `radial-gradient(ellipse at 15% 30%, ${rm.bg} 0%, transparent 65%)` }} />
-        <div className="relative p-6 md:p-8 flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
-          <div className="flex-shrink-0 rounded-2xl flex items-center justify-center"
+        <Glow x="50%" y="0%" color={rm.color} size={420} opacity={0.3} />
+        <Glow x="5%" y="95%" color="#a855f7" size={340} opacity={0.2} />
+        <DartboardBackdrop size={440} opacity={0.07} style={{ right: -170, top: -110, transform: "rotate(8deg)" }} />
+        <div className="relative p-6 md:p-8 flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left" style={{ zIndex: 1 }}>
+          <div className="flex-shrink-0 rounded-full flex items-center justify-center"
             style={{
-              width: 96, height: 96, fontSize: 44,
-              background: rm.bg, border: `2px solid ${rm.border}`, boxShadow: rm.glow,
+              width: 112, height: 112, fontSize: 52,
+              background: `radial-gradient(circle at 35% 30%, ${rm.color}55, #0d0b14 75%)`, border: `2px solid ${rm.color}`, boxShadow: `0 0 30px ${rm.color}77, inset 0 1px 0 rgba(255,255,255,.2)`,
             }}>
             {isHidden ? <Lock className="w-10 h-10" style={{ color: rm.color }} /> : (data.icon || "🏆")}
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start mb-1.5">
-              <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
+              <span className="pm-chip"
                 style={{ color: rm.color, background: rm.bg, border: `1px solid ${rm.border}`, fontFamily: "Oswald, sans-serif" }}>
                 {data.rarity ?? "Achievement"}
               </span>
-              <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
+              <span className="pm-chip"
                 style={{ color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", fontFamily: "Oswald, sans-serif" }}>
                 {SYSTEM_LABEL[data.system] ?? data.system}
               </span>
               {data.category && (
-                <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
+                <span className="pm-chip"
                   style={{ color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", fontFamily: "Oswald, sans-serif" }}>
                   {data.category}
                 </span>
               )}
               {data.repeatable && (
-                <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
+                <span className="pm-chip"
                   style={{ color: "#22c55e", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)", fontFamily: "Oswald, sans-serif" }}>
                   Re-earnable each season
                 </span>
               )}
             </div>
-            <h1 className="text-2xl md:text-3xl font-black" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
+            <h1 className="pm-title uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(1.9rem, 8vw, 2.8rem)", letterSpacing: ".03em", lineHeight: 1.02 }}>
               {isHidden ? "Hidden Achievement" : data.name}
             </h1>
             <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>
@@ -212,7 +216,7 @@ export default function AchievementDetailPage() {
       </div>
 
       {/* ══ UNLOCK LIST ══ */}
-      <div className="section-card p-4 md:p-6">
+      <div className="pm-card p-4 md:p-6" style={{ ["--pm-acc" as any]: rm.color }}>
         <h2 className="text-xs font-black uppercase tracking-widest mb-4 flex items-center gap-2"
           style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>
           <Trophy className="w-3.5 h-3.5" style={{ color: rm.color }} />

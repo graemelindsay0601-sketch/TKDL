@@ -3,6 +3,10 @@ import { db, playersTable, playerCurrencyTable, cosmeticDefinitionsTable, player
 import { eq, and, asc } from "drizzle-orm";
 import { z } from "zod";
 import { logger } from "../lib/logger";
+import { EARNED_BY } from "../lib/achievements-v2/rewards.ts";
+import { LADDER_EARNED_BY } from "../lib/league-target.ts";
+import { GAFFER_EARNED_BY } from "../lib/gaffer.ts";
+import { isFeatureAvailable } from "../services/feature-flags-service";
 
 const router = Router();
 
@@ -19,14 +23,21 @@ function sessionPlayerId(req: any): number | null {
 // needed: the shop UI reads this to render what's for sale, and anyone
 // rendering another player's equipped cosmetic (e.g. player-detail) needs
 // to look its colour/gradient/icon up here too.
-router.get("/cosmetics/catalog", async (_req, res): Promise<void> => {
+router.get("/cosmetics/catalog", async (req, res): Promise<void> => {
   try {
     const rows = await db
       .select()
       .from(cosmeticDefinitionsTable)
       .where(eq(cosmeticDefinitionsTable.enabled, true))
       .orderBy(asc(cosmeticDefinitionsTable.category), asc(cosmeticDefinitionsTable.sortOrder));
-    res.json(rows);
+    // League Target unlocks stay out of sight while the feature is running silently.
+    const showTarget = await isFeatureAvailable("league_target", (req.session as any)?.isAdmin === true);
+    const showGaffer = await isFeatureAvailable("gaffer", (req.session as any)?.isAdmin === true);
+    // award-only cosmetics from achievements and the League Target ladder say how they're earned
+    res.json(rows.filter(r => (showTarget || !(r.id in LADDER_EARNED_BY)) && (showGaffer || !(r.id in GAFFER_EARNED_BY))).map(r => {
+      const earnedBy = EARNED_BY[r.id] ?? LADDER_EARNED_BY[r.id] ?? GAFFER_EARNED_BY[r.id];
+      return earnedBy ? { ...r, earnedBy } : r;
+    }));
   } catch (err) {
     logger.error({ err }, "Failed to get cosmetics catalog");
     res.status(500).json({ error: "Failed to get cosmetics catalog" });
@@ -61,6 +72,7 @@ router.get("/players/:id/cosmetics", async (req, res): Promise<void> => {
         equippedRecapStyleId: playersTable.equippedRecapStyleId,
         equippedRankUpEffectId: playersTable.equippedRankUpEffectId,
         equippedAccountAccentId: playersTable.equippedAccountAccentId,
+        equippedClubhouseRoomId: playersTable.equippedClubhouseRoomId,
       })
       .from(playersTable)
       .where(eq(playersTable.id, playerId));
@@ -91,6 +103,7 @@ router.get("/players/:id/cosmetics", async (req, res): Promise<void> => {
       equippedRecapStyleId: player.equippedRecapStyleId,
       equippedRankUpEffectId: player.equippedRankUpEffectId,
       equippedAccountAccentId: player.equippedAccountAccentId,
+      equippedClubhouseRoomId: player.equippedClubhouseRoomId,
     });
   } catch (err) {
     logger.error({ err }, "Failed to get player cosmetics");
@@ -196,7 +209,7 @@ router.post("/players/:id/cosmetics/purchase", async (req, res): Promise<void> =
 // STICKER is deliberately excluded here — it's never equipped to a slot,
 // only owned and then attached per-message (see POST /messages below).
 const EquipBody = z.object({
-  category: z.enum(["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR", "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "CHECKOUT_EFFECT", "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT", "ACCOUNT_ACCENT"]),
+  category: z.enum(["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR", "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "CHECKOUT_EFFECT", "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT", "ACCOUNT_ACCENT", "CLUBHOUSE_ROOM"]),
   cosmeticId: z.string().min(1).nullable(),
 });
 
@@ -244,6 +257,7 @@ router.post("/players/:id/cosmetics/equip", async (req, res): Promise<void> => {
     else if (category === "SCORER_THEME") updateData = { equippedScorerThemeId: cosmeticId };
     else if (category === "PLAYER_CARD_FINISH") updateData = { equippedPlayerCardFinishId: cosmeticId };
     else if (category === "TROPHY_CASE_STYLE") updateData = { equippedTrophyCaseStyleId: cosmeticId };
+    else if (category === "CLUBHOUSE_ROOM") updateData = { equippedClubhouseRoomId: cosmeticId };
     else if (category === "RECAP_STYLE") updateData = { equippedRecapStyleId: cosmeticId };
     else if (category === "RANK_UP_EFFECT") updateData = { equippedRankUpEffectId: cosmeticId };
     else updateData = { equippedAccountAccentId: cosmeticId };

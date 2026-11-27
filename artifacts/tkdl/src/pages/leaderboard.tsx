@@ -1,4 +1,5 @@
 import { useGetLeaderboard } from "@workspace/api-client-react";
+import { Glow, DartboardBackdrop } from "@/components/premium/Premium";
 import { useQuery } from "@tanstack/react-query";
 import { TierBadge, TIER_COLORS as TIER_BORDER } from "@/components/tier-badge";
 import { RankChange } from "@/components/rank-change";
@@ -7,7 +8,8 @@ import { Skull, Flame, Trophy, Target, CircuitBoard, Star, Medal, Zap, Users, Bu
 import { useMemo, useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
 import { apiFetchJson } from "@/lib/api-fetch";
-import { useCosmeticsCatalog, glowRowStyle, leaderboardTagStyle, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
+import { useCosmeticsCatalog, glowRowStyle, leaderboardTagStyle, tagIcon, isExclusiveUnlock, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
+import { GafferArmband } from "@/components/gaffer/Armband";
 import { StandingsWhatIf } from "@/components/standings-what-if";
 
 type Mode = "season" | "doubles" | "shiftwars" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
@@ -55,15 +57,15 @@ function Tab({ active, onClick, color = "#ff005c", icon, children }: {
 }) {
   return (
     <button onClick={onClick}
-      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase transition-all"
+      className="flex items-center gap-1.5 px-4 rounded-full text-xs uppercase transition-all"
       style={{
-        fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em",
-        background: active ? `${color}20` : "rgba(255,255,255,0.05)",
-        border: `1px solid ${active ? `${color}55` : "rgba(255,255,255,0.1)"}`,
-        color: active ? color : "rgba(255,255,255,0.6)",
-        boxShadow: active ? `0 0 16px ${color}20` : undefined,
+        fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", minHeight: 36,
+        background: active ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02))",
+        border: `1px solid ${active ? "#ffd24a" : "rgba(255,255,255,0.14)"}`,
+        color: active ? "#1a1200" : "#e4e0f0",
+        boxShadow: active ? "0 0 16px rgba(255,210,74,.45)" : "inset 0 1px 0 rgba(255,255,255,.06)",
       }}>
-      {icon && <span className="opacity-90">{icon}</span>}
+      {icon && <span style={{ color: active ? "#1a1200" : color }}>{icon}</span>}
       {children}
     </button>
   );
@@ -72,12 +74,13 @@ function Tab({ active, onClick, color = "#ff005c", icon, children }: {
 function SortBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick}
-      className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all"
+      className="px-3 rounded-full text-xs uppercase transition-all"
       style={{
-        fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em",
-        background: active ? "rgba(255,210,74,0.15)" : "rgba(255,255,255,0.04)",
-        border: `1px solid ${active ? "rgba(255,210,74,0.4)" : "rgba(255,255,255,0.09)"}`,
-        color: active ? "#ffd24a" : "rgba(255,255,255,0.6)",
+        fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", minHeight: 32,
+        background: active ? "rgba(255,210,74,0.16)" : "rgba(255,255,255,0.05)",
+        border: `1px solid ${active ? "rgba(255,210,74,0.55)" : "rgba(255,255,255,0.12)"}`,
+        color: active ? "#ffe9a3" : "#cfcade",
+        boxShadow: active ? "0 0 12px rgba(255,210,74,.25)" : undefined,
       }}>
       {children}
     </button>
@@ -99,13 +102,11 @@ function EloBar({ elo, maxElo }: { elo: number; maxElo: number }) {
 }
 
 function Pos({ idx }: { idx: number }) {
-  const col = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
+  const medal = ["linear-gradient(180deg,#ffe58a,#d99a00)", "linear-gradient(180deg,#ffffff,#9aa6bd)", "linear-gradient(180deg,#f0b27a,#9c5a2a)"][idx] ?? "linear-gradient(180deg,#3a3550,#1d1a2b)";
   return (
-    <div className="w-8 flex flex-col items-center shrink-0 gap-0.5">
-      <span className="font-black leading-none"
-        style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "2rem" : idx < 3 ? "1.6rem" : "1.2rem", color: col, textShadow: idx < 3 ? `0 0 16px ${col}60` : undefined }}>
-        {idx + 1}
-      </span>
+    <div className="shrink-0 flex items-center justify-center" style={{ width: idx === 0 ? 44 : 38, height: idx === 0 ? 44 : 38, borderRadius: "50%", background: medal,
+      color: idx < 3 ? "#141018" : "#e4e0f0", fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? 17 : 15, boxShadow: idx < 3 ? `0 0 14px ${POS_COLORS[idx]}66` : "inset 0 1px 0 rgba(255,255,255,.1)" }}>
+      {idx + 1}
     </div>
   );
 }
@@ -121,9 +122,9 @@ function NameFlair({ icon, tag }: { icon?: CosmeticDefinition; tag?: CosmeticDef
     <>
       {Icon && <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: icon!.color ?? "#fff" }} />}
       {tag && (
-        <span className="text-[0.55rem] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0"
+        <span className={`text-[0.55rem] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0${isExclusiveUnlock(tag) ? " cosmetic-tag-exclusive" : ""}`}
           style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em", ...leaderboardTagStyle(tag) }}>
-          {tag.name}
+          {tagIcon(tag) && <span className="mr-1">{tagIcon(tag)}</span>}{tag.name}
         </span>
       )}
     </>
@@ -135,7 +136,7 @@ function DoublesRow({ team, idx }: { team: any; idx: number }) {
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
   const tierColor = TIER_BORDER[team.tier] ?? "rgba(255,255,255,0.12)";
   return (
-    <div className="group flex items-center gap-3 rounded-xl transition-all duration-150 fade-in-up"
+    <div className="group flex items-center gap-3 rounded-2xl transition-all duration-150 fade-in-up pm-lbrow"
       style={{ padding: "0.8rem 1.1rem", background: isTop3 && !team.isEliminated ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 && !team.isEliminated ? pColor + "55" : tierColor + "55"}`, animationDelay: `${idx * 35}ms`, opacity: team.isEliminated ? 0.5 : 1 }}>
       <Pos idx={idx} />
       <div className="flex-1 min-w-0 pr-2">
@@ -178,7 +179,7 @@ function DoublesChemistry({ partnerships }: { partnerships: any[] }) {
           </div>
           <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Every pairing across every Doubles Event season, including partnerships formed inside a triple.</p>
         </div>
-        <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ color: "#0066ff", background: "rgba(0,102,255,0.12)", border: "1px solid rgba(0,102,255,0.22)" }}>{partnerships.length} pairings</span>
+        <span className="text-xs font-bold px-2 py-1 rounded-full shrink-0 whitespace-nowrap" style={{ color: "#0066ff", background: "rgba(0,102,255,0.12)", border: "1px solid rgba(0,102,255,0.22)" }}>{partnerships.length} pairings</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
         {partnerships.map((pair, index) => {
@@ -215,7 +216,7 @@ function ShiftWarsRow({ team, idx }: { team: any; idx: number }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
   return (
-    <div className="group flex items-center gap-3 rounded-xl transition-all duration-150 fade-in-up"
+    <div className="group flex items-center gap-3 rounded-2xl transition-all duration-150 fade-in-up pm-lbrow"
       style={{ padding: "0.8rem 1.1rem", background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : "rgba(255,255,255,0.12)"}`, animationDelay: `${idx * 35}ms` }}>
       <Pos idx={idx} />
       <div className="flex-1 min-w-0 pr-2">
@@ -242,6 +243,17 @@ function ShiftWarsRow({ team, idx }: { team: any; idx: number }) {
   );
 }
 
+/** Last five league results this season, newest on the left. */
+function FormDots({ form }: { form?: ("W" | "L")[] }) {
+  if (!form?.length) return null;
+  return (
+    <div className="pm-form" aria-label={`Form: ${form.join(" ")}`}>
+      {form.map((r, i) => <span key={i} className={r === "W" ? "w" : "l"}>{r}</span>)}
+      {Array.from({ length: 5 - form.length }, (_, i) => <span key={`e${i}`} className="e" />)}
+    </div>
+  );
+}
+
 function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: number; maxElo: number; glow?: ReturnType<typeof glowRowStyle>; icon?: CosmeticDefinition; tag?: CosmeticDefinition }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
@@ -250,21 +262,24 @@ function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: n
   // A purchased row-glow cosmetic overrides the default rank/tier-based
   // accent — glow is {} when nothing's equipped, which keeps this exactly
   // as it was.
-  const defaultStyle = { background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : tierColor + "55"}` };
+  void tierColor;
+  const defaultStyle = { background: isTop3 ? `linear-gradient(90deg, ${pColor}26, rgba(23,20,31,.95) 50%, rgba(12,10,18,.97))` : "linear-gradient(90deg, rgba(255,255,255,.04), rgba(23,20,31,.95) 40%, rgba(12,10,18,.97))", border: `1px solid ${isTop3 ? pColor + "66" : "rgba(255,255,255,0.09)"}`, boxShadow: `0 8px 20px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06)${isTop3 ? `, 0 0 18px ${pColor}22` : ""}` };
   return (
     <Link href={`/players/${entry.playerId}`} asChild>
-      <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
+      <div className="group flex items-center gap-3 rounded-2xl cursor-pointer transition-all duration-150 hover:-translate-y-0.5 fade-in-up pm-lbrow"
         style={{ padding: "0.8rem 1.1rem", ...defaultStyle, ...glow, animationDelay: `${idx * 35}ms` }}>
         <Pos idx={idx} />
         <RankChange change={entry.positionChange} />
         <div className="flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-black uppercase leading-tight" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "1.2rem" : "1rem", letterSpacing: "0.04em", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.85)" }}>{entry.playerName}</span>
+            <GafferArmband playerId={entry.playerId} />
             <NameFlair icon={icon} tag={tag} />
             {isTop3 && <span className="text-base leading-none">{POS_MEDALS[idx]}</span>}
             {streak >= 3 && <span className="flex items-center gap-0.5 text-xs font-bold shrink-0" style={{ color: "#ff005c" }}><Flame className="w-3 h-3 streak-fire" />{streak}W</span>}
           </div>
           {entry.title && <div className="text-xs truncate" style={{ color: "rgba(255,210,74,0.5)", fontStyle: "italic", lineHeight: 1.3 }}>{entry.title}</div>}
+          <FormDots form={entry.form} />
         </div>
         <TierDot tier={entry.tier} />
         <div className="hidden sm:flex shrink-0"><TierBadge tier={entry.tier} /></div>
@@ -273,7 +288,7 @@ function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: n
         </div>
         <div className="hidden sm:block shrink-0"><EloBar elo={entry.elo} maxElo={maxElo} /></div>
         <div className="text-right shrink-0" style={{ minWidth: "3.5rem" }}>
-          <span className="font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "2rem" : isTop3 ? "1.7rem" : "1.5rem", color: idx === 0 ? "#ffd24a" : "#ff005c", textShadow: idx === 0 ? "0 0 16px rgba(255,210,74,0.4)" : undefined }}>{entry.points}</span>
+          <span className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: idx === 0 ? "1.9rem" : "1.5rem", color: idx === 0 ? "#ffd24a" : "#ff7aa6", textShadow: idx === 0 ? "0 0 16px rgba(255,210,74,0.55)" : "0 0 12px rgba(255,92,147,.4)" }}>{entry.points}</span>
           <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.18)" }}>pts</span>
         </div>
       </div>
@@ -284,10 +299,10 @@ function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: n
 function CareerRow({ entry, idx, maxElo, sortKey, glow, icon, tag }: { entry: any; idx: number; maxElo: number; sortKey: string; glow?: ReturnType<typeof glowRowStyle>; icon?: CosmeticDefinition; tag?: CosmeticDefinition }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
-  const defaultStyle = { background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : "rgba(255,255,255,0.08)"}` };
+  const defaultStyle = { background: isTop3 ? `linear-gradient(90deg, ${pColor}26, rgba(23,20,31,.95) 50%, rgba(12,10,18,.97))` : "linear-gradient(90deg, rgba(255,255,255,.04), rgba(23,20,31,.95) 40%, rgba(12,10,18,.97))", border: `1px solid ${isTop3 ? pColor + "66" : "rgba(255,255,255,0.09)"}`, boxShadow: `0 8px 20px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06)${isTop3 ? `, 0 0 18px ${pColor}22` : ""}` };
   return (
     <Link href={`/players/${entry.playerId}`} asChild>
-      <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
+      <div className="group flex items-center gap-3 rounded-2xl cursor-pointer transition-all duration-150 hover:-translate-y-0.5 fade-in-up pm-lbrow"
         style={{ padding: "0.8rem 1.1rem", ...defaultStyle, ...glow, animationDelay: `${idx * 35}ms` }}>
         <Pos idx={idx} />
         <div className="flex-1 min-w-0 pr-2">
@@ -325,7 +340,7 @@ function AchievementsRow({ entry, idx }: { entry: any; idx: number }) {
   const gsColor = gs >= 500 ? "#a78bfa" : gs >= 200 ? "#ffd24a" : gs >= 100 ? "#0066ff" : "rgba(255,255,255,0.5)";
   return (
     <Link href={`/players/${entry.playerId}`} asChild>
-      <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
+      <div className="group flex items-center gap-3 rounded-2xl cursor-pointer transition-all duration-150 hover:-translate-y-0.5 fade-in-up pm-lbrow"
         style={{ padding: "0.8rem 1.1rem", background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : "rgba(168,85,247,0.15)"}`, animationDelay: `${idx * 35}ms` }}>
         <Pos idx={idx} />
         <div className="flex-1 min-w-0 pr-2">
@@ -355,7 +370,7 @@ function BotRow({ entry, idx, maxDarts }: { entry: any; idx: number; maxDarts: n
   const ckPct = entry.checkoutAttempts > 0 ? Math.round((entry.checkoutHits / entry.checkoutAttempts) * 100) : 0;
   return (
     <Link href={`/players/${entry.playerId}`} asChild>
-      <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
+      <div className="group flex items-center gap-3 rounded-2xl cursor-pointer transition-all duration-150 hover:-translate-y-0.5 fade-in-up pm-lbrow"
         style={{ padding: "0.8rem 1.1rem", background: isTop3 ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 ? pColor + "55" : "rgba(0,229,160,0.15)"}`, animationDelay: `${idx * 35}ms` }}>
         <Pos idx={idx} />
         <div className="flex-1 min-w-0 pr-2">
@@ -394,7 +409,7 @@ function TourRow({ entry, idx }: { entry: any; idx: number }) {
   const hasTrophies = entry.totalTrophies > 0;
   return (
     <Link href={`/players/${entry.playerId}`} asChild>
-      <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
+      <div className="group flex items-center gap-3 rounded-2xl cursor-pointer transition-all duration-150 hover:-translate-y-0.5 fade-in-up pm-lbrow"
         style={{ padding: "0.8rem 1.1rem", background: isTop3 && hasTrophies ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 && hasTrophies ? pColor + "55" : "rgba(255,210,74,0.1)"}`, animationDelay: `${idx * 35}ms` }}>
         <Pos idx={idx} />
         <div className="flex-1 min-w-0 pr-2">
@@ -443,7 +458,7 @@ function M501Row({ entry, idx }: { entry: any; idx: number }) {
   const hasPlayed = wins + losses > 0;
   return (
     <Link href={`/players/${entry.id}`} asChild>
-      <div className="group flex items-center gap-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-white/[0.035] fade-in-up"
+      <div className="group flex items-center gap-3 rounded-2xl cursor-pointer transition-all duration-150 hover:-translate-y-0.5 fade-in-up pm-lbrow"
         style={{ padding: "0.8rem 1.1rem", background: isTop3 && hasPlayed ? `linear-gradient(90deg, ${pColor}07, transparent 60%)` : "rgba(255,255,255,0.018)", borderLeft: `3px solid ${isTop3 && hasPlayed ? pColor + "55" : meta.color + "20"}`, animationDelay: `${idx * 35}ms` }}>
         <Pos idx={idx} />
         <div className="flex-1 min-w-0 pr-2">
@@ -611,25 +626,45 @@ export default function Standings() {
 
   return (
     <div className="space-y-5">
-      <div className="pdc-divider" />
 
       {/* Header */}
-      <div className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-black uppercase"
-            style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", letterSpacing: "0.04em", textShadow: "0 0 30px rgba(255,0,92,0.2)", lineHeight: 1 }}>
+      <div className="relative overflow-hidden" style={{ borderRadius: 24, border: "1px solid rgba(255,210,74,.3)", background: "linear-gradient(160deg, rgba(255,210,74,.16) 0%, #14102a 45%, #06060b 100%)", boxShadow: "0 20px 50px rgba(0,0,0,.55), 0 0 50px rgba(255,210,74,.08)" }}>
+        <Glow x="85%" y="10%" color="#ffd24a" size={420} opacity={0.26} />
+        <Glow x="8%" y="80%" color="#a855f7" size={420} opacity={0.26} />
+        <DartboardBackdrop size={480} opacity={0.07} style={{ right: -170, top: -90, transform: "rotate(8deg)" }} />
+        <div className="relative p-5" style={{ zIndex: 1 }}>
+          <div className="flex items-center gap-2"><span className="pm-lab" style={{ color: "#ffd24a" }}>Standings</span>{mode === "season" && <span className="pm-lab">· live</span>}</div>
+          <h1 className="pm-title uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2.2rem, 10vw, 3.4rem)", letterSpacing: "0.03em", lineHeight: 0.98, marginTop: 6 }}>
             {headings[mode]}
           </h1>
-          <p className="text-sm mt-1.5 flex items-center gap-2" style={{ color: "rgba(255,255,255,0.35)" }}>
-            {subheads[mode]}
-          </p>
+          <p className="text-sm mt-2 flex items-center gap-2" style={{ color: "#a9a4bd" }}>{subheads[mode]}</p>
+          {mode === "season" && active.length > 0 && (
+            <div className="flex gap-2 mt-3 flex-wrap">
+              <span className="pm-chip">{active.length} active</span>
+              {eliminated.length > 0 && <span className="pm-chip" style={{ color: "#ff9ab8", borderColor: "rgba(255,0,92,.45)" }}>☠ {eliminated.length} eliminated</span>}
+            </div>
+          )}
+          {mode === "season" && active.length >= 3 && (
+            <div className="grid grid-cols-3 gap-2 mt-5 items-end">
+              {[1, 0, 2].map(i => {
+                const e = active[i]; const c = POS_COLORS[i];
+                const h = i === 0 ? 132 : i === 1 ? 112 : 100;
+                return (
+                  <Link key={e.playerId} href={`/players/${e.playerId}`}>
+                    <div className="flex flex-col items-center text-center cursor-pointer">
+                      <div className="flex items-center justify-center" style={{ width: i === 0 ? 54 : 44, height: i === 0 ? 54 : 44, borderRadius: "50%", background: ["linear-gradient(180deg,#ffe58a,#d99a00)", "linear-gradient(180deg,#ffffff,#9aa6bd)", "linear-gradient(180deg,#f0b27a,#9c5a2a)"][i], color: "#141018", fontFamily: "Oswald, sans-serif", fontSize: i === 0 ? 22 : 18, boxShadow: `0 0 18px ${c}88`, marginBottom: 6 }}>{i + 1}</div>
+                      <div className="w-full truncate uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: i === 0 ? 17 : 14, letterSpacing: "0.04em", color: "#fff" }}>{e.playerName}</div>
+                      <div className="w-full mt-1.5 flex flex-col items-center justify-start pt-2" style={{ height: h - 60, borderRadius: "12px 12px 4px 4px", background: `linear-gradient(180deg, ${c}55, ${c}12)`, border: `1px solid ${c}77`, boxShadow: `0 0 20px ${c}33, inset 0 1px 0 rgba(255,255,255,.25)` }}>
+                        <span style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: i === 0 ? 26 : 21, color: "#fff", textShadow: `0 0 10px ${c}` }}>{e.points}</span>
+                        <span className="pm-lab" style={{ fontSize: 8.5, color: "#e4e0f0" }}>pts</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
-        {mode === "season" && active.length > 0 && (
-          <div className="text-xs font-bold text-right" style={{ fontFamily: "Oswald, sans-serif" }}>
-            <div style={{ color: "rgba(255,255,255,0.35)" }}>{active.length} active</div>
-            {eliminated.length > 0 && <div style={{ color: "#ff005c" }}>☠ {eliminated.length} eliminated</div>}
-          </div>
-        )}
       </div>
 
       {/* Tabs — main league standings (Season/Doubles/Shift Wars) grouped first
@@ -718,7 +753,7 @@ export default function Standings() {
       )}
 
       {isLoading ? <Spinner /> : isError ? (
-        <div className="pdc-card px-6 py-12 text-center">
+        <div className="pdc-card pm-empty px-6 py-12 text-center">
           <div className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>Couldn’t load these standings</div>
           <div className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>The server may still be waking. Try this tab again in a moment.</div>
         </div>
@@ -728,7 +763,7 @@ export default function Standings() {
           {mode === "season" && (
             <div className="space-y-1.5">
               {active.map((entry, idx) => <SeasonRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxElo} glow={glowFor(entry.equippedGlowId)} icon={cosmeticFor(entry.equippedProfileIconId)} tag={cosmeticFor(entry.equippedLeaderboardTagId)} />)}
-              {active.length === 0 && <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No players yet.</div>}
+              {active.length === 0 && <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No players yet.</div>}
               {eliminated.length > 0 && (
                 <div className="mt-5 space-y-1.5">
                   <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest px-4 py-2.5 rounded-xl"
@@ -760,7 +795,7 @@ export default function Standings() {
           {mode === "career" && (
             <div className="space-y-1.5">
               {careerRows.map((entry, idx) => <CareerRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxCarElo} sortKey={careerSort} glow={glowFor(entry.equippedGlowId)} icon={cosmeticFor(entry.equippedProfileIconId)} tag={cosmeticFor(entry.equippedLeaderboardTagId)} />)}
-              {careerRows.length === 0 && <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data.</div>}
+              {careerRows.length === 0 && <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data.</div>}
               <div className="pt-2 text-xs" style={{ color: "rgba(255,255,255,0.15)" }}>
                 🏆 Season champion · Net Pts = points gained minus points lost across all wager seasons
               </div>
@@ -772,7 +807,7 @@ export default function Standings() {
             <div className="space-y-1.5">
               {doublesRows.map((team, idx) => <DoublesRow key={team.id} team={team} idx={idx} />)}
               {doublesRows.length === 0 && (
-                <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
                   Doubles draw pending — teams will appear here automatically when the new season draw completes.
                 </div>
               )}
@@ -785,7 +820,7 @@ export default function Standings() {
             <div className="space-y-1.5">
               {shiftWarsRows.map((team, idx) => <ShiftWarsRow key={team.id} team={team} idx={idx} />)}
               {shiftWarsRows.length === 0 && (
-                <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
                   No Shift Wars teams yet — an admin needs to set them up.
                 </div>
               )}
@@ -813,7 +848,7 @@ export default function Standings() {
           {mode === "achievements" && (
             <div className="space-y-1.5">
               {achRows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🏅</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No achievements unlocked yet — start playing!</div>
                 </div>
@@ -830,7 +865,7 @@ export default function Standings() {
           {mode === "bot" && (
             <div className="space-y-1.5">
               {botRows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🤖</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No practice sessions yet — hit the Shadow Bot!</div>
                 </div>
@@ -847,7 +882,7 @@ export default function Standings() {
           {mode === "tour" && (
             <div className="space-y-1.5">
               {tourRows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🏆</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No tour trophies yet — enter a tour!</div>
                 </div>
@@ -868,7 +903,7 @@ export default function Standings() {
           {mode === "records" && (
             <div className="space-y-2">
               {recordsRows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🎯</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No checkouts recorded yet — hit the practice board!</div>
                 </div>
@@ -925,7 +960,7 @@ export default function Standings() {
           {mode === "master501" && (
             <div className="space-y-1.5">
               {m501Rows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🎯</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No Master-501 runs yet — start climbing the ladder!</div>
                 </div>

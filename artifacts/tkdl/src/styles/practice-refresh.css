@@ -177,3 +177,41 @@
   .practice-refresh-stamp svg { width: 19px; height: 19px; }
   .practice-game-heading h2 { font-size: 16px; }
 }
+
+/* ── Premium pass (2026-11-20) ───────────────────────────────────────────── */
+.practice-refresh .pdc-card {
+  border: 1px solid transparent !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.06), rgba(20,17,30,.96) 40%, rgba(10,9,15,.98)) padding-box,
+    linear-gradient(160deg, rgba(167,139,250,.6), rgba(255,255,255,.08) 45%, rgba(255,210,74,.3)) border-box !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07) !important;
+}
+.practice-section-intro > span, .practice-game-heading > div > span {
+  border: 1px solid #ffd24a; border-radius: 50%; color: #1a1200;
+  background: linear-gradient(180deg, #ffe58a, #d99a00); box-shadow: 0 0 12px rgba(255,210,74,.45);
+  font-family: Oswald, sans-serif;
+}
+.practice-section-intro h2, .practice-game-heading h2 { text-transform: uppercase; letter-spacing: .04em; font-size: 18px; color: #f2eefc; }
+.practice-mode-option {
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.015)) !important;
+  border-color: rgba(255,255,255,.12) !important;
+}
+.practice-mode-option > svg { width: 20px !important; height: 20px !important; filter: drop-shadow(0 0 6px rgba(167,139,250,.7)); }
+.practice-mode-option.is-active {
+  border-color: rgba(196,176,255,.9) !important;
+  background: linear-gradient(160deg, rgba(139,85,225,.4), rgba(30,20,45,.95)) !important;
+  box-shadow: 0 0 20px rgba(167,139,250,.35), inset 0 1px 0 rgba(255,255,255,.12) !important;
+}
+.practice-mode-copy b { font-size: 14px; letter-spacing: .03em; text-transform: uppercase; }
+.practice-mode-copy small { font-size: 11px; }
+.practice-category-filters button { border-radius: 999px !important; }
+.practice-start-button {
+  border-radius: 999px !important;
+  border: 1px solid #ffd24a !important;
+  background: linear-gradient(180deg, #ffe58a, #e0a800) !important;
+  color: #1a1200 !important;
+  box-shadow: 0 0 26px rgba(255,210,74,.45) !important;
+  letter-spacing: .12em;
+}

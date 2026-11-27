@@ -32,7 +32,9 @@ export interface NotificationPayload {
     // player rather than sit queued behind batching/quiet-hours.
     | "interview_invite"
     // Career (careerReminderScheduler.ts): something is waiting in a Career left alone for a few days.
-    | "career_reminder";
+    | "career_reminder"
+    // League Target and The Gaffer (lib/league-challenge-notify.ts).
+    | "league_challenge";
   title: string;
   body: string;
   data?: Record<string, any>;
@@ -182,6 +184,7 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
     post_mentioned:        "community_activity",
     top_post_reward:       "community_activity",
     career_reminder:       "career_reminders",
+    league_challenge:      "league_challenges",
   };
   const typeKey = TYPE_TO_PREF_COLUMN[payload.type];
   if (typeKey && typeKey in prefs && !prefs[typeKey]) {
@@ -883,6 +886,19 @@ export async function sendRankChangeNotifications(
     }
   } catch (err) {
     logger.error({ err }, "Failed to send rank change notifications");
+  }
+}
+
+/** Tell players the winner of a match just climbed past them in the table (not the two who played). */
+export async function sendOvertakenNotifications(matchId: number, passerName: string, passed: Array<{ id: number; newRank: number }>): Promise<void> {
+  try {
+    for (const p of passed) {
+      await createNotification({ playerId: p.id, type: "rank_change", title: "⚔️ Overtaken",
+        body: `${passerName} just passed you in the table. You're now #${p.newRank}.`,
+        data: { kind: "overtaken", newRank: p.newRank, url: "/leaderboard" }, dedupeKey: `overtaken:${matchId}:${p.id}` });
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to send overtaken notifications");
   }
 }
 

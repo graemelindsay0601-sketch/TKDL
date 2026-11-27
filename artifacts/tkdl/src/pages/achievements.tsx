@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/premium/Premium";
 import { useListAchievements } from "@workspace/api-client-react";
 import { useState, useEffect, useMemo } from "react";
 import { Lock, Star, Users, Trophy, Medal, CircuitBoard } from "lucide-react";
@@ -5,6 +6,8 @@ import { format } from "date-fns";
 import { AchievementRewardModal } from "../components/AchievementRewardModal";
 import { useAchievementModal } from "../utils/use-achievement-modal";
 import { useFetch } from "@/hooks/use-fetch";
+import { Link } from "wouter";
+import { useAchievementsV2Status } from "@/components/achievements-v2/api";
 
 // ── League achievement helpers ─────────────────────────────────────────────────
 
@@ -663,19 +666,24 @@ export default function Achievements() {
     useAchievementModal();
 
   const active = TABS.find(t => t.key === tab)!;
+  const v2Live = useAchievementsV2Status();
 
   return (
-    <div className="space-y-6">
-      <div className="pdc-divider" />
+    <div className="space-y-5 pm-page">
+      <PageHero kicker={v2Live ? "The original badges" : "League · Tour · Shadow Bot · Trophies"} icon={<Trophy className="w-3.5 h-3.5" />} gold accent="#ffd24a" accent2="#a855f7"
+        title={v2Live ? "Classics" : "Achievement Centre"}
+        sub="League · Tour · Shadow Bot · Master-501 · Trophies" />
 
-      <div>
-        <h1 className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
-          Achievement Centre
-        </h1>
-        <p className="text-xs mt-1 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.14em" }}>
-          League · Tour · Shadow Bot · Trophies
-        </p>
-      </div>
+      {v2Live && (
+        <div className="pm-card p-4" style={{ ["--pm-acc" as any]: "#ffd24a" }}>
+          <div className="text-[11px] uppercase font-bold" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: ".18em", color: "#ffd24a" }}>Classics</div>
+          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,.75)" }}>
+            These are the original achievements, kept exactly as you earned them. They're now frozen: the League, Practice, Master-501, Doubles, Shift Wars,
+            arcade and Shadow Bot badges here won't be given out any more, because the new achievements have replaced them.
+          </p>
+          <Link href="/achievements" className="inline-block mt-2 text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>Go to the new cabinet →</Link>
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex gap-1 flex-wrap">
@@ -683,15 +691,15 @@ export default function Achievements() {
           const isActive = tab === t.key;
           return (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs uppercase transition-all"
               style={{
                 fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em",
-                background: isActive ? `${t.color}18` : "rgba(255,255,255,0.04)",
-                border: `1px solid ${isActive ? `${t.color}55` : "rgba(255,255,255,0.08)"}`,
-                color: isActive ? t.color : "rgba(255,255,255,0.35)",
-                borderBottom: isActive ? `2px solid ${t.color}` : undefined,
+                background: isActive ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "rgba(255,255,255,0.05)",
+                border: `1px solid ${isActive ? "#ffd24a" : "rgba(255,255,255,0.12)"}`,
+                color: isActive ? "#1a1200" : "#cfcade",
+                boxShadow: isActive ? "0 0 12px rgba(255,210,74,.4)" : undefined,
               }}>
-              <span style={{ color: isActive ? t.color : "rgba(255,255,255,0.25)" }}>{t.icon}</span>
+              <span style={{ color: isActive ? "#1a1200" : t.color }}>{t.icon}</span>
               {t.label}
             </button>
           );

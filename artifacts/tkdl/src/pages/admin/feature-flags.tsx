@@ -24,9 +24,12 @@ const STAGED_FLAG_LABELS: Record<string, string> = {
   card_clash: "Card Clash",
   tkdl_live: "TKDL Live",
   new_scoring_ui: "New Scoring UI",
+  clubhouse: "The Clubhouse",
+  league_target: "League Target",
+  gaffer: "The Gaffer",
   tour_career_2: "Career 2.0 BETA",
 };
-const STAGED_FLAG_ORDER = ["card_clash", "tkdl_live", "new_scoring_ui", "tour_career_2"];
+const STAGED_FLAG_ORDER = ["card_clash", "tkdl_live", "new_scoring_ui", "clubhouse", "league_target", "gaffer", "tour_career_2"];
 
 interface StagedFlag {
   featureName: string;

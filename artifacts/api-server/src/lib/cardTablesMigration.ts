@@ -410,6 +410,27 @@ export async function initializeFeatureFlags() {
       ON CONFLICT (feature_name) DO NOTHING
     `);
 
+    // The Clubhouse: admin preview first, same insert-only pattern.
+    await db.execute(sql`
+      INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+      VALUES (${FEATURES.CLUBHOUSE}, false, true, ${"The Clubhouse - each player's 3D darts room (admin preview only until switched live for everyone)"})
+      ON CONFLICT (feature_name) DO NOTHING
+    `);
+
+    // League Target: runs silently in the background; admins can preview, unlocks only once live for everyone.
+    await db.execute(sql`
+      INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+      VALUES (${FEATURES.LEAGUE_TARGET}, false, true, ${"League Target - monthly league-wide goal. Tracks silently in the background; unlocks only given out once switched on for everyone"})
+      ON CONFLICT (feature_name) DO NOTHING
+    `);
+
+    // The Gaffer: same silent-then-live pattern as League Target.
+    await db.execute(sql`
+      INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+      VALUES (${FEATURES.GAFFER}, false, true, ${"The Gaffer - monthly voted-in captain who picks the league's challenge. Runs silently in the background; unlocks only once switched on for everyone"})
+      ON CONFLICT (feature_name) DO NOTHING
+    `);
+
     // Career starts Hidden. Never overwrite an administrator's staged choice.
     await db.execute(sql`
       INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)

@@ -7,6 +7,8 @@ export type AuthUser = {
   playerId:    number;
   playerName:  string;
   lastLoginAt: string | null;
+  /** Which X01 scorer layout this player chose (null = not chosen yet). */
+  scorerStyle?: "total" | "perdart" | "classic" | null;
 };
 
 type AuthContextType = {

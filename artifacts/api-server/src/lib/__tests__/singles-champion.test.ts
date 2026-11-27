@@ -65,3 +65,28 @@ describe("decideSinglesChampion", () => {
     assert.deepEqual(result, { kind: "champion", player: alice });
   });
 });
+
+describe("finalStandingsOrder", async () => {
+  const { finalStandingsOrder } = await import("../singles-champion.ts");
+  test("players who played no matches this season get no final position", () => {
+    const rows = [
+      { id: 1, points: 25, elo: 1200, seasonWins: 0, seasonLosses: 0, seasonGamesPlayed: 0 }, // never played
+      { id: 2, points: 60, elo: 1000, seasonWins: 4, seasonLosses: 1, seasonGamesPlayed: 5 },
+      { id: 3, points: 10, elo: 1000, seasonWins: 0, seasonLosses: 3, seasonGamesPlayed: 3 }, // played, lost every match: still ranked
+      { id: 4, points: 60, elo: 1100, seasonWins: 3, seasonLosses: 2, seasonGamesPlayed: 5 },
+    ];
+    assert.deepEqual(finalStandingsOrder(rows).map(r => r.id), [4, 2, 3]);
+  });
+});
+
+describe("finalStandingsOrder with match rows", async () => {
+  const { finalStandingsOrder } = await import("../singles-champion.ts");
+  test("a player whose counters read 0-0 but who has match rows this season keeps their place", () => {
+    const rows = [
+      { id: 1, points: 40, elo: 1000, seasonWins: 0, seasonLosses: 0, seasonGamesPlayed: 0 },
+      { id: 2, points: 30, elo: 1000, seasonWins: 2, seasonLosses: 1, seasonGamesPlayed: 3 },
+      { id: 3, points: 25, elo: 1000, seasonWins: 0, seasonLosses: 0, seasonGamesPlayed: 0 },
+    ];
+    assert.deepEqual(finalStandingsOrder(rows, new Set([1])).map(r => r.id), [1, 2]);
+  });
+});

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PageHero } from "@/components/premium/Premium";
 import { useParams, useLocation } from "wouter";
 import { useAuth } from "@/context/auth";
 import { LoginGate } from "@/components/LoginGate";
@@ -214,12 +215,25 @@ export default function InterviewDeskPage() {
       {!loading && data && (() => {
         const beats = buildTranscript(data);
         const isPending = data.awaitingTurn !== null;
+        const heroPresenter = activePresenter ?? toPresenterId(data.opener.presenter);
         return (
+          <>
+          <div className="mb-4">
+            <PageHero
+              kicker={<>Interview Desk · {data.triggerType.replace(/_/g, " ").toLowerCase()}</>}
+              icon={<Radio className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />}
+              title={isPending ? "The hosts want a word" : "On the record"}
+              sub={isPending ? "Your answer can feature on TKDL LIVE. Keep it short — a line or two is plenty." : "Thanks for sitting down with the desk."}
+              accent={PRESENTERS[heroPresenter].accent}
+              accent2="#ff005c"
+            />
+          </div>
           <div
             className="rounded-2xl overflow-hidden"
             style={{
               background: "radial-gradient(circle at 50% 0%, rgba(0,102,255,0.08) 0%, rgba(255,0,92,0.05) 55%, rgba(10,8,18,0.97) 100%), rgba(10,8,18,0.9)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              border: `1px solid ${activeAccent}44`,
+              boxShadow: `0 18px 44px rgba(0,0,0,.5), 0 0 34px ${activeAccent}18, inset 0 1px 0 rgba(255,255,255,.06)`,
             }}
           >
             {/* Studio strip */}
@@ -229,11 +243,9 @@ export default function InterviewDeskPage() {
             >
               <Radio className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />
               <span className="text-[0.62rem] font-black uppercase tracking-[0.15em]" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
-                Interview Desk
+                {isPending ? "On air" : "Transcript"}
               </span>
-              <span className="text-[0.62rem] uppercase tracking-widest ml-auto" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
-                {data.triggerType.replace(/_/g, " ")}
-              </span>
+              <span className="ml-auto" />
               {countdown && (
                 <span
                   className="flex items-center gap-1 text-[0.62rem] font-bold px-2 py-0.5 rounded-full"
@@ -294,15 +306,15 @@ export default function InterviewDeskPage() {
                     placeholder="Say a few words…"
                     rows={3}
                     maxLength={2000}
-                    className="w-full rounded-lg px-3 py-2.5 text-sm resize-none outline-none"
-                    style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.9)" }}
+                    className="w-full rounded-xl px-3.5 py-3 text-sm resize-none outline-none focus:border-[#ffd24a88]"
+                    style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "inset 0 2px 8px rgba(0,0,0,.4)", color: "rgba(255,255,255,0.9)" }}
                   />
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => submit("comment")}
                       disabled={submitting || !answerText.trim()}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                      style={{ background: `${activeAccent}22`, border: `1px solid ${activeAccent}55`, color: activeAccent, fontFamily: "Oswald, sans-serif" }}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                      style={{ background: "linear-gradient(180deg,#ffe58a,#e0a800)", border: "1px solid #ffd24a", color: "#1a1200", boxShadow: "0 6px 18px rgba(224,168,0,.28)", fontFamily: "Oswald, sans-serif" }}
                     >
                       <Send className="w-3.5 h-3.5" />Send
                     </button>
@@ -310,7 +322,7 @@ export default function InterviewDeskPage() {
                       <button
                         onClick={() => submit("not_involved")}
                         disabled={submitting}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
                         style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)", fontFamily: "Oswald, sans-serif" }}
                       >
                         <UserX className="w-3.5 h-3.5" />Wasn't there
@@ -319,7 +331,7 @@ export default function InterviewDeskPage() {
                     <button
                       onClick={() => submit("declined")}
                       disabled={submitting}
-                      className="px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                      className="px-4 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
                       style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}
                     >
                       Skip
@@ -329,6 +341,7 @@ export default function InterviewDeskPage() {
               )}
             </div>
           </div>
+          </>
         );
       })()}
     </div>

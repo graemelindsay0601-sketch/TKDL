@@ -71,9 +71,10 @@ export function NotificationOptInPrompt() {
       <div className="w-full max-w-md rounded-2xl overflow-hidden"
         style={{
           pointerEvents: "auto",
-          background: "rgba(8,6,18,0.97)",
-          border: "1px solid rgba(255,210,74,0.25)",
-          boxShadow: "0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03)",
+          borderRadius: 20,
+          border: "1px solid transparent",
+          background: "radial-gradient(120% 90% at 0% 0%, rgba(255,210,74,.16), transparent 55%) padding-box, linear-gradient(180deg, #1b1828, #0c0a12) padding-box, linear-gradient(140deg, rgba(255,210,74,.75), rgba(255,255,255,.1) 35%, rgba(255,255,255,.03) 65%, rgba(168,85,247,.45)) border-box",
+          boxShadow: "0 18px 44px rgba(0,0,0,0.6), 0 0 26px rgba(255,210,74,.1)",
           backdropFilter: "blur(20px)",
         }}>
         <div className="flex items-start gap-3 p-4">
@@ -82,10 +83,10 @@ export function NotificationOptInPrompt() {
             <Bell className="w-4 h-4" style={{ color: "#ffd24a" }} />
           </div>
           <div className="flex-1 min-w-0">
-            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.06em", color: "#fff" }}>
+            <div className="pm-chrome" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.95rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
               Stay in the loop?
             </div>
-            <p style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.45)", lineHeight: 1.5, marginTop: "4px" }}>
+            <p style={{ fontSize: "0.78rem", color: "#b9b3cc", lineHeight: 1.5, marginTop: "4px" }}>
               Get notified the moment results, rank changes and announcements happen — singles, doubles, Shift Wars, all of it — even when you're not in the app.
             </p>
             {error && (

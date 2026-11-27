@@ -154,8 +154,9 @@ export function useEntityNames(): ReadonlyMap<string, string> {
           .catch(() => {}),
         fetchJson<{ id: number } | null>("/api/seasons/current?leagueType=doubles")
           .then(season => season?.id
-            ? fetchJson<{ id: number; name: string }[]>(`/api/seasons/${season.id}/doubles/teams`)
-                .then(teams => { for (const t of teams) map.set(`doubles:${t.id}`, t.name); })
+            ? fetchJson<{ id: number; teamName?: string; name?: string }[]>(`/api/seasons/${season.id}/doubles/teams`)
+                // The doubles teams endpoint calls it `teamName`, not `name`.
+                .then(teams => { for (const t of teams) { const n = t.teamName ?? t.name; if (n) map.set(`doubles:${t.id}`, n); } })
             : undefined)
           .catch(() => {}),
         fetchJson<{ id: number; name: string }[]>("/api/shift-wars/teams")

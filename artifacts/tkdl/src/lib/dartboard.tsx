@@ -199,7 +199,7 @@ export function DartInputBoard({
     const mark = markFor(n);
     return {
       padding: "0",
-      minHeight: "52px",
+      minHeight: "56px",
       border: mark
         ? `2px solid ${mark.color}`
         : hi
@@ -209,21 +209,21 @@ export function DartInputBoard({
         : active
         ? "1.5px solid rgba(255,255,255,0.12)"
         : "1px solid rgba(255,255,255,0.04)",
-      borderRadius: "0.5rem",
+      borderRadius: "14px",
       background: mark
         ? `${mark.color}22`
         : hi
-        ? "rgba(255,210,74,0.12)"
+        ? "linear-gradient(180deg, rgba(255,210,74,0.2), rgba(34,26,10,0.9))"
         : active && mult > 1
         ? mc.bg
         : active
-        ? "rgba(255,255,255,0.06)"
+        ? "linear-gradient(180deg,#24202f,#14121c)"
         : "rgba(255,255,255,0.02)",
       boxShadow: mark ? `0 0 10px ${mark.color}66` : undefined,
       color: active ? (mark ? mark.color : hi ? "#ffd24a" : mc.color) : "rgba(255,255,255,0.15)",
       fontFamily: "Oswald, sans-serif",
       fontWeight: 900,
-      fontSize: "1.35rem",
+      fontSize: "1.5rem",
       cursor: active ? "pointer" : "default",
       display: "flex",
       alignItems: "center",
@@ -238,7 +238,7 @@ export function DartInputBoard({
   };
 
   return (
-    <div style={{ opacity: disabled ? 0.45 : 1, pointerEvents: disabled ? "none" : undefined, userSelect: "none" }}>
+    <div className="pm-keypad" style={{ opacity: disabled ? 0.45 : 1, pointerEvents: disabled ? "none" : undefined, userSelect: "none" }}>
 
       {/* ── Multiplier selector ─────────────────────────────────── */}
       {!distinguishSingleRing ? (
@@ -461,7 +461,7 @@ export function VisitDarts({ darts, max = 3, cappedTotal }: { darts: Dart[]; max
     return "#fff";
   };
   return (
-    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+    <div className="sc-visit" style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
       {slots.map((d, i) => (
         <div key={i} style={{
           flex: 1,

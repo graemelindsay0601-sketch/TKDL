@@ -1,4 +1,8 @@
+import { PageHero } from "@/components/premium/Premium";
+import { DailyDrill } from "@/components/DailyDrill";
+import { GhostBanner, type GhostLeg } from "@/components/GhostRace";
 import { useState, useEffect, useRef } from "react";
+import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { createPortal } from "react-dom";
 import { useSearch } from "wouter";
 import { useListPlayers } from "@workspace/api-client-react";
@@ -19,7 +23,9 @@ import {
   LevelBotPicker, PersonaCard, ShadowPlayerPicker,
   type SoloBotMode, type ShadowProfileData, type ShadowProfileLocked, type ShadowProfileResult,
 } from "@/components/BotPickers";
-import { useWakeLock, useZoomLock, useExitGuard } from "@/lib/nativeParity";
+import { useWakeLock, useZoomLock, useExitGuard, readMatchSnapshot, writeMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
+import { SnapStateProvider, type SnapValues } from "@/lib/snap-state";
+import { ResumeMatchCard } from "@/components/ResumeMatchCard";
 import "@/styles/practice-refresh.css";
 
 type Player = { id: number; name: string; points: number; elo: number; status: string; isActive: boolean };
@@ -49,6 +55,9 @@ const TABS = [
   { key: "mini-games",  label: "Mini-Games"  },
 ];
 
+/** Engines whose scorers support Solo Training (one player, no opponent). */
+const SOLO_ENGINES = new Set(["X01", "Cricket", "Sequence", "CountUp", "HalveIt", "NinetyNine"]);
+
 // Expandable, favouritable game card — click the body to select the game
 // for setup, click the star to favourite it (device-local, see
 // PRACTICE_REDESIGN_BUILD_PLAN.md Phase 1), click the chevron to reveal a
@@ -73,9 +82,11 @@ function GameCard({ gt, selected, expanded, isFav, onSelect, onToggleExpand, onT
           <div className="font-bold text-sm truncate" style={{ fontFamily: "Oswald, sans-serif", color: selected ? "#fff" : "rgba(255,255,255,0.75)", letterSpacing: "0.05em" }}>
             {gt.name}
           </div>
-          <div className="text-xs mt-0.5 leading-tight line-clamp-2" style={{ color: "rgba(255,255,255,0.3)" }}>
-            {gt.description}
-          </div>
+          {!expanded && (
+            <div className="text-xs mt-0.5 leading-tight line-clamp-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+              {gt.description}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
           <button onClick={e => { e.stopPropagation(); onToggleFav(); }} className="p-1 rounded"
@@ -89,8 +100,8 @@ function GameCard({ gt, selected, expanded, isFav, onSelect, onToggleExpand, onT
         </div>
       </div>
       {expanded && (
-        <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }} onClick={e => e.stopPropagation()}>
-          <p className="text-xs leading-relaxed mb-2.5" style={{ color: "rgba(255,255,255,0.5)" }}>{gt.description}</p>
+        <div className="mt-2" onClick={e => e.stopPropagation()}>
+          <p className="text-xs leading-relaxed mb-2.5" style={{ color: "rgba(255,255,255,0.55)" }}>{gt.description}</p>
           <button onClick={onRules} className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5"
             style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
             <BookOpen className="w-3.5 h-3.5" />Full rules
@@ -115,6 +126,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [p1Id, setP1Id]           = useState("");
   const [p2Id, setP2Id]           = useState("");
   const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
+  // Switching to Solo Training drops a picked game that can't be played alone.
+  useEffect(() => { if (mode === "solo" && selectedGame && !SOLO_ENGINES.has(selectedGame.engine)) setGame(null); }, [mode, selectedGame]);
   const [rulesGame, setRulesGame] = useState<GameTypeOption | null>(null);
   const [formatMode, setFormatMode] = useState<"legs" | "sets">("legs");
   const [selectedLegs, setSelectedLegs] = useState(1);
@@ -236,6 +249,17 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
   }, []);
 
+  // Deep link from the daily drill: ?game=<key>&solo=1 picks the game (and solo mode) once the games have loaded.
+  const [linkedGameDone, setLinkedGameDone] = useState(false);
+  useEffect(() => {
+    if (linkedGameDone || !gameTypes.length) return;
+    const params = new URLSearchParams(search), key = params.get("game");
+    setLinkedGameDone(true);
+    if (!key) return;
+    const gt = gameTypes.find(g => g.key === key);
+    if (gt) { setGame(gt); if (params.get("solo") === "1") setMode("solo"); }
+  }, [gameTypes, search, linkedGameDone]);
+
   useEffect(() => {
     const key = selectedGame?.key;
     if (!key) { setGameLb([]); return; }
@@ -292,7 +316,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     party: "#ee0a78",
     "mini-games": "#ffd24a",
   };
-  const enabledGames = gameTypes.filter(g => g.enabled !== false);
+  // Solo Training only lists games whose scorer can actually be played alone; the rest
+  // would hand turns to a "CPU" player 2 with no CPU behind it.
+  const enabledGames = gameTypes.filter(g => g.enabled !== false && (mode !== "solo" || SOLO_ENGINES.has(g.engine)));
   const totalGames = enabledGames.length;
   const catCounts: Record<string, number> = {};
   for (const t of TABS) catCounts[t.key] = enabledGames.filter(g => g.category === t.key).length;
@@ -330,7 +356,12 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     const isX01 = selectedGame?.key?.startsWith("x01") || selectedGame?.key?.startsWith("501") || selectedGame?.key?.startsWith("301");
     if (!isX01) return {};
     if (formatMode === "sets") {
-      return { legs: selectedSets.legsPerSet, setsToWin: selectedSets.sets, legsToWinSet: selectedSets.legsPerSet };
+      // The picker asks "first to": sets to win the match and legs to win a
+      // set. The scorer takes best-of counts (it wins at ceil(n / 2)), so
+      // first to N is best of 2N - 1.
+      const bestOfSets = selectedSets.sets * 2 - 1;
+      const bestOfLegs = selectedSets.legsPerSet * 2 - 1;
+      return { legs: bestOfLegs, setsToWin: bestOfSets, legsToWinSet: bestOfLegs };
     }
     if (selectedLegs > 1) return { legs: selectedLegs };
     return {};
@@ -394,25 +425,25 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     <>
     <div className="practice-refresh max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="practice-refresh-header flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.3)" }}>
-          <Dumbbell className="w-5 h-5" style={{ color: "#a78bfa" }} />
+      <PageHero kicker="Your next session" icon={<Dumbbell className="w-3.5 h-3.5" />} accent="#a78bfa" accent2="#ffd24a"
+        title={<>Make every visit <span style={{ WebkitTextFillColor: "#ffd24a", textShadow: "0 0 24px rgba(255,210,74,.5)" }}>count.</span></>}
+        sub="No stakes · no leaderboard · just reps. Choose who’s playing, pick a game, and get straight to the oche.">
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[
+            { v: enabledGames.length || "—", l: "Games", c: "#c4b0ff" },
+            { v: 3, l: "Ways to play", c: "#ffd24a" },
+            { v: "0", l: "Pts at stake", c: "#4ade80" },
+          ].map(t => (
+            <div key={t.l} className="rounded-2xl px-1 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)" }}>
+              <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 24, color: t.c, textShadow: `0 0 14px ${t.c}77` }}>{t.v}</div>
+              <div className="pm-lab justify-center mt-1" style={{ fontSize: 8.5, letterSpacing: ".12em" }}>{t.l}</div>
+            </div>
+          ))}
         </div>
-        <div>
-          <h1 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>Practice</h1>
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>No stakes · No leaderboard · Just reps</p>
-        </div>
-      </div>
-      <section className="practice-refresh-hero" aria-label="Practice introduction">
-        <div>
-          <p className="practice-refresh-kicker">YOUR NEXT SESSION</p>
-          <h2>Make every visit <span>count.</span></h2>
-          <p>Choose who’s playing, pick a game, and get straight to the oche.</p>
-        </div>
-        <div className="practice-refresh-stamp" aria-hidden="true"><Target /><span>OPEN<br />PRACTICE</span></div>
-      </section>
-      <div className="pdc-divider" />
+      </PageHero>
+
+      <DailyDrill />
+
 
       {/* Coach drill deep-link banner */}
       {coachDrill && !dismissedDrill && (
@@ -456,13 +487,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         ]).map(({ v, l, d, icon }) => (
           <button key={v} onClick={() => setMode(v)}
             className={`practice-mode-option flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${mode === v ? "is-active" : ""}`}
-            style={{
-              fontFamily: "Oswald, sans-serif",
-              background: mode === v ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)",
-              border: mode === v ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
-              color: mode === v ? "#a78bfa" : "rgba(255,255,255,0.3)",
-              cursor: "pointer",
-            }}>
+            style={{ fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
             {icon}<span className="practice-mode-copy"><b>{l}</b><small>{d}</small></span>
           </button>
         ))}
@@ -509,7 +534,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           <div>
             <div className="text-xs font-black uppercase tracking-widest mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa" }}>Solo Practice Mode</div>
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-              No opponent. Just you and the board. Track your darts, checkout rate, and three-dart average on X01 games.
+              No opponent. Just you and the board. Works with X01, Cricket and the solo drills (Around the World, Halve-It, Bob's 27, Count-Up, 99 Darts and more); for the rest, pick Two-player or Play against a bot.
             </p>
           </div>
         </div>
@@ -827,7 +852,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           {formatMode === "legs" ? (
             <div>
               <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                Choose a single leg or a best-of leg format.
+                Pick how many legs it takes to win the match.
               </div>
               <div className="flex gap-2 flex-wrap">
                 {[1, 3, 5, 7, 9, 11].map(n => (
@@ -839,7 +864,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                       color: selectedLegs === n ? "#a78bfa" : "rgba(255,255,255,0.4)",
                       border: selectedLegs === n ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
                     }}>
-                    {n === 1 ? "Single" : `BO${n}`}
+                    {n === 1 ? "Single leg" : <>First to {(n + 1) / 2}<span className="block text-[10px] font-semibold normal-case opacity-70">best of {n}</span></>}
                   </button>
                 ))}
               </div>
@@ -847,7 +872,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           ) : (
             <div className="practice-set-config grid grid-cols-2 gap-4">
               <div>
-                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Sets to win match</div>
+                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.55)", fontFamily: "Oswald, sans-serif" }}>Sets to win the match (first to)</div>
                 <div className="flex gap-1.5 flex-wrap">
                   {[1, 2, 3, 4, 5].map(n => (
                     <button key={n} onClick={() => setSelectedSets(s => ({ ...s, sets: n }))}
@@ -864,9 +889,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 </div>
               </div>
               <div>
-                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Legs per set</div>
+                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.55)", fontFamily: "Oswald, sans-serif" }}>Legs to win a set (first to)</div>
                 <div className="flex gap-1.5 flex-wrap">
-                  {[3, 5, 7].map(n => (
+                  {[2, 3, 4].map(n => (
                     <button key={n} onClick={() => setSelectedSets(s => ({ ...s, legsPerSet: n }))}
                       className="w-10 h-10 rounded-lg text-sm font-black transition-all"
                       style={{
@@ -881,8 +906,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 </div>
               </div>
               <div className="col-span-2">
-                <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(167,139,250,0.05)", border: "1px solid rgba(167,139,250,0.15)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                  First to {selectedSets.sets} {selectedSets.sets === 1 ? "set" : "sets"} · {selectedSets.legsPerSet} legs per set
+                <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(167,139,250,0.05)", border: "1px solid rgba(167,139,250,0.15)", color: "rgba(255,255,255,0.7)", fontFamily: "Oswald, sans-serif" }}>
+                  First to {selectedSets.sets} {selectedSets.sets === 1 ? "set" : "sets"} (best of {selectedSets.sets * 2 - 1}) · first to {selectedSets.legsPerSet} legs wins a set (best of {selectedSets.legsPerSet * 2 - 1})
                 </div>
               </div>
             </div>
@@ -959,7 +984,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     </div>
     {showBackTop && (
       <button onClick={() => (document.querySelector("main") ?? window).scrollTo({ top: 0, behavior: "smooth" })}
-        className="fixed bottom-24 right-5 z-30 w-11 h-11 rounded-full flex items-center justify-center"
+        className="fixed bottom-[10.5rem] right-5 z-30 w-11 h-11 rounded-full flex items-center justify-center"
         style={{ background: "rgba(20,14,32,0.92)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)", cursor: "pointer", boxShadow: "0 10px 28px -10px rgba(0,0,0,0.6)" }}
         title="Back to top">
         <ArrowUp className="w-4 h-4" />
@@ -1062,7 +1087,7 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
         </div>
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Practice Complete</div>
         <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em" }}>
-          {data.soloPlay ? "Practice Complete!" : data.solo ? (result.winnerIdx === 0 ? "You Win!" : `${p2Label ?? "CPU"} Wins!`) : `${winner} Wins!`}
+          {data.soloPlay ? "Nice Work!" : data.solo ? (result.winnerIdx === 0 ? "You Win!" : `${p2Label ?? "CPU"} Wins!`) : `${winner} Wins!`}
         </div>
         {result.detail && <div className="text-sm mt-1" style={{ color: themeColor, fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
       </div>
@@ -1103,6 +1128,8 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
         </div>
       </div>
 
+      {saved && currentPlayer?.playerId && <NearlyThere players={[{ id: currentPlayer.playerId }]} areas={["PRACTICE"]} />}
+
       <div className="grid grid-cols-2 gap-3">
         <button onClick={onBack} className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm flex items-center justify-center gap-2"
           style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
@@ -1125,11 +1152,35 @@ function clearCardClashSession() {
   sessionStorage.removeItem("card_clash_p2_cards");
 }
 
+const PRACTICE_RESUME_KEY = "tkdl_practice_resume";
+type PracticeResume = { setupData: SetupData; scorer: SnapValues };
+
 export default function Practice() {
   const [phase, setPhase]             = useState<"setup" | "playing" | "done">("setup");
   const [setupData, setSetupData]     = useState<SetupData | null>(null);
+  // Match resume: the running game is saved to the phone as it's played, so
+  // if the app is closed in the background it can carry on from here.
+  const [resume, setResume] = useState<PracticeResume | null>(() => {
+    const saved = readMatchSnapshot<PracticeResume>(PRACTICE_RESUME_KEY);
+    return saved?.setupData?.gameType && saved.scorer ? saved : null;
+  });
+  const [snapInitial, setSnapInitial] = useState<SnapValues | null>(null);
+  const [runId, setRunId] = useState(0);
+  const liveRef = useRef(false);
+  const endRun = () => { liveRef.current = false; clearMatchSnapshot(PRACTICE_RESUME_KEY); };
   const [gameResult, setResult]       = useState<GameResult | null>(null);
   const [practiceStats, setPracticeStats] = useState<PracticeStats | null>(null);
+  // Ghost race: in solo X01, race your own best leg of the same game.
+  const [ghost, setGhost] = useState<GhostLeg | null>(null);
+  const [myDarts, setMyDarts] = useState<{ values: number[]; mults: number[] }>({ values: [], mults: [] });
+  const x01Cfg = (() => { try { return setupData?.gameType.config ? JSON.parse(setupData.gameType.config) : {}; } catch { return {}; } })() as { startingScore?: number; doubleOut?: boolean };
+  const ghostable = !!setupData?.soloPlay && setupData.gameType.engine === "X01" && (setupData.legs ?? 1) <= 1;
+  useEffect(() => {
+    setGhost(null); setMyDarts({ values: [], mults: [] });
+    if (!ghostable || !setupData) return;
+    fetch(`/api/practice/ghost?playerId=${setupData.p1.id}&gameTypeKey=${encodeURIComponent(setupData.gameType.key)}`)
+      .then(r => r.ok ? r.json() : null).then(d => setGhost(d?.ghost ?? null)).catch(() => {});
+  }, [ghostable, setupData?.p1.id, setupData?.gameType.key, runId]);
 
   // Native-app parity: keep the screen awake, stop pinch-zoom, and trap the
   // back button/swipe behind a confirmation for as long as a session is live
@@ -1137,7 +1188,7 @@ export default function Practice() {
   const isLive = phase === "playing";
   useWakeLock(isLive);
   useZoomLock(isLive);
-  useExitGuard(isLive, () => { clearCardClashSession(); setPhase("setup"); });
+  useExitGuard(isLive, () => { endRun(); clearCardClashSession(); setPhase("setup"); });
 
   // SCORER_THEME cosmetic — accents the logged-in viewer's own live scoring
   // surface (X01 & Cricket only, see GameScorer). Same "own account, solo
@@ -1159,7 +1210,20 @@ export default function Practice() {
     : null;
 
   if (phase === "setup") {
-    return <SetupScreen onStart={d => {
+    return <>
+      {resume && (
+        <ResumeMatchCard
+          title={resume.setupData.gameType.name}
+          players={[resume.setupData.p1.name, resume.setupData.botName ?? resume.setupData.p2?.name ?? (resume.setupData.soloPlay ? null : "CPU")]}
+          onResume={() => {
+            setSetupData(resume.setupData); setSnapInitial(resume.scorer); setRunId(n => n + 1);
+            liveRef.current = true; setResume(null); setPhase("playing");
+          }}
+          onDiscard={() => { clearMatchSnapshot(PRACTICE_RESUME_KEY); setResume(null); }}
+        />
+      )}
+      <SetupScreen onStart={d => {
+      clearMatchSnapshot(PRACTICE_RESUME_KEY); setResume(null); setSnapInitial(null); setRunId(n => n + 1); liveRef.current = true;
       // Fire-and-forget: log that a session actually started, not just
       // when (if) it finishes. practice_sessions only ever gets a row on
       // successful completion, so a session that freezes/crashes/gets
@@ -1178,7 +1242,8 @@ export default function Practice() {
         }),
       }).catch(() => {});
       setSetupData(d); setPhase("playing");
-    }} />;
+    }} />
+    </>;
   }
 
   if (phase === "playing" && setupData) {
@@ -1190,6 +1255,8 @@ export default function Practice() {
       }}>
         <div className="ambient-blob-red" />
         <div className="ambient-blob-blue" />
+        <SnapStateProvider key={runId} initial={snapInitial}
+          onChange={values => { if (liveRef.current) writeMatchSnapshot(PRACTICE_RESUME_KEY, { setupData, scorer: values } satisfies PracticeResume); }}>
         <GameScorer
           p1Name={setupData.p1.name}
           p2Name={p2Name}
@@ -1201,10 +1268,13 @@ export default function Practice() {
           soloMode={setupData.soloPlay}
           bullUp={setupData.bullUp}
           scorerThemeColor={scorerAccentColor}
-          onWin={r => { clearCardClashSession(); setResult(r); setPhase("done"); }}
-          onAbandon={() => { clearCardClashSession(); setPhase("setup"); }}
+          onWin={r => { endRun(); clearCardClashSession(); setResult(r); setPhase("done"); }}
+          onAbandon={() => { endRun(); clearCardClashSession(); setPhase("setup"); }}
           onPracticeStats={s => setPracticeStats(s)}
+          onDartLog={ghost ? (d => setMyDarts({ values: d.map(x => x.value), mults: d.map(x => x.multiplier) })) : undefined}
+          topBanner={ghost ? <GhostBanner ghost={ghost} start={x01Cfg.startingScore ?? 501} doubleOut={x01Cfg.doubleOut !== false} myValues={myDarts.values} myMults={myDarts.mults} /> : undefined}
         />
+        </SnapStateProvider>
       </div>,
       document.body
     );

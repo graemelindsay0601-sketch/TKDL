@@ -1,3 +1,4 @@
+import { useSnapState } from "./snap-state";
 /**
  * Game engine scorer components — each handles its own state + dart input.
  * All scorers receive: p1Name, p2Name, config (parsed from game_type), onWin(0|1, detail?), onAbandon
@@ -36,6 +37,12 @@ import { createMatchLogger, downloadMatchLog } from "./card-clash/matchLogger";
 import type { MatchLogger } from "./card-clash/matchLogger";
 import { RaceTrack, TrackStats, LivesPods, TerritoryGrid, MatchStrip, ScoreTower, LimboBar, SnakesLaddersBoard, CricketBoard, type LifePod } from "@/components/party-ui";
 import "./x01-scorer.css";
+import { ModernX01, type ModernMode } from "./modern-x01";
+import { useScorerStyle } from "./useScorerStyle";
+import { ModernCricket } from "./modern-cricket";
+import { ModernParty, TargetChips } from "./modern-party";
+import "./modern-x01.css";
+import "./modern-cricket.css";
 
 /**
  * Sends a match's accumulated log to the backend for later download from
@@ -181,17 +188,18 @@ function PlayerCard({ name, score, scoreSuffix = "", turn, active, sub }: {
   turn: boolean; active: boolean; sub?: string;
 }) {
   return (
-    <div className="pdc-card p-4 text-center relative overflow-hidden transition-all duration-200"
+    <div className={`pdc-card pm-score-card p-4 text-center relative overflow-hidden transition-all duration-200${active ? " is-on" : ""}`}
       style={{
+        ["--pc" as any]: P_COLOR(turn ? 1 : 0),
         borderColor: active ? P_COLOR(turn ? 1 : 0) : "rgba(255,255,255,0.06)",
         boxShadow: active ? `0 0 20px ${P_COLOR(turn ? 1 : 0)}22` : undefined,
       }}>
       {active && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: P_COLOR(turn ? 1 : 0) }} />}
-      <div className="text-xs font-bold uppercase tracking-widest mb-1"
+      <div className="sc-pname text-xs font-bold uppercase tracking-widest mb-1"
         style={{ fontFamily: "Oswald, sans-serif", color: P_COLOR(turn ? 1 : 0), opacity: active ? 1 : 0.4 }}>
         {name}
       </div>
-      <div className="font-black leading-none"
+      <div className="sc-pscore font-black leading-none"
         style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", color: active ? "#fff" : "rgba(255,255,255,0.3)" }}>
         {score}{scoreSuffix}
       </div>
@@ -241,8 +249,8 @@ function CheckoutBar({ checkout, playerName, playerIdx, active }: { checkout: st
 
 function TurnBanner({ name, turn, msg, className = "" }: { name: string; turn: 0 | 1; msg?: string; className?: string }) {
   return (
-    <div className={`flex items-center justify-center gap-2 text-sm ${className}`}
-      style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+    <div className={`sc-turn flex items-center justify-center gap-2 text-sm ${className}`}
+      style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif", ["--pc" as any]: P_COLOR(turn) }}>
       <Zap className="w-3.5 h-3.5" style={{ color: P_COLOR(turn) }} />
       <span style={{ color: P_COLOR(turn), fontWeight: 700 }}>{name}</span>
       <span className="uppercase tracking-wider text-xs">{msg ?? "— enter your score"}</span>
@@ -283,7 +291,7 @@ function DownloadMatchLogBtn({ logger }: { logger: MatchLogger }) {
 // that doesn't pass it is pixel-identical to pre-cosmetic behaviour.
 function SectionCard({ children, accentColor }: { children: React.ReactNode; accentColor?: string | null }) {
   return (
-    <div className="pdc-card p-3" style={{
+    <div className={`pdc-card p-3${accentColor ? "" : " sc-section"}`} style={{
       borderColor: accentColor ? `${accentColor}66` : "rgba(255,255,255,0.07)",
       boxShadow: accentColor ? `0 0 14px ${accentColor}22` : undefined,
     }}>{children}</div>
@@ -628,15 +636,14 @@ function BoardMarksHUD({ marks, names, engine, viewerIdx }: { marks: BoardMark[]
 function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode }) {
   const landscape = useOrientation();
 
+  // Same ground as the new X01/Cricket scorers, so every game looks like one set.
   const siteBg: React.CSSProperties = {
-    backgroundImage: "linear-gradient(rgba(4,4,10,0.84), rgba(4,4,10,0.92)), url('https://i.postimg.cc/Bbf9fbrp/pdc1.jpg')",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
+    background: "radial-gradient(120% 55% at 50% 0%, #2a0a1c 0%, #0b0a12 62%)",
   };
 
   if (landscape) {
     return (
-      <div style={{ height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden", ...siteBg }}>
+      <div className="sc-root" style={{ height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden", ...siteBg }}>
         <div style={{
           flex: "0 0 44%", overflowY: "auto", padding: "0.5rem 0.75rem",
           borderRight: "1px solid rgba(255,255,255,0.06)",
@@ -651,7 +658,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
   }
 
   return (
-    <div style={{
+    <div className="sc-root" style={{
       height: "100dvh", width: "100%", display: "flex", flexDirection: "column",
       overflow: "hidden", padding: "0 0.5rem", ...siteBg,
     }}>
@@ -744,28 +751,28 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     [startingScore, p1StartingScore, p2StartingScore],
   );
 
-  const [scores, setScores]         = useState<[number, number]>(() => initialRecovery?.scores ?? startingScores);
-  const [legWins, setLegWins]       = useState<[number, number]>(() => initialRecovery?.legWins ?? [0, 0]);
-  const [setWins, setSetWins]       = useState<[number, number]>(() => initialRecovery?.setWins ?? [0, 0]);
-  const [legHistory, setLegHistory] = useState<(0|1)[]>(() => initialRecovery?.legHistory ?? []); // Track who won each leg (for conditional cards)
-  const [started, setStarted]       = useState<[boolean, boolean]>(() => initialRecovery?.started ?? [!doubleIn, !doubleIn]);
-  const [turn, setTurn]             = useState<0 | 1>(() => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
-  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
+  const [scores, setScores]         = useSnapState<[number, number]>("X01Scorer.scores", () => initialRecovery?.scores ?? startingScores);
+  const [legWins, setLegWins]       = useSnapState<[number, number]>("X01Scorer.legWins", () => initialRecovery?.legWins ?? [0, 0]);
+  const [setWins, setSetWins]       = useSnapState<[number, number]>("X01Scorer.setWins", () => initialRecovery?.setWins ?? [0, 0]);
+  const [legHistory, setLegHistory] = useSnapState<(0|1)[]>("X01Scorer.legHistory", () => initialRecovery?.legHistory ?? []); // Track who won each leg (for conditional cards)
+  const [started, setStarted]       = useSnapState<[boolean, boolean]>("X01Scorer.started", () => initialRecovery?.started ?? [!doubleIn, !doubleIn]);
+  const [turn, setTurn]             = useSnapState<0 | 1>("X01Scorer.turn", () => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
+  const [legStarter, setLegStarter] = useSnapState<0 | 1>("X01Scorer.legStarter", () => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
   // Leg counters (A6.5): legNo keys the bot turn so a bot that wins a leg AND
   // starts the next one still throws; legInSet drives the set-aware starter rule.
-  const [legNo, setLegNo]           = useState<number>(() => initialRecovery?.legNo ?? 1);
-  const [legInSet, setLegInSet]     = useState<number>(() => initialRecovery?.legInSet ?? 1);
+  const [legNo, setLegNo]           = useSnapState<number>("X01Scorer.legNo", () => initialRecovery?.legNo ?? 1);
+  const [legInSet, setLegInSet]     = useSnapState<number>("X01Scorer.legInSet", () => initialRecovery?.legInSet ?? 1);
   const dartLogRef                  = useRef<Dart[]>(initialRecovery?.dartLog ?? []);
   const pushDartLog = (darts: Dart[]) => { dartLogRef.current = darts; onDartLog?.(darts); };
   const visitStartOpenedRef         = useRef<boolean>(true);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("X01Scorer.visitDarts", () => initialRecovery?.visitDarts ?? []);
   /** Soft-tip round-limit cork in progress (leg starter throws first; same ring re-throws in reverse order). */
   // `decided` holds the cork (so the bot stays idle) until the next leg actually begins.
-  const [cork, setCork]             = useState<{ starter: 0 | 1; throws: BullThrow[]; decided?: boolean } | null>(() => initialRecovery?.cork ?? null);
-  const [bust, setBust]             = useState(false);
+  const [cork, setCork]             = useSnapState<{ starter: 0 | 1; throws: BullThrow[]; decided?: boolean } | null>("X01Scorer.cork", () => initialRecovery?.cork ?? null);
+  const [bust, setBust]             = useSnapState("X01Scorer.bust", false);
   const [bustMsg, setBustMsg]       = useState("");
-  const [freeRetriesUsed, setFreeRetriesUsed] = useState<[number, number]>([0, 0]); // Track free retries per player this turn
-  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[]; leg?: number; openedBefore?: boolean }[]>(() => initialRecovery?.history ?? []);
+  const [freeRetriesUsed, setFreeRetriesUsed] = useSnapState<[number, number]>("X01Scorer.freeRetriesUsed", [0, 0]); // Track free retries per player this turn
+  const [history, setHistory]       = useSnapState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[]; leg?: number; openedBefore?: boolean }[]>("X01Scorer.history", () => initialRecovery?.history ?? []);
   useEffect(() => {
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     const liveScores: [number, number] = [...scores] as [number, number];
@@ -782,10 +789,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // scoring logic above (including all the Card Clash chaos-mode branches).
   const { data: appSettings } = useSettings();
   const voiceEnabled = appSettings?.voice_callouts_enabled === true;
-  const [voiceMuted, setVoiceMutedState] = useState(() => isVoiceMuted());
+  const [voiceMuted, setVoiceMutedState] = useSnapState("X01Scorer.voiceMuted", () => isVoiceMuted());
   const toggleVoiceMuted = () => setVoiceMutedState(prev => { setVoiceMuted(!prev); return !prev; });
   const [callerVoices, setCallerVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [callerVoiceURI, setCallerVoiceURI] = useState<string | null>(() => getSelectedVoiceURI());
+  const [callerVoiceURI, setCallerVoiceURI] = useSnapState<string | null>("X01Scorer.callerVoiceURI", () => getSelectedVoiceURI());
   useEffect(() => {
     if (!voiceEnabled) return;
     return onVoicesChanged(() => setCallerVoices(getAvailableVoices()));
@@ -818,13 +825,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [voiceEnabled, voiceMuted, legWins, p1Name, p2Name]);
 
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
-  const [p1Cards, setP1Cards]         = useState<any[]>([]);
-  const [p2Cards, setP2Cards]         = useState<any[]>([]);
-  const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
+  const [p1Cards, setP1Cards]         = useSnapState<any[]>("X01Scorer.p1Cards", []);
+  const [p2Cards, setP2Cards]         = useSnapState<any[]>("X01Scorer.p2Cards", []);
+  const [cardsUsed, setCardsUsed]     = useSnapState<any[]>("X01Scorer.cardsUsed", []);
   // Purpose-built log for reward reporting (separate from cardsUsed, which drives UI "already used" checks). Tracks every activation, equip-mode AND chaos.
-  const [cardActivationLog, setCardActivationLog] = useState<{ cardId: string; usedBy: 0 | 1 }[]>([]);
-  const [isCardClash, setIsCardClash] = useState(false);
-  const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
+  const [cardActivationLog, setCardActivationLog] = useSnapState<{ cardId: string; usedBy: 0 | 1 }[]>("X01Scorer.cardActivationLog", []);
+  const [isCardClash, setIsCardClash] = useSnapState("X01Scorer.isCardClash", false);
+  const [activeEffects, setActiveEffects] = useSnapState<CCEffect[]>("X01Scorer.activeEffects", []);
   const [lastActivation, setLastActivation] = useState<{ cardName: string; player: 0 | 1; key: string } | null>(null);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
@@ -834,14 +841,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [cardActivationLog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chaos Mode state (no equip — random mystery card dealt each visit)
-  const [isChaosMode, setIsChaosMode] = useState(false);
+  const [isChaosMode, setIsChaosMode] = useSnapState("X01Scorer.isChaosMode", false);
   const [chaosOptions, setChaosOptions] = useState<CardData[] | null>(null);
   const chaosResolvedKeyRef = useRef<string>("");
 
   // Chaos Lab state (Board Marks v1) — a separate mode from regular Chaos Mode,
   // never required by Standard Card Clash or existing Chaos Mode.
-  const [isChaosLabMode, setIsChaosLabMode] = useState(false);
-  const [activeBoardMarks, setActiveBoardMarks] = useState<BoardMark[]>([]);
+  const [isChaosLabMode, setIsChaosLabMode] = useSnapState("X01Scorer.isChaosLabMode", false);
+  const [activeBoardMarks, setActiveBoardMarks] = useSnapState<BoardMark[]>("X01Scorer.activeBoardMarks", []);
   const boardMarkVisitEndKeyRef = useRef<string>("");
   // BUGFIX: a Hot/Trap reward applied via setScores on a dart that ALSO wins
   // the leg was getting silently wiped by resetForLeg's setScores([starting,
@@ -1183,6 +1190,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (fatBull && dart.segment === 25 && dart.multiplier === 1) {
       dart = { segment: 25, multiplier: 2 as const, value: 50, label: "Bull" };
     }
+    // Visit total: darts made up from a typed score are flagged `typed`. They
+    // score and count toward visit stats (180s, first 9) as normal, but the
+    // stats log keeps the flag so per-segment stats (treble/double rates,
+    // favourite doubles) can leave them out: nobody actually threw them.
+    const typedDart = !!(dart as Dart & { typed?: boolean }).typed;
+    if (typedDart) { const { typed: _t, ...plain } = dart as Dart & { typed?: boolean }; dart = plain; }
     pushDartLog([...dartLogRef.current, dart]);
 
     // Double-in: before started, only doubles open the scoring. A dart that
@@ -1217,11 +1230,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // Record every dart for player profile building
     if (turn === 0) {
       const phase: "scoring" | "checkout" = scores[0] > 170 ? "scoring" : "checkout";
-      p1StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase });
+      p1StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase, ...(typedDart ? { typed: true } : {}) });
     }
     if (turn === 1 && isHumanVsHuman) {
       const phase: "scoring" | "checkout" = scores[1] > 170 ? "scoring" : "checkout";
-      p2StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase });
+      p2StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase, ...(typedDart ? { typed: true } : {}) });
     }
 
     // Card Clash: preprocess dart (segment redirects, multiplier changes, value floors/caps)
@@ -1725,7 +1738,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // Career pairs: your partner's visits are thrown by their seeded bot, like the opponent's.
   // The planner is read through a ref (like the bot's): a refreshed callback after a checkpoint must never
   // re-plan a visit that is already being thrown.
-  const [partnerTurn, setPartnerTurn] = useState(false);
+  const [partnerTurn, setPartnerTurn] = useSnapState("X01Scorer.partnerTurn", false);
   const partnerPlannerRef = useRef(partnerVisitPlanner);
   partnerPlannerRef.current = partnerVisitPlanner;
   useEffect(() => {
@@ -1974,6 +1987,91 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   const handleChaosCardActivationRef = useRef(handleChaosCardActivation);
   handleChaosCardActivationRef.current = handleChaosCardActivation;
+
+  // ── New scorer layouts (Visit total / Per dart) ─────────────────────────
+  // Presentation only: input still goes through handleDart, so rules, undo,
+  // the dart log and stats are the classic scorer's. Card Clash, Board Curse
+  // effects and soft-tip round limits keep the classic layout (their extra UI
+  // lives there). Visit total also needs plain double-out / straight-out
+  // rules, because it turns a typed score into darts.
+  const [preferredStyle] = useScorerStyle();
+  const [matchStyle, setMatchStyle] = useSnapState<ModernMode | "classic" | null>("X01Scorer.matchStyle", null);
+  const modernAllowed = !isCardClash && cardEffects.length === 0 && !roundLimit;
+  const totalAllowed = modernAllowed && !doubleIn && !noTrebles && !trebleOut && !masterOut && !bullFinish && !partnerVisitPlanner;
+  const wantedStyle: ModernMode | "classic" = matchStyle ?? preferredStyle;
+  const modernMode: ModernMode | null = !modernAllowed || wantedStyle === "classic" ? null : (wantedStyle === "total" && totalAllowed ? "total" : "perdart");
+  // Visit total queues its darts here; one dart per render so the engine sees each in order.
+  const synthQueueRef = useRef<Dart[]>([]);
+  const [synthTick, setSynthTick] = useState(0);
+  useEffect(() => {
+    if (synthQueueRef.current.length === 0) return;
+    if (bust) { synthQueueRef.current = []; return; }
+    const next = synthQueueRef.current.shift()!;
+    handleDartRef.current(next);
+  }, [synthTick, visitDarts, history.length, turn, bust, legNo]);
+  const queueVisit = (ds: Dart[]) => {
+    if (bust || isBotTurnX01 || visitDarts.length > 0 || synthQueueRef.current.length > 0) return;
+    synthQueueRef.current = ds.map(d => ({ ...d, typed: true }) as Dart);
+    setSynthTick(t => t + 1);
+  };
+
+  if (modernMode) {
+    const playerStats = ([0, 1] as const).map(i => {
+      const mine = history.filter(h => h.turn === i);
+      const darts = mine.reduce((n, h) => n + h.darts.length, 0);
+      const pts = mine.reduce((n, h) => n + h.score, 0);
+      const legDarts = mine.filter(h => (h.leg ?? legNo) === legNo).reduce((n, h) => n + h.darts.length, 0) + (turn === i ? visitDarts.length : 0);
+      return { avg: darts ? ((pts / darts) * 3).toFixed(1) : "–", darts: legDarts };
+    }) as [{ avg: string; darts: number }, { avg: string; darts: number }];
+    const lastVisit = ([0, 1] as const).map(i => {
+      const mine = history.filter(h => h.turn === i && (h.leg ?? legNo) === legNo);
+      return mine.length ? mine[mine.length - 1].score : null;
+    }) as [number | null, number | null];
+    const routes = ([0, 1] as const).map(i => {
+      const rem = i === turn && !bust ? projected : scores[i];
+      return rem <= 170 && rem >= 2 && (!doubleIn || started[i]) ? CHECKOUTS[rem] : undefined;
+    }) as [string | undefined, string | undefined];
+    const menu: { label: string; onClick: () => void; danger?: boolean }[] = [];
+    if (fsSupported) menu.push({ label: fs ? "Exit fullscreen" : "Fullscreen", onClick: toggleFs });
+    if (voiceEnabled) menu.push({ label: voiceMuted ? "Voice call-outs on" : "Voice call-outs off", onClick: toggleVoiceMuted });
+    menu.push({ label: "Use classic scorer for this match", onClick: () => setMatchStyle("classic") });
+    menu.push({ label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } });
+    const heading = setsToWin > 0
+      ? `${startingScore} · Set ${setWins[0] + setWins[1] + 1} · Leg ${legWins[0] + legWins[1] + 1}`
+      : `${startingScore} · Leg ${legNo}${legs ? ` of ${legs}` : ""}`;
+    const legsLine = setsToWin > 0 ? `First to ${setsNeeded} sets · ${legsNeeded} legs a set` : legsNeeded > 1 ? `First to ${legsNeeded} legs` : undefined;
+    return (
+      <ModernX01
+        mode={modernMode}
+        canTotal={totalAllowed}
+        onMode={m => setMatchStyle(m)}
+        names={[p1Name, p2Name]}
+        solo={soloMode}
+        scores={scores}
+        turn={turn}
+        heading={heading}
+        legsLine={legsLine}
+        legWins={legWins}
+        legsNeeded={legsNeeded}
+        setWins={setsToWin > 0 ? setWins : undefined}
+        stats={playerStats}
+        routes={routes}
+        visitDarts={visitDarts}
+        bust={bust}
+        bustMsg={bustMsg}
+        waitingMsg={partnerTurn ? "Partner throwing" : isBotTurnX01 ? `${p2Name} throwing` : doubleIn && !started[turn] ? "Hit a double to start" : undefined}
+        disabled={bust || isBotTurnX01 || synthQueueRef.current.length > 0}
+        doubleOut={!!doubleOut}
+        onDart={handleDart}
+        onMiss={handleMiss}
+        onUndo={handleUndo}
+        onDarts={queueVisit}
+        topBanner={topBanner}
+        menu={menu}
+        lastVisit={lastVisit}
+      />
+    );
+  }
 
   return (
     <>
@@ -2379,8 +2477,10 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0 }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0, nums: numsProp }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
+  /** Numbers in play, bull last (Tactics uses 20 down to 10). Defaults to 20–15 and the bull. */
+  nums?: number[];
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   onLiveState?: (state: LiveScoreState) => void;
@@ -2411,42 +2511,44 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   firstThrower?: 0 | 1;
 }) {
   const safeTimeout = useSafeTimeout();
-  const numCount = includesBull ? 7 : 6;
+  const NUMS = numsProp ?? CRICKET_NUMS;
+  const ZERO = () => Array(NUMS.length).fill(0) as number[];
+  const numCount = includesBull ? NUMS.length : NUMS.length - 1;
   const legs = legsProp;
   useEffect(() => { onLegStart?.(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const setsNeeded = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
   const legsNeeded = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
-  const [marks, setMarks]       = useState<CricketMarks>(() => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-  const [scores, setScores]     = useState<[number,number]>(() => initialRecovery?.scores ?? [0,0]);
-  const [turn, setTurn]         = useState<0|1>(() => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
-  const [legWins, setLegWins]       = useState<[number, number]>(() => initialRecovery?.legWins ?? [0, 0]);
-  const [setWins, setSetWins]       = useState<[number, number]>(() => initialRecovery?.setWins ?? [0, 0]);
-  const [legHistory, setLegHistory] = useState<(0|1)[]>(() => initialRecovery?.legHistory ?? []);
-  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
-  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
-  const [lastHit, setLastHit]   = useState<string>(() => initialRecovery?.lastHit ?? "");
+  const [marks, setMarks]       = useSnapState<CricketMarks>("CricketScorer.marks", () => initialRecovery?.marks ?? [ZERO(), ZERO()] as CricketMarks);
+  const [scores, setScores]     = useSnapState<[number,number]>("CricketScorer.scores", () => initialRecovery?.scores ?? [0,0]);
+  const [turn, setTurn]         = useSnapState<0|1>("CricketScorer.turn", () => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
+  const [legWins, setLegWins]       = useSnapState<[number, number]>("CricketScorer.legWins", () => initialRecovery?.legWins ?? [0, 0]);
+  const [setWins, setSetWins]       = useSnapState<[number, number]>("CricketScorer.setWins", () => initialRecovery?.setWins ?? [0, 0]);
+  const [legHistory, setLegHistory] = useSnapState<(0|1)[]>("CricketScorer.legHistory", () => initialRecovery?.legHistory ?? []);
+  const [legStarter, setLegStarter] = useSnapState<0 | 1>("CricketScorer.legStarter", () => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("CricketScorer.visitDarts", () => initialRecovery?.visitDarts ?? []);
+  const [lastHit, setLastHit]   = useSnapState<string>("CricketScorer.lastHit", () => initialRecovery?.lastHit ?? "");
   useEffect(() => {
     onLiveState?.({ mode: "cricket", scores, turn, detail: [`${marks[0].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`, `${marks[1].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`], lastVisit: lastHit || undefined });
   }, [marks, scores, turn, lastHit, onLiveState]);
-  const [snapHistory, setSnapHistory] = useState<CricketUndoSnapshot[]>(() => initialRecovery?.snapHistory ?? []);
-  const [lockedNumbers, setLockedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
-  const [protectedNumbers, setProtectedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // FIX 306: Numbers that can't be closed by opponent
-  const [turnCounter, setTurnCounter] = useState<number>(1); // FIX 309: Track turn number in leg (1-based) for Early Closer
-  const [prevTurnMarks, setPrevTurnMarks] = useState<[number[],number[]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks from previous turn for Momentum Killer
-  const [lastVisitMarkGains, setLastVisitMarkGains] = useState<[number[],number[]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks gained last visit for Momentum Killer/Streak Breaker
-  const [visitMarkGains, setVisitMarkGains] = useState<number[]>([0,0,0,0,0,0,0]); // Track marks gained this visit
-  const [cricketVisitScore, setCricketVisitScore] = useState(0); // Track score gained this visit
-  const [cricketVisitMarks, setCricketVisitMarks] = useState(0); // Track total marks gained this visit
-  const [cricketClosedThisVisit, setCricketClosedThisVisit] = useState(false); // Track if number was closed this visit
+  const [snapHistory, setSnapHistory] = useSnapState<CricketUndoSnapshot[]>("CricketScorer.snapHistory", () => initialRecovery?.snapHistory ?? []);
+  const [lockedNumbers, setLockedNumbers] = useSnapState<[Set<number>, Set<number>]>("CricketScorer.lockedNumbers", [new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
+  const [protectedNumbers, setProtectedNumbers] = useSnapState<[Set<number>, Set<number>]>("CricketScorer.protectedNumbers", [new Set(), new Set()]); // FIX 306: Numbers that can't be closed by opponent
+  const [turnCounter, setTurnCounter] = useSnapState<number>("CricketScorer.turnCounter", 1); // FIX 309: Track turn number in leg (1-based) for Early Closer
+  const [prevTurnMarks, setPrevTurnMarks] = useSnapState<[number[],number[]]>("CricketScorer.prevTurnMarks", [ZERO(), ZERO()] as CricketMarks); // Track marks from previous turn for Momentum Killer
+  const [lastVisitMarkGains, setLastVisitMarkGains] = useSnapState<[number[],number[]]>("CricketScorer.lastVisitMarkGains", [ZERO(), ZERO()] as CricketMarks); // Track marks gained last visit for Momentum Killer/Streak Breaker
+  const [visitMarkGains, setVisitMarkGains] = useSnapState<number[]>("CricketScorer.visitMarkGains", ZERO()); // Track marks gained this visit
+  const [cricketVisitScore, setCricketVisitScore] = useSnapState("CricketScorer.cricketVisitScore", 0); // Track score gained this visit
+  const [cricketVisitMarks, setCricketVisitMarks] = useSnapState("CricketScorer.cricketVisitMarks", 0); // Track total marks gained this visit
+  const [cricketClosedThisVisit, setCricketClosedThisVisit] = useSnapState("CricketScorer.cricketClosedThisVisit", false); // Track if number was closed this visit
 
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
-  const [p1Cards, setP1Cards]         = useState<any[]>([]);
-  const [p2Cards, setP2Cards]         = useState<any[]>([]);
-  const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
+  const [p1Cards, setP1Cards]         = useSnapState<any[]>("CricketScorer.p1Cards", []);
+  const [p2Cards, setP2Cards]         = useSnapState<any[]>("CricketScorer.p2Cards", []);
+  const [cardsUsed, setCardsUsed]     = useSnapState<any[]>("CricketScorer.cardsUsed", []);
   // Purpose-built log for reward reporting (separate from cardsUsed, which drives UI "already used" checks). Tracks every activation, equip-mode AND chaos.
-  const [cardActivationLog, setCardActivationLog] = useState<{ cardId: string; usedBy: 0 | 1 }[]>([]);
-  const [isCardClash, setIsCardClash] = useState(false);
-  const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
+  const [cardActivationLog, setCardActivationLog] = useSnapState<{ cardId: string; usedBy: 0 | 1 }[]>("CricketScorer.cardActivationLog", []);
+  const [isCardClash, setIsCardClash] = useSnapState("CricketScorer.isCardClash", false);
+  const [activeEffects, setActiveEffects] = useSnapState<CCEffect[]>("CricketScorer.activeEffects", []);
   const [lastActivation, setLastActivation] = useState<{ cardName: string; player: 0 | 1; key: string } | null>(null);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
@@ -2456,14 +2558,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   }, [cardActivationLog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chaos Mode state (no equip — random mystery card dealt each visit)
-  const [isChaosMode, setIsChaosMode] = useState(false);
+  const [isChaosMode, setIsChaosMode] = useSnapState("CricketScorer.isChaosMode", false);
   const [chaosOptions, setChaosOptions] = useState<CardData[] | null>(null);
   const chaosResolvedKeyRef = useRef<string>("");
 
   // Chaos Lab state (Board Marks v1) — a separate mode from regular Chaos Mode,
   // never required by Standard Card Clash or existing Chaos Mode.
-  const [isChaosLabMode, setIsChaosLabMode] = useState(false);
-  const [activeBoardMarks, setActiveBoardMarks] = useState<BoardMark[]>([]);
+  const [isChaosLabMode, setIsChaosLabMode] = useSnapState("CricketScorer.isChaosLabMode", false);
+  const [activeBoardMarks, setActiveBoardMarks] = useSnapState<BoardMark[]>("CricketScorer.activeBoardMarks", []);
   const boardMarkVisitEndKeyRef = useRef<string>("");
   // BUGFIX: a Hot/Trap reward applied via setScores on a dart that ALSO wins
   // the leg was getting silently wiped by resetForLeg's setScores([starting,
@@ -2537,7 +2639,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     });
 
     // Reset visit state
-    setVisitMarkGains([0,0,0,0,0,0,0]);
+    setVisitMarkGains(ZERO());
     setCricketVisitScore(0);
     setCricketVisitMarks(0);
     setCricketClosedThisVisit(false);
@@ -2728,7 +2830,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     let calledNumber: number | undefined;
     for (let i = 0; i < numCount; i++) {
       if (marks[turn][i] < 3) {
-        calledNumber = CRICKET_NUMS[i];
+        calledNumber = NUMS[i];
         break;
       }
     }
@@ -2740,7 +2842,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const opp: 0|1 = turn === 0 ? 1 : 0;
       const oppMarks = marks[opp];
       const closedNumbers: number[] = [];
-      CRICKET_NUMS.forEach((num, idx) => {
+      NUMS.forEach((num, idx) => {
         if (oppMarks[idx] >= 3) closedNumbers.push(num);
       });
       if (closedNumbers.length > 0) {
@@ -2834,7 +2936,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     let calledNumber: number | undefined;
     for (let i = 0; i < numCount; i++) {
       if (marks[turn][i] < 3) {
-        calledNumber = CRICKET_NUMS[i];
+        calledNumber = NUMS[i];
         break;
       }
     }
@@ -2849,7 +2951,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const opp: 0|1 = turn === 0 ? 1 : 0;
       const oppMarks = marks[opp];
       const closedNumbers: number[] = [];
-      CRICKET_NUMS.forEach((num, idx) => {
+      NUMS.forEach((num, idx) => {
         if (oppMarks[idx] >= 3) closedNumbers.push(num);
       });
       
@@ -2996,7 +3098,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       legWinPendingRef.current = false;
       const ns: 0|1 = legStarter === 0 ? 1 : 0;
       setLegStarter(ns);
-      setMarks([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+      setMarks([ZERO(), ZERO()] as CricketMarks);
       // Fold in any Board Mark reward/penalty that hasn't settled yet (see
       // pendingBoardMarkAdjustmentRef's BUGFIX note) so it isn't silently
       // lost if this leg ended on the exact same dart that triggered it.
@@ -3014,9 +3116,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       setLockedNumbers([new Set(), new Set()]);
       setProtectedNumbers([new Set(), new Set()]);
       setTurnCounter(1);
-      setPrevTurnMarks([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-      setLastVisitMarkGains([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-      setVisitMarkGains([0,0,0,0,0,0,0]);
+      setPrevTurnMarks([ZERO(), ZERO()] as CricketMarks);
+      setLastVisitMarkGains([ZERO(), ZERO()] as CricketMarks);
+      setVisitMarkGains(ZERO());
       setCricketVisitScore(0);
       setCricketVisitMarks(0);
       setCricketClosedThisVisit(false);
@@ -3239,7 +3341,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       if (nv.length === 3) { setVisitDarts([]); setTurn(t => soloMode ? 0 : (t===0?1:0)); setLastHit(""); }
       return;
     }
-    const numIdx = CRICKET_NUMS.indexOf(effectiveDart.segment);
+    const numIdx = NUMS.indexOf(effectiveDart.segment);
     const nv = [...visitDarts, dart];
 
     if (numIdx >= 0) {
@@ -3295,11 +3397,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const canClose = !isCardClash || !ccBlockClosing(activeEffects, turn);
       
       // FIX 306: Check if number is protected by opponent's Closing Protection
-      const isProtected = isCardClash && protectedNumbers[turn === 0 ? 1 : 0].has(CRICKET_NUMS[numIdx]);
+      const isProtected = isCardClash && protectedNumbers[turn === 0 ? 1 : 0].has(NUMS[numIdx]);
       const effectiveCanClose = canClose && !isProtected;
       
       // Card Clash: Check if number is locked (Number Prison)
-      const isLocked = isCardClash && lockedNumbers[turn].has(CRICKET_NUMS[numIdx]);
+      const isLocked = isCardClash && lockedNumbers[turn].has(NUMS[numIdx]);
       const effectiveHitsAfterLock = isLocked ? 0 : effectiveHits;
 
       // BUGFIX AUDIT (610 Shutdown): maxMarksPerTurn field was defined but never enforced —
@@ -3347,7 +3449,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           if (hasClosingProtection) {
             setProtectedNumbers(prev => {
               const newProtected = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
-              newProtected[turn].add(CRICKET_NUMS[numIdx]);
+              newProtected[turn].add(NUMS[numIdx]);
               return newProtected;
             });
           }
@@ -3363,7 +3465,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           if (hasReOpeningBlock) {
             setLockedNumbers(prev => {
               const newLocked = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
-              newLocked[turn].add(CRICKET_NUMS[numIdx]);
+              newLocked[turn].add(NUMS[numIdx]);
               return newLocked;
             });
           }
@@ -3408,7 +3510,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               : extra;
             setScores(ps => {
               const ns: [number,number] = [...ps] as [number,number];
-              const val = CRICKET_NUMS[numIdx];
+              const val = NUMS[numIdx];
               if (cutThroat) ns[opp] += effectiveExtra * val;
               else ns[turn] += effectiveExtra * val;
               // Card Clash: per-mark penalty/bonus (Mark Erasure, Momentum Arsenal)
@@ -3445,7 +3547,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           setMarks(prev => {
             const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
             for (const segment of bullEffect.bullMarksSegments ?? []) {
-              const segIdx = CRICKET_NUMS.indexOf(segment);
+              const segIdx = NUMS.indexOf(segment);
               if (segIdx >= 0) nm[turn][segIdx] = Math.min(3, nm[turn][segIdx] + 1);
             }
             return nm;
@@ -3471,7 +3573,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           if (perfectRound && perfectRound.bonusIfAllMarksThisTurn) {
             // Count marks this turn on all numbers in visitDarts
             const marksThisTurn = visitDarts.reduce((sum, dart) => {
-              const idx = CRICKET_NUMS.indexOf(dart.segment);
+              const idx = NUMS.indexOf(dart.segment);
               return idx >= 0 ? sum + 1 : sum;
             }, 0);
             
@@ -3505,7 +3607,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               // Player is behind - apply 1.5x bonus to marks scored this turn
               // Each mark = +10 points, so 1.5x means +15 per mark (bonus of +5 per mark)
               let marksThisTurn = 0;
-              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]];
+              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [ZERO(), ZERO()] as CricketMarks;
               for (let i = 0; i < numCount; i++) {
                 marksThisTurn += (marks[turn][i] - lastMarks[turn][i]);
               }
@@ -3543,7 +3645,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             if (closedByPlayer > closedByOpp) {
               // Apply 1.3x bonus to marks scored this turn using ceil
               let marksThisTurn = 0;
-              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]];
+              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [ZERO(), ZERO()] as CricketMarks;
               for (let i = 0; i < numCount; i++) {
                 marksThisTurn += (marks[turn][i] - lastMarks[turn][i]);
               }
@@ -3634,7 +3736,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         });
         
         // Reset visit tracking state for next player
-        setVisitMarkGains([0,0,0,0,0,0,0]);
+        setVisitMarkGains(ZERO());
         setCricketVisitScore(0);
         setCricketVisitMarks(0);
         setCricketClosedThisVisit(false);
@@ -3691,7 +3793,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const isBotTurnCri = !!botConfig && turn === 1;
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
-    const [d1, d2, d3] = botCricketVisit([...marks[1]], botConfig);
+    const [d1, d2, d3] = botCricketVisit([...marks[1]], botConfig, NUMS);
     const t1 = safeTimeout(() => handleDartRefCri.current(d1), 700);
     const t2 = safeTimeout(() => handleDartRefCri.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRefCri.current(d3), 2100);
@@ -3725,6 +3827,55 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     }
   }, [legWins, isCardClash]);
 
+  // ── New Cricket layout (mirrors the X01 one; presentation only) ─────────
+  // Card Clash keeps the classic layout (its extra UI lives there).
+  const [preferredStyleCri] = useScorerStyle();
+  const [matchStyleCri, setMatchStyleCri] = useSnapState<"modern" | "classic" | null>("CricketScorer.matchStyleCri", null);
+  const [missQueue, setMissQueue] = useSnapState("CricketScorer.missQueue", 0);
+  useEffect(() => {
+    if (missQueue <= 0) return;
+    setMissQueue(q => q - 1);
+    handleDartRefCri.current({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  }, [missQueue]); // eslint-disable-line react-hooks/exhaustive-deps
+  const modernCricket = !isCardClash && cardEffects.length === 0
+    && (matchStyleCri ?? (preferredStyleCri === "classic" ? "classic" : "modern")) === "modern";
+
+  if (modernCricket) {
+    const menuCri: { label: string; onClick: () => void; danger?: boolean }[] = [
+      { label: "Use classic scorer for this match", onClick: () => setMatchStyleCri("classic") },
+      { label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } },
+    ];
+    const legNoCri = legWins[0] + legWins[1] + 1;
+    const headingCri = `${cutThroat ? "Cut-Throat" : NUMS.length > 7 ? "Tactics" : "Cricket"} · ${setsToWin > 0 ? `Set ${setWins[0] + setWins[1] + 1} · ` : ""}Leg ${legNoCri}`;
+    const legsLineCri = setsToWin > 0 ? `First to ${setsNeeded} sets · ${legsNeeded} legs a set` : legsNeeded > 1 ? `First to ${legsNeeded} legs` : undefined;
+    return (
+      <ModernCricket
+        heading={headingCri}
+        legsLine={legsLineCri}
+        names={[p1Name, p2Name]}
+        solo={soloMode}
+        cutThroat={cutThroat}
+        scores={scores}
+        marks={[marks[0].slice(0, numCount), marks[1].slice(0, numCount)]}
+        nums={NUMS.slice(0, numCount)}
+        labels={NUMS.slice(0, numCount).map(n => n === 25 ? "Bull" : String(n))}
+        turn={turn}
+        legWins={legWins}
+        legsNeeded={legsNeeded}
+        setWins={setsToWin > 0 ? setWins : undefined}
+        visitDarts={visitDarts}
+        disabled={isBotTurnCri || missQueue > 0}
+        waitingMsg={isBotTurnCri ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={handleMiss}
+        onUndo={handleUndo}
+        onEndVisit={() => { if (!isBotTurnCri && missQueue === 0) setMissQueue(Math.max(1, 3 - visitDarts.length)); }}
+        menu={menuCri}
+        topBanner={topBanner}
+      />
+    );
+  }
+
   return (
     <>
     <ScorerLayout
@@ -3732,7 +3883,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         {topBanner}
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: scorerThemeColor ?? undefined }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif", color: scorerThemeColor ?? undefined }}>
             {cutThroat ? "Cut-Throat Cricket" : "Cricket"}
           </h2>
           {cutThroat && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Lowest score wins · Hitting closed numbers gives OPPONENT points</p>}
@@ -3780,7 +3931,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       )}
       {/* Scores */}
       {newScoringUI ? (
-        <TrackStats items={[0,1].map(i => ({ label: names[i], value: `${scores[i]}`, playerIdx: i as 0 | 1 }))} />
+        <TrackStats items={[0,1].map(i => ({ label: names[i], value: `${scores[i]}`, playerIdx: i as 0 | 1, active: turn === i }))} />
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {[0,1].map(i => (
@@ -3795,8 +3946,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       <SectionCard accentColor={scorerThemeColor}>
         {newScoringUI ? (
           <CricketBoard
-            numbers={CRICKET_NUMS.slice(0, numCount)}
-            labels={CRICKET_LABELS.slice(0, numCount)}
+            numbers={NUMS.slice(0, numCount)}
+            labels={NUMS.slice(0, numCount).map(n => n === 25 ? "Bull" : String(n))}
             marks={[marks[0].slice(0, numCount), marks[1].slice(0, numCount)]}
             playerNames={[p1Name, p2Name]}
           />
@@ -3807,7 +3958,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             <div className="text-center text-xs font-bold pb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>NUM</div>
             <div className="text-center text-xs font-bold pb-1" style={{ color: P_COLOR(1), fontFamily: "Oswald, sans-serif" }}>{p2Name.toUpperCase()}</div>
 
-            {CRICKET_NUMS.slice(0, numCount).map((num, idx) => (
+            {NUMS.slice(0, numCount).map((num, idx) => (
               <div key={num} style={{ display: "contents" }}>
                 <div className="text-center py-2 text-lg font-bold" style={{
                   fontFamily: "Oswald, sans-serif",
@@ -3840,13 +3991,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           </div>
         )}
       </SectionCard>
-      {isBotTurnCri ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={includesBull ? "— hit 15–20 or Bull" : "— hit 15–20 (no bull)"} />}
+      {isBotTurnCri ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${Math.min(...NUMS.filter(n => n !== 25))}–20${includesBull ? " or Bull" : " (no bull)"}`} />}
       <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard visitDartCount={visitDarts.length}
           onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
-          activeSegments={CRICKET_NUMS.slice(0, numCount)} highlightSegments={CRICKET_NUMS.slice(0, numCount)}
+          activeSegments={NUMS.slice(0, numCount)} highlightSegments={NUMS.slice(0, numCount)}
           markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "CRICKET") : undefined}
           disabled={isBotTurnCri}
         />
@@ -3884,15 +4035,15 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
   newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [phase, setPhase]           = useState<"assign"|"play">("assign");
-  const [assigning, setAssigning]   = useState<0|1>(0);
-  const [killerNums, setKillerNums] = useState<[number|null, number|null]>([null, null]);
-  const [isKiller, setIsKiller]     = useState<[boolean, boolean]>([false, false]);
-  const [playerLives, setLives]     = useState<[number, number]>([lives, lives]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [phase, setPhase]           = useSnapState<"assign"|"play">("KillerScorer.phase", "assign");
+  const [assigning, setAssigning]   = useSnapState<0|1>("KillerScorer.assigning", 0);
+  const [killerNums, setKillerNums] = useSnapState<[number|null, number|null]>("KillerScorer.killerNums", [null, null]);
+  const [isKiller, setIsKiller]     = useSnapState<[boolean, boolean]>("KillerScorer.isKiller", [false, false]);
+  const [playerLives, setLives]     = useSnapState<[number, number]>("KillerScorer.playerLives", [lives, lives]);
+  const [turn, setTurn]             = useSnapState<0|1>("KillerScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("KillerScorer.visitDarts", []);
   const [msg, setMsg]               = useState("");
-  const [snapHistory, setSnapHistory] = useState<{killerNums: [number|null,number|null], isKiller: [boolean,boolean], playerLives: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
+  const [snapHistory, setSnapHistory] = useSnapState<{killerNums: [number|null,number|null], isKiller: [boolean,boolean], playerLives: [number,number], turn: 0|1, visitDarts: Dart[]}[]>("KillerScorer.snapHistory", []);
   const names = [p1Name, p2Name];
 
   // Bot auto-picks a number during assign phase
@@ -3980,44 +4131,103 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (phase === "assign") {
+  const [classicKill, setClassicKill] = useState(false);
+  if (phase === "assign" && newScoringUI && !classicKill) {
+    const choosing = assigning === 1 && !!botConfig;
     return (
-      <div style={{ maxWidth:"512px", margin:"0 auto", padding:"1rem 0.5rem" }}>
-        <div className="pdc-divider" />
-        <div className="text-center mb-4">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Killer — Pick Numbers</h2>
-          <p className="text-sm mt-1" style={{ color:"rgba(255,255,255,0.4)" }}>
-            <span style={{ color:P_COLOR(assigning) }}>{names[assigning]}</span>
-            {assigning === 1 && botConfig ? " — CPU choosing…" : " — tap your number (1–20)"}
-          </p>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"0.5rem" }}>
-          {Array.from({length:20},(_,i)=>i+1).map(n => {
-            const taken = killerNums.includes(n);
-            const disabled = taken || (assigning === 1 && !!botConfig);
-            return (
-              <button key={n} onClick={() => !disabled && assignNumber(n)}
-                style={{
-                  padding:"1rem 0", borderRadius:"0.5rem", fontFamily:"Oswald,sans-serif",
-                  fontWeight:700, fontSize:"1.1rem", cursor:disabled?"not-allowed":"pointer",
-                  background: killerNums[0]===n?`${P_COLOR(0)}33`:killerNums[1]===n?`${P_COLOR(1)}33`:"rgba(255,255,255,0.05)",
-                  border: killerNums[0]===n?`1.5px solid ${P_COLOR(0)}`:killerNums[1]===n?`1.5px solid ${P_COLOR(1)}`:"1px solid rgba(255,255,255,0.1)",
-                  color: taken?(killerNums[0]===n?P_COLOR(0):P_COLOR(1)):"rgba(255,255,255,0.8)",
-                }}>D{n}
-              </button>
-            );
-          })}
-        </div>
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          {[0,1].map(i=>(
-            <div key={i} className="pdc-card p-3 text-center" style={{ borderColor:killerNums[i]!==null?P_COLOR(i):"rgba(255,255,255,0.06)" }}>
-              <div className="text-xs" style={{ color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>{names[i]}</div>
-              <div className="text-xl font-bold" style={{ fontFamily:"Oswald,sans-serif", color:"#fff" }}>{killerNums[i]!==null?`D${killerNums[i]}`:"—"}</div>
+      <ModernParty
+        heading="Killer" sub="Pick your doubles"
+        names={[p1Name, p2Name]} turn={assigning}
+        cards={[0, 1].map(i => ({ score: killerNums[i] !== null ? `D${killerNums[i]}` : "—", line: { label: "Status", value: killerNums[i] !== null ? "Locked in" : assigning === i ? "Picking" : "Waiting" }, stats: [{ label: "Lives", value: lives }, { label: "Killer", value: "Not yet" }] })) as [any, any]}
+        visitDarts={[]} onDart={() => {}} onMiss={() => {}} onUndo={() => {}}
+        onAbandon={onAbandon} onClassic={() => setClassicKill(true)}
+        customPad={<>
+          <div className="mx-note">{choosing ? `${p2Name} is choosing…` : `${names[assigning]} — tap your double`}</div>
+          <div className="kp-grid">
+            {Array.from({ length: 20 }, (_, i) => i + 1).map(n => {
+              const owner = killerNums[0] === n ? 0 : killerNums[1] === n ? 1 : null;
+              const dis = owner !== null || choosing;
+              return (
+                <button key={n} disabled={dis} onClick={() => !dis && assignNumber(n)} className={owner !== null ? "taken" : ""} style={owner !== null ? { ["--pc" as any]: P_COLOR(owner) } : undefined}>
+                  <span>D{n}</span>{owner !== null && <small>{names[owner]}</small>}
+                </button>
+              );
+            })}
+          </div>
+        </>}
+      />
+    );
+  }
+
+  if (phase === "assign") {
+    // One-screen number pick, in the same look as the new scorers.
+    const choosing = assigning === 1 && !!botConfig;
+    return (
+      <div className="mx-root kp-root" role="application" aria-label="Killer: pick numbers">
+        <div className="mx-col">
+          <header className="kp-head">
+            <span className="kp-kick">Killer · Pick your numbers</span>
+            <div className="kp-turn" style={{ ["--pc" as any]: P_COLOR(assigning) }}>
+              <b>{names[assigning]}</b> {choosing ? "is choosing…" : "— tap your double"}
             </div>
-          ))}
+          </header>
+          <div className="kp-grid">
+            {Array.from({length:20},(_,i)=>i+1).map(n => {
+              const owner = killerNums[0]===n ? 0 : killerNums[1]===n ? 1 : null;
+              const disabled = owner !== null || choosing;
+              return (
+                <button key={n} disabled={disabled} onClick={() => !disabled && assignNumber(n)}
+                  className={owner !== null ? "taken" : ""} style={owner !== null ? { ["--pc" as any]: P_COLOR(owner) } : undefined}>
+                  <span>D{n}</span>
+                  {owner !== null && <small>{names[owner]}</small>}
+                </button>
+              );
+            })}
+          </div>
+          <div className="kp-cards">
+            {[0,1].map(i=>(
+              <div key={i} className={`mc-card${assigning === i ? " is-on" : ""}`}>
+                <div className="mc-card-top"><span className="mc-name">{names[i]}</span></div>
+                <div className="mc-score">{killerNums[i]!==null?`D${killerNums[i]}`:"—"}</div>
+                <div className="mc-stats"><span>{killerNums[i]!==null ? "Locked in" : assigning === i ? "Picking" : "Waiting"}</span><span>Lives <b>{lives}</b></span></div>
+              </div>
+            ))}
+          </div>
+          <button className="kp-abandon" onClick={() => { if (window.confirm("Abandon this match?")) onAbandon(); }}>Abandon match</button>
         </div>
-        <div className="mt-4"><AbandonBtn onAbandon={onAbandon} /></div>
       </div>
+    );
+  }
+
+  if (newScoringUI && !classicKill) {
+    const opp = turn === 0 ? 1 : 0;
+    const aim = isKiller[turn] ? killerNums[opp] : killerNums[turn];
+    return (
+      <ModernParty
+        heading="Killer"
+        sub={`${lives} ${lives === 1 ? "life" : "lives"} each`}
+        rules="Hit your own double to become a Killer. Once you are, hit your opponent's double to take a life. Hit your own double as a Killer and you lose one. Last player with lives wins."
+        names={[p1Name, p2Name]}
+        turn={turn}
+        cards={[0, 1].map(i => ({
+          score: playerLives[i], unit: playerLives[i] === 1 ? "life" : "lives", out: playerLives[i] <= 0,
+          badge: isKiller[i] ? "☠ Killer" : undefined,
+          line: { label: "Double", value: `D${killerNums[i]}` },
+          stats: [{ label: "Status", value: isKiller[i] ? "Killer" : "Not yet" }, { label: "Lives", value: `${Math.max(0, playerLives[i])}/${lives}` }],
+        })) as [any, any]}
+        targets={(isKiller[turn] ? [killerNums[turn === 0 ? 1 : 0], killerNums[turn]] : [killerNums[turn]]).filter((n): n is number => n !== null)}
+        targetLabels={(isKiller[turn] ? [`D${killerNums[turn === 0 ? 1 : 0]}`, `D${killerNums[turn]} (own)`] : [`D${killerNums[turn]}`])}
+        note={msg || (isKiller[turn] ? `Hit D${killerNums[opp]} to take a life` : `Hit D${killerNums[turn]} to become Killer`)}
+        visitDarts={visitDarts}
+        disabled={isBotTurnKill}
+        waitingMsg={isBotTurnKill ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={handleMiss}
+        onUndo={handleUndo}
+        highlight={aim ? [aim] : undefined}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicKill(true)}
+      />
     );
   }
 
@@ -4025,7 +4235,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
-        <h2 className="text-2xl font-bold uppercase text-center" style={{ fontFamily:"Oswald,sans-serif" }}>Killer</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide text-center" style={{ fontFamily:"Oswald,sans-serif" }}>Killer</h2>
         {newScoringUI ? (
           <LivesPods pods={[0,1].map(i => ({
             id: String(i), name: names[i], initial: names[i].charAt(0).toUpperCase(),
@@ -4035,9 +4245,9 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {[0,1].map(i=>(
-              <div key={i} className="pdc-card p-4 text-center" style={{ borderColor:turn===i?P_COLOR(i):"rgba(255,255,255,0.06)" }}>
-                <div className="text-xs font-bold uppercase" style={{ color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>{names[i]}</div>
-                <div className="text-sm mt-1" style={{ color:"rgba(255,255,255,0.5)", fontFamily:"Oswald,sans-serif" }}>D{killerNums[i]}</div>
+              <div key={i} className={`mc-card text-center${turn===i ? " is-on" : ""}`}>
+                <div className="mc-name" style={{ display:"block" }}>{names[i]}</div>
+                <div className="mc-score" style={{ fontSize:"2rem" }}>D{killerNums[i]}</div>
                 <div className="text-lg font-bold" style={{ fontFamily:"Oswald,sans-serif", color:isKiller[i]?"#ffd24a":"rgba(255,255,255,0.3)" }}>
                   {isKiller[i]?"☠ KILLER":"○ Not yet"}
                 </div>
@@ -4068,8 +4278,10 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI }: {
-  p1Name: string; p2Name: string; config: any; gameKey: string; botConfig?: BotConfig;
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI, soloMode }: {
+  p1Name: string; p2Name: string; config: any; gameKey: string; title?: string; rules?: string; botConfig?: BotConfig;
+  /** Solo Training: one player, no opponent; the race is against the dart count. */
+  soloMode?: boolean;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
@@ -4149,23 +4361,25 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
   // sequence exists at all, so this has to live above buildSequence()'s
   // call and gate a picker screen the same way the Shanghai branch below
   // gates its own early return.
-  const [pickedStart, setPickedStart] = useState<number | null>(
+  const [pickedStart, setPickedStart] = useSnapState<number | null>("SequenceScorer.pickedStart", 
     (config?.startNumber as number | undefined) ?? null
   );
 
   const sequence = buildSequence();
 
   // Shanghai state
-  const [shanghaiRound, setShanghaiRound]   = useState(1);
-  const [shanghaiTurn, setShanghaiTurn]     = useState<0|1>(0);
-  const [shanghaiScores, setShanghaiScores] = useState<[number,number]>([0,0]);
-  const [shanghaiDarts, setShanghaiDarts]   = useState<Dart[]>([]);
-  const [shanghaiHits, setShanghaiHits]     = useState<{s:boolean;d:boolean;t:boolean}>({s:false,d:false,t:false});
+  const [shanghaiRound, setShanghaiRound]   = useSnapState("SequenceScorer.shanghaiRound", 1);
+  const [shanghaiTurn, setShanghaiTurn]     = useSnapState<0|1>("SequenceScorer.shanghaiTurn", 0);
+  const [shanghaiScores, setShanghaiScores] = useSnapState<[number,number]>("SequenceScorer.shanghaiScores", [0,0]);
+  const [shanghaiDarts, setShanghaiDarts]   = useSnapState<Dart[]>("SequenceScorer.shanghaiDarts", []);
+  const [shanghaiHits, setShanghaiHits]     = useSnapState<{s:boolean;d:boolean;t:boolean}>("SequenceScorer.shanghaiHits", {s:false,d:false,t:false});
 
   // Sequence state
-  const [positions, setPositions]   = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [positions, setPositions]   = useSnapState<[number,number]>("SequenceScorer.positions", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("SequenceScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("SequenceScorer.visitDarts", []);
+  const [soloDarts, setSoloDarts]   = useSnapState<number>("SequenceScorer.soloDarts", 0);
+  const seats = soloMode ? [0] : [0, 1];
 
   const maxRounds = config?.rounds ?? 7;
 
@@ -4183,6 +4397,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
     const nv = [...visitDarts, dart];
+    const thrown = soloDarts + 1;
+    if (soloMode) setSoloDarts(thrown);
     const target = sequence[positions[turn]] as (typeof sequence[number] & { ring?: "inner" | "outer" }) | undefined;
     // Straight Line needs an EXACT bed match (right ring included) — hitting
     // a treble when "big single" was called for shouldn't skip ahead the
@@ -4198,13 +4414,15 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
       if (!isStraightLine && target!.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
       const newPos = Math.min(pos, sequence.length);
       setPositions(prev => { const n:[number,number]=[...prev] as [number,number]; n[turn]=newPos; return n; });
-      if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, `Finished the sequence!`); }, 200); return; }
+      if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, soloMode ? `Finished in ${thrown} darts` : `Finished the sequence!`); }, 200); return; }
     }
     setVisitDarts(nv);
-    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
+    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = soloMode ? 0 : turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
   };
 
   const curTarget = sequence[positions[turn]];
+  const [classicSeq, setClassicSeq] = useState(false);
+  const modernSeq = !!newScoringUI && !classicSeq;
   const botSeqTarget = sequence[positions[1]];
 
   const handleDartRefSeq = useRef(handleDart);
@@ -4225,8 +4443,10 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
       const nd = [...shanghaiDarts, dart];
       setShanghaiDarts(nd);
       const n = shanghaiRound;
+      let scored = 0;
       if (dart.segment === n) {
         const pts = dart.value; // n×mult
+        scored = pts;
         setShanghaiScores(prev => { const s: [number,number] = [...prev] as [number,number]; s[shanghaiTurn] += pts; return s; });
         setShanghaiHits(prev => ({
           s: prev.s || dart.multiplier === 1,
@@ -4243,7 +4463,11 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
       if (nd.length === 3) {
         setShanghaiDarts([]);
         setShanghaiHits({s:false,d:false,t:false});
-        if (shanghaiTurn === 1) {
+        if (soloMode) {
+          const total = shanghaiScores[0] + scored;
+          if (shanghaiRound >= maxRounds) safeTimeout(() => onWin(0, `${total} points in ${maxRounds} rounds`), 300);
+          else setShanghaiRound(r => r+1);
+        } else if (shanghaiTurn === 1) {
           if (shanghaiRound >= maxRounds) {
             safeTimeout(() => {
               const [s0,s1] = shanghaiScores;
@@ -4258,15 +4482,42 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
         }
       }
     };
+    if (modernSeq) {
+      const isBotSh = !!botConfig && shanghaiTurn === 1;
+      const ticks = `${shanghaiHits.s ? "S✓" : "S·"} ${shanghaiHits.d ? "D✓" : "D·"} ${shanghaiHits.t ? "T✓" : "T·"}`;
+      return (
+        <ModernParty
+          heading="Shanghai"
+          sub={`Round ${shanghaiRound} of ${maxRounds}`}
+          rules={rules ?? "Each round has a target number, starting at 1. Score what you hit on it. Hit its single, double and treble in one visit (a Shanghai) and you win on the spot. Highest score after the last round wins."}
+          names={[p1Name, p2Name]}
+          solo={soloMode}
+          turn={shanghaiTurn}
+          cards={[0, 1].map(i => ({ score: shanghaiScores[i], line: { label: "Shanghai", value: i === shanghaiTurn ? ticks : "–" }, stats: [{ label: "Round", value: `${shanghaiRound}/${maxRounds}` }, { label: "Target", value: shanghaiRound }] })) as [any, any]}
+          targets={[shanghaiRound]}
+          panel={<TargetChips items={Array.from({ length: maxRounds }, (_, k) => String(k + 1))} current={shanghaiRound - 1} />}
+          note={shanghaiHits.s && shanghaiHits.d && shanghaiHits.t ? "Shanghai!" : `Aim at ${shanghaiRound} · S, D and T for a Shanghai`}
+          visitDarts={shanghaiDarts}
+          disabled={isBotSh}
+          waitingMsg={isBotSh ? `${p2Name} throwing` : undefined}
+          onDart={handleShDart}
+          onMiss={() => handleShDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+          onUndo={() => shanghaiDarts.length > 0 && setShanghaiDarts(p => p.slice(0, -1))}
+          highlight={[shanghaiRound]}
+          onAbandon={onAbandon}
+          onClassic={() => setClassicSeq(true)}
+        />
+      );
+    }
     return (
       <div className="max-w-lg mx-auto space-y-4">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Shanghai</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Shanghai</h2>
           <p className="text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Round {shanghaiRound} of {maxRounds} — Target: {shanghaiRound}</p>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={shanghaiScores[i]} turn={i===0} active={shanghaiTurn===i} />)}
+        <div className={`grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+          {seats.map(i => <PlayerCard key={i} name={names[i]} score={shanghaiScores[i]} turn={i===0} active={shanghaiTurn===i} />)}
         </div>
         <div className="pdc-card p-3 text-center" style={{ borderColor: "rgba(255,210,74,0.2)" }}>
           <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>This visit</p>
@@ -4287,12 +4538,35 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
     );
   }
 
+  if (isStraightLine && pickedStart === null && modernSeq) {
+    return (
+      <ModernParty
+        heading="Straight Line"
+        sub="Pick your starting number"
+        rules={rules}
+        names={[p1Name, p2Name]}
+        solo={soloMode}
+        turn={0}
+        cards={[{ score: 0, unit: `/${sequence.length || 10}` }, { score: 0, unit: `/${sequence.length || 10}` }]}
+        note="Pick a number"
+        visitDarts={[]}
+        onDart={() => {}} onMiss={() => {}} onUndo={() => {}}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicSeq(true)}
+        customPad={<>
+          <div className="mx-note">Work Double → Big → Treble → Small → Bull → Bullseye, then back out through its opposite number.</div>
+          <div className="mx-grid mp-pick">{Array.from({ length: 20 }, (_, i) => i + 1).map(n => <button key={n} onClick={() => setPickedStart(n)}><span>{n}</span></button>)}</div>
+        </>}
+      />
+    );
+  }
+
   if (isStraightLine && pickedStart === null) {
     return (
       <div className="max-w-lg mx-auto space-y-4">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Straight Line</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Straight Line</h2>
           <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
             Pick a starting number — you'll work Double → Big → Treble → Small → Bull → Bullseye, then back out through its opposite number.
           </p>
@@ -4329,50 +4603,85 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
   // rendering unchanged regardless of the flag's state.
   const showGrandNationalTrack = !!newScoringUI && gameKey === "grand_national";
 
+  if (modernSeq) {
+    const lab = curTarget?.label ?? "";
+    return (
+      <ModernParty
+        heading={title ?? "Round the Clock"}
+        rules={rules}
+        names={[p1Name, p2Name]}
+        solo={soloMode}
+        sub={soloMode ? `${soloDarts} darts thrown` : undefined}
+        turn={turn}
+        cards={[0, 1].map(i => ({ score: positions[i], unit: `/${sequence.length}`, line: { label: "Next", value: sequence[positions[i]]?.label ?? "Done" }, stats: [{ label: "Done", value: positions[i] }, { label: "To go", value: sequence.length - positions[i] }] })) as [any, any]}
+        targets={curTarget ? [curTarget.seg] : undefined}
+        targetLabels={curTarget ? [curTarget.seg === 25 ? "Bull" : String(curTarget.seg)] : undefined}
+        panel={showGrandNationalTrack
+          ? <RaceTrack max={sequence.length} tickLabels={["START", "LAP 2", "POST"]} lanes={[
+              { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0 as const, leadFill: true },
+              { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 as const },
+            ].slice(0, seats.length)} />
+          : <TargetChips items={sequence.map(t => t.label)} current={positions[turn]} />}
+        note={lab ? `Aim at ${lab}` : undefined}
+        visitDarts={visitDarts}
+        disabled={isBotTurnSeq}
+        waitingMsg={isBotTurnSeq ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+        onUndo={() => { if (visitDarts.length > 0) { setVisitDarts(p => p.slice(0, -1)); if (soloMode) setSoloDarts(n => Math.max(0, n - 1)); } }}
+        highlight={curTarget ? [curTarget.seg] : []}
+        ringMode={isStraightLine}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicSeq(true)}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
-        {showGrandNationalTrack && (
-          <>
-            <TrackStats items={[
-              { label: names[0], value: `${positions[0]}/${sequence.length}`, playerIdx: 0 },
-              { label: names[1], value: `${positions[1]}/${sequence.length}`, playerIdx: 1 },
-            ]} />
-            <RaceTrack
-              max={sequence.length}
-              tickLabels={["START", "LAP 2", "POST"]}
-              lanes={[
-                { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0, leadFill: true },
-                { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 },
-              ]}
-            />
-          </>
-        )}
-        {/* Progress bars */}
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i => (
-            <div key={i} className="pdc-card p-3 text-center" style={{ borderColor: turn===i ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
-            <div className="text-xs font-bold uppercase mb-1" style={{ color: P_COLOR(i), fontFamily: "Oswald, sans-serif" }}>{names[i]}</div>
-            <div className="text-xl font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
-              {positions[i]}/{sequence.length}
-            </div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-              Next: {sequence[positions[i]]?.label ?? "DONE"}
-            </div>
-            <div className="mt-2 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
-              <div className="h-full rounded-full transition-all" style={{ background: P_COLOR(i), width: `${(positions[i]/sequence.length)*100}%` }} />
-            </div>
+        {title && (
+          <div className="text-center">
+            <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{title}</h2>
           </div>
-        ))}
-      </div>
+        )}
+        <div className={`seq-cards grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+          {seats.map(i => (
+            <PlayerCard key={i} name={names[i]} score={`${positions[i]}/${sequence.length}`} turn={i===1} active={turn===i}
+              sub={soloMode ? `Next: ${sequence[positions[i]]?.label ?? "Done"} · ${soloDarts} darts` : `Next: ${sequence[positions[i]]?.label ?? "Done"}`} />
+          ))}
+        </div>
+        {showGrandNationalTrack && (
+          <RaceTrack
+            max={sequence.length}
+            tickLabels={["START", "LAP 2", "POST"]}
+            lanes={[
+              { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0 as const, leadFill: true },
+              { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 as const },
+            ].slice(0, seats.length)}
+          />
+        )}
+        {!showGrandNationalTrack && (
+          <SectionCard>
+            <div className="seq-path">
+              {sequence.map((t, k) => {
+                const here0 = positions[0] === k, here1 = !soloMode && positions[1] === k;
+                const done = k < (soloMode ? positions[0] : Math.min(positions[0], positions[1]));
+                return (
+                  <span key={k} className={`seq-step${done ? " done" : ""}${here0 ? " p0" : ""}${here1 ? " p1" : ""}`}>{t.label}</span>
+                );
+              })}
+            </div>
+          </SectionCard>
+        )}
       {isBotTurnSeq ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={curTarget ? `— aim at ${curTarget.label}` : ""} />}
         <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-          onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+          onUndo={() => { if (visitDarts.length > 0) { setVisitDarts(p => p.slice(0, -1)); if (soloMode) setSoloDarts(n => Math.max(0, n - 1)); } }}
           highlightSegments={curTarget ? [curTarget.seg] : []}
           disabled={isBotTurnSeq}
           distinguishSingleRing={isStraightLine}
@@ -4402,11 +4711,11 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
   const names = [p1Name, p2Name];
   const startLives = Math.max(1, (config?.lives as number | undefined) ?? 1);
 
-  const [low, setLow]               = useState(21);
-  const [high, setHigh]             = useState<number | null>(null);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [lives, setLives]           = useState<[number, number]>([startLives, startLives]);
+  const [low, setLow]               = useSnapState("HighLowScorer.low", 21);
+  const [high, setHigh]             = useSnapState<number | null>("HighLowScorer.high", null);
+  const [turn, setTurn]             = useSnapState<0|1>("HighLowScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("HighLowScorer.visitDarts", []);
+  const [lives, setLives]           = useSnapState<[number, number]>("HighLowScorer.lives", [startLives, startLives]);
   const [flash, setFlash]           = useState<string | null>(null);
 
   const visitValue = (darts: Dart[]) =>
@@ -4480,11 +4789,38 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [classicHL, setClassicHL] = useState(false);
+  if (newScoringUI && !classicHL) {
+    const v = visitValue(visitDarts);
+    return (
+      <ModernParty
+        heading="High-Low"
+        sub={startLives > 1 ? `${startLives} lives each` : "Sudden death"}
+        rules="Every visit must score below the low target or above the high one. Do it and that target moves to your score. Fail and you lose a life. The first visit of the game sets the high target. T1 scores nothing."
+        names={[p1Name, p2Name]}
+        turn={turn}
+        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i]), unit: lives[i] === 1 ? "life" : "lives", out: lives[i] <= 0, line: { label: "Needs", value: high === null ? "set the high" : `<${low} or >${high}` }, stats: [{ label: "Low", value: low }, { label: "High", value: high ?? "–" }] })) as [any, any]}
+        panel={<div className="mp-hl"><div><small>Score below</small><b className="lo">{low}</b></div><div><small>Score above</small><b className="hi">{high ?? "—"}</b></div></div>}
+        note={flash ?? (high === null ? "First visit sets the high target" : `Under ${low} or over ${high}`)}
+        noteTone={flash ? "bust" : "gold"}
+        visitDarts={visitDarts}
+        visitValue={v}
+        disabled={isBotTurnHL}
+        waitingMsg={isBotTurnHL ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicHL(true)}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>High-Low</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>High-Low</h2>
       </div>
 
       {/* Live target readout — the whole point of this HUD is that both
@@ -4545,8 +4881,10 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
 const HALVEIT_TARGETS = [20,16,"D",17,"Bull",18,19,"T"];
 const HALVEIT_LABELS  = ["20","16","Any Double","17","Bull","18","19","Any Treble"];
 
-export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, soloMode }: {
   p1Name: string; p2Name: string; gameKey: string; botConfig?: BotConfig;
+  /** Solo Training: one player; the game ends after the last round (or at 0 or below in Bob's 27). */
+  soloMode?: boolean;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   newScoringUI?: boolean;
@@ -4560,15 +4898,16 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     ? targets.map(n=>`D${n}`)
     : HALVEIT_LABELS;
 
-  const [round, setRound]           = useState(0);
-  const [turnInRound, setTIR]       = useState<0|1>(0);
-  const [scores, setScores]         = useState<[number,number]>(isBobs ? [27,27] : [0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [roundScore, setRoundScore] = useState(0);
-  const [hit, setHit]               = useState(false);
-  const [turn, setTurn]             = useState<0|1>(0);
+  const [round, setRound]           = useSnapState("HalveItScorer.round", 0);
+  const [turnInRound, setTIR]       = useSnapState<0|1>("HalveItScorer.turnInRound", 0);
+  const [scores, setScores]         = useSnapState<[number,number]>("HalveItScorer.scores", isBobs ? [27,27] : [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("HalveItScorer.visitDarts", []);
+  const [roundScore, setRoundScore] = useSnapState("HalveItScorer.roundScore", 0);
+  const [hit, setHit]               = useSnapState("HalveItScorer.hit", false);
+  const [turn, setTurn]             = useSnapState<0|1>("HalveItScorer.turn", 0);
 
   const names = [p1Name, p2Name];
+  const seats = soloMode ? [0] : [0, 1];
   const curTarget = targets[round];
 
   const dartHitsTarget = (dart: Dart): boolean => {
@@ -4610,6 +4949,19 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
         return ns;
       });
       setVisitDarts([]); setRoundScore(0); setHit(false);
+      if (soloMode) {
+        // Same scoring as above, worked out here so the finish line uses the up-to-date total.
+        const before = scores[0];
+        const after = hitTarget || rs > 0 ? before + rs : isBobs ? before - (targets[round] as number) * 2 : Math.floor(before / 2);
+        const finish = (msg: string) => safeTimeout(() => {
+          onPracticeStats?.({ sessionData: { mode: "halveit", p1Score: after, p2Score: 0 } });
+          onWin(0, msg);
+        }, 300);
+        if (isBobs && after <= 0) finish(`Out on D${targets[round]} (round ${round + 1} of ${targets.length})`);
+        else if (round + 1 >= targets.length) finish(`${after} points`);
+        else setRound(r => r + 1);
+        return;
+      }
       if (turnInRound === 1) {
         // Both players done this round
         if (round + 1 >= targets.length) {
@@ -4649,12 +5001,46 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [classicHalve, setClassicHalve] = useState(false);
+  if (newScoringUI && !classicHalve) {
+    const label = String(targetLabels[round]);
+    return (
+      <ModernParty
+        heading={isBobs ? "Bob's 27" : "Halve-It"}
+        sub={`Round ${round + 1} of ${targets.length}`}
+        rules={isBobs ? "Twenty rounds, D1 to D20. Every double you hit adds its value; miss all three and you lose the double's value. Highest score wins." : "Hit the round's target with your three darts to add what you score. Miss it with all three and your total is halved. Highest score after the last round wins."}
+        names={[p1Name, p2Name]}
+        solo={soloMode}
+        turn={turn}
+        cards={[0, 1].map(i => ({
+          score: scores[i],
+          line: { label: "Target", value: label },
+          stats: [{ label: "Round", value: `${round + 1}/${targets.length}` }, { label: "This round", value: i === turn ? roundScore : "–" }],
+        })) as [any, any]}
+        targets={typeof curTarget === "number" ? [curTarget] : curTarget === "Bull" ? [25] : undefined}
+        panel={<TargetChips items={targetLabels.map(t => String(t).replace("Any Double", "D").replace("Any Treble", "T"))} current={round} />}
+        note={hit ? `${label} hit · +${roundScore}` : visitDarts.length ? `Still need ${label}` : `Aim at ${label}`}
+        visitDarts={visitDarts}
+        visitLabel="Round"
+        visitValue={roundScore}
+        disabled={isBotTurnHalve}
+        waitingMsg={isBotTurnHalve ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={typeof curTarget === "number" ? [curTarget] : curTarget === "Bull" ? [25] : undefined}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicHalve(true)}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"}</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"}</h2>
         <p className="text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
           Round {round+1}/{targets.length} — Target: {targetLabels[round]}
         </p>
@@ -4663,12 +5049,12 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
       </div>
       {newScoringUI ? (
         <TrackStats items={[
-          { label: names[0], value: `${scores[0]}`, playerIdx: 0 },
-          { label: names[1], value: `${scores[1]}`, playerIdx: 1 },
-        ]} />
+          { label: names[0], value: `${scores[0]}`, playerIdx: 0 as const, active: turn === 0 },
+          { label: names[1], value: `${scores[1]}`, playerIdx: 1 as const, active: turn === 1 },
+        ].slice(0, seats.length)} />
       ) : (
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />)}
+        <div className={`grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+          {seats.map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />)}
         </div>
       )}
       {/* Round targets progress */}
@@ -4703,11 +5089,13 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
 }
 
 // ── Count Up Scorer ────────────────────────────────────────────────────────────
-export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, soloMode }: {
   p1Name: string; p2Name: string; config: { target?: number; rounds?: number; bullsOnly?: boolean; accumulate?: boolean; noOuterBull?: boolean }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   newScoringUI?: boolean;
+  /** Solo Training: one player; race to the target (counting visits) or score as much as you can in the rounds. */
+  soloMode?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const target = config.target ?? 501;
@@ -4715,13 +5103,14 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
   const bullsOnly = config.bullsOnly ?? false;   // Bull Rush: count bull hits only
   const accumulate = config.accumulate ?? false; // Accumulator: each visit must beat previous or score halves
   const noOuterBull = config.noOuterBull ?? false; // No Black: outer bull (25) scores 0
-  const [scores, setScores]         = useState<[number,number]>([0,0]);
-  const [rounds, setRounds]         = useState<[number,number]>([0,0]);
-  const [lastVisit, setLastVisit]   = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores]         = useSnapState<[number,number]>("CountUpScorer.scores", [0,0]);
+  const [rounds, setRounds]         = useSnapState<[number,number]>("CountUpScorer.rounds", [0,0]);
+  const [lastVisit, setLastVisit]   = useSnapState<[number,number]>("CountUpScorer.lastVisit", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("CountUpScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("CountUpScorer.visitDarts", []);
   const [halvMsg, setHalvMsg]       = useState("");
   const names = [p1Name, p2Name];
+  const seats = soloMode ? [0] : [0, 1];
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -4749,7 +5138,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
           ns[turn] += cum;
         }
         if (maxRounds === 0 && ns[turn] >= target) {
-          const label = bullsOnly ? `${ns[turn]} bulls!` : `Reached ${target} pts!`;
+          const label = soloMode ? `Reached ${target}${bullsOnly ? " bulls" : ""} in ${rounds[0] + 1} visits` : bullsOnly ? `${ns[turn]} bulls!` : `Reached ${target} pts!`;
           safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"countup"} }); onWin(turn, label); }, 300);
         }
         return ns;
@@ -4758,11 +5147,11 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
       setRounds(prev => {
         const nr: [number,number] = [...prev] as [number,number];
         nr[turn]++;
-        if (maxRounds > 0 && nr[0] >= maxRounds && nr[1] >= maxRounds) {
+        if (maxRounds > 0 && nr[0] >= maxRounds && (soloMode || nr[1] >= maxRounds)) {
           safeTimeout(() => {
             setScores(sc => {
               onPracticeStats?.({ sessionData:{mode:"countup", p1Score:sc[0], p2Score:sc[1]} });
-            onWin(sc[0] >= sc[1] ? 0 : 1, `${sc[0]} vs ${sc[1]}`);
+            onWin(soloMode ? 0 : sc[0] >= sc[1] ? 0 : 1, soloMode ? `${sc[0]} points in ${maxRounds} rounds` : `${sc[0]} vs ${sc[1]}`);
               return sc;
             });
           }, 300);
@@ -4770,7 +5159,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         return nr;
       });
       setVisitDarts([]);
-      setTurn(t => t===0?1:0);
+      setTurn(t => soloMode ? 0 : t===0?1:0);
     }
   };
 
@@ -4796,12 +5185,31 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading={bullsOnly ? "Bull Rush" : accumulate ? "Accumulator" : noOuterBull ? "No Black" : maxRounds > 0 ? "High Score" : "Count Up"}
+        sub={bullsOnly ? `First to ${target} bulls` : maxRounds > 0 ? `${maxRounds} rounds` : accumulate ? "Beat your last visit" : `Race to ${target}`}
+        rules={bullsOnly ? "Only bull hits count, inner or outer. First to the target wins." : accumulate ? "Each visit must score more than your previous one, or your total is halved." : noOuterBull ? "Count up to the target, but an outer bull (25) makes the whole visit score zero. The bullseye is fine." : "Score as many points as you can."}
+        names={[p1Name, p2Name]} solo={soloMode} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: maxRounds === 0 && !accumulate ? `/${target}` : undefined, line: { label: "Last", value: lastVisit[i] }, stats: [{ label: maxRounds > 0 ? "Round" : "To go", value: maxRounds > 0 ? `${Math.min(rounds[i] + 1, maxRounds)}/${maxRounds}` : Math.max(0, target - scores[i]) }, { label: "Visits", value: rounds[i] }] })) as [any, any]}
+        targets={bullsOnly ? [25] : undefined}
+        note={halvMsg || (bullsOnly ? "Aim at the bull" : accumulate ? sub(turn) : "Score as many as you can")}
+        noteTone={halvMsg ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnCU} waitingMsg={isBotTurnCU ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={bullsOnly ? [25] : undefined}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>
             {bullsOnly ? `Bull Rush — First to ${target} Bulls`
               : accumulate ? "Accumulator"
               : noOuterBull ? `No Black — Race to ${target}`
@@ -4816,15 +5224,15 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
           </p>
         </div>
         {newScoringUI && !accumulate && maxRounds === 0 ? (
-          <div className="grid grid-cols-2 gap-3">
-            {[0,1].map(i => (
+          <div className={`grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+            {seats.map(i => (
               <ScoreTower key={i} label={names[i]} value={scores[i]} max={target} playerIdx={i as 0 | 1}
                 active={turn === i} countsDown={false} sub={sub(i)} />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
+          <div className={`grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+            {seats.map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
           </div>
         )}
         {halvMsg && <div className="text-center font-bold text-sm" style={{ color:"#ff005c", fontFamily:"Oswald,sans-serif" }}>{halvMsg}</div>}
@@ -4853,9 +5261,9 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
   newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [scores, setScores]         = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores]         = useSnapState<[number,number]>("GotchaScorer.scores", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("GotchaScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("GotchaScorer.visitDarts", []);
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
   const handleDartRefGotcha = useRef<(d: Dart) => void>(() => {});
@@ -4904,18 +5312,45 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [classicGotcha, setClassicGotcha] = useState(false);
+  if (newScoringUI && !classicGotcha) {
+    const visit = visitDarts.reduce((t, d) => t + d.value, 0);
+    const opp = turn === 0 ? 1 : 0;
+    const proj = scores[turn] + visit;
+    return (
+      <ModernParty
+        heading="Gotcha!"
+        sub={`Race to exactly ${target}`}
+        rules={`Race to exactly ${target}. Go over and the visit doesn't count. Land on your opponent's exact score and they're sent back to 0 — Gotcha!`}
+        names={[p1Name, p2Name]}
+        turn={turn}
+        cards={[0, 1].map(i => ({ score: i === turn ? proj : scores[i], unit: `/${target}`, line: { label: "To go", value: target - (i === turn ? proj : scores[i]) }, stats: [{ label: "Race to", value: target }, { label: "Visit", value: i === turn ? visit : "–" }] })) as [any, any]}
+        note={msg || (proj > target ? "Over — this visit won't count" : proj === scores[opp] && proj > 0 ? `On ${scores[opp]} — Gotcha if it stays!` : `${target - proj} to go · ${names[opp]} on ${scores[opp]}`)}
+        noteTone={proj > target ? "bust" : "gold"}
+        visitDarts={visitDarts}
+        disabled={isBotTurnGotcha}
+        waitingMsg={isBotTurnGotcha ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicGotcha(true)}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Gotcha!</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Gotcha!</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Race to exactly {target}. Match opponent's score = GOTCHA — they reset to 0!</p>
       </div>
       {newScoringUI ? (
         <div className="grid grid-cols-2 gap-3">
           {[0,1].map(i => (
             <ScoreTower key={i} label={names[i]} value={scores[i]} max={target} playerIdx={i as 0 | 1}
-              active={turn === i} countsDown={false} />
+              active={turn === i} countsDown={false} sub={scores[i] >= target ? "home" : `${target - scores[i]} to go`} />
           ))}
         </div>
       ) : (
@@ -4936,16 +5371,17 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
 }
 
 // ── Baseball Scorer ────────────────────────────────────────────────────────────
-export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, onAbandon, onTurnChanged }: {
+export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, onAbandon, onTurnChanged, newScoringUI }: {
   p1Name: string; p2Name: string; innings?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onTurnChanged?: (t: 0|1) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [inning, setInning]         = useState(1);
-  const [half, setHalf]             = useState<0|1>(0); // 0=bottom(P1), 1=top(P2)
-  const [runs, setRuns]             = useState<[number,number]>([0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [inning, setInning]         = useSnapState("BaseballScorer.inning", 1);
+  const [half, setHalf]             = useSnapState<0|1>("BaseballScorer.half", 0); // 0=bottom(P1), 1=top(P2)
+  const [runs, setRuns]             = useSnapState<[number,number]>("BaseballScorer.runs", [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("BaseballScorer.visitDarts", []);
   const names = [p1Name, p2Name];
   const handleDartRefBaseball = useRef<(d: Dart) => void>(() => {});
   const isBotTurnBaseball = !!botConfig && half === 1;
@@ -4978,11 +5414,29 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Baseball" sub={`Inning ${inning} of ${innings}`}
+        rules="Nine innings. Each inning's number is the target: single = 1 run, double = 2, treble = 3. Most runs wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: runs[i], unit: runs[i] === 1 ? "run" : "runs", line: { label: "Inning", value: `${inning}/${innings}` }, stats: [{ label: "Target", value: inning }, { label: "Lead", value: runs[i] - runs[i === 0 ? 1 : 0] }] })) as [any, any]}
+        targets={[inning]}
+        panel={<TargetChips items={Array.from({ length: innings }, (_, k) => String(k + 1))} current={inning - 1} />}
+        note={`Aim at ${inning} · S 1 · D 2 · T 3`}
+        visitDarts={visitDarts} visitLabel="Runs" visitValue={visitDarts.reduce((t, d) => t + (d.segment === inning ? d.multiplier : 0), 0)}
+        disabled={isBotTurnBaseball} waitingMsg={isBotTurnBaseball ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[inning]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Baseball</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Baseball</h2>
         <p style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Inning {inning}/{innings} — Target: {inning}</p>
         <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Single=1 run · Double=2 · Treble=3</p>
       </div>
@@ -5003,17 +5457,18 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
 // ── Scram Scorer ───────────────────────────────────────────────────────────────
 const SCRAM_NUMS = [20,19,18,17,16,15,25];
 
-export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
+export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [phase, setPhase]             = useState<1|2>(1);
-  const [stopper, setStopper]         = useState<0|1>(0);   // who is stopper this phase
-  const [closed, setClosed]           = useState<boolean[]>([false,false,false,false,false,false,false]);
-  const [phaseScores, setPhaseScores] = useState<[number,number]>([0,0]); // scorer's total each phase
-  const [turn, setTurn]               = useState<0|1>(0);
-  const [visitDarts, setVisitDarts]   = useState<Dart[]>([]);
+  const [phase, setPhase]             = useSnapState<1|2>("ScramScorer.phase", 1);
+  const [stopper, setStopper]         = useSnapState<0|1>("ScramScorer.stopper", 0);   // who is stopper this phase
+  const [closed, setClosed]           = useSnapState<boolean[]>("ScramScorer.closed", [false,false,false,false,false,false,false]);
+  const [phaseScores, setPhaseScores] = useSnapState<[number,number]>("ScramScorer.phaseScores", [0,0]); // scorer's total each phase
+  const [turn, setTurn]               = useSnapState<0|1>("ScramScorer.turn", 0);
+  const [visitDarts, setVisitDarts]   = useSnapState<Dart[]>("ScramScorer.visitDarts", []);
   const names = [p1Name, p2Name];
   const scorer: 0|1 = stopper === 0 ? 1 : 0;
   const handleDartRefScram = useRef<(d: Dart) => void>(() => {});
@@ -5074,11 +5529,28 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Scram" sub={`Phase ${phase} of 2`}
+        rules="Two phases. The stopper closes numbers (20–15 and the bull) by hitting them; the scorer scores on numbers that are still open. Swap roles for phase two. Highest scoring total wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: phaseScores[i], unit: "pts", badge: i === stopper ? "Stopper" : "Scorer", line: { label: "Role", value: i === stopper ? "Close numbers" : "Score on open" }, stats: [{ label: "Phase", value: `${phase}/2` }, { label: "Closed", value: `${closed.filter(Boolean).length}/7` }] })) as [any, any]}
+        targets={SCRAM_NUMS}
+        panel={<TargetChips items={SCRAM_NUMS.map(n => n === 25 ? "Bull" : String(n))} current={-1} done={i => !closed[i]} />}
+        note={turn === stopper ? `Close numbers · ${closed.filter(Boolean).length}/7 closed` : "Score on the open numbers"}
+        visitDarts={visitDarts} disabled={isBotTurnScram} waitingMsg={isBotTurnScram ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        allowed={SCRAM_NUMS} highlight={SCRAM_NUMS.filter((_, i) => !closed[i])} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Scram — Phase {phase}/2</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Scram — Phase {phase}/2</h2>
         <div className="grid grid-cols-2 gap-3 mt-2 text-xs" style={{ fontFamily: "Oswald, sans-serif" }}>
           <div style={{ color: P_COLOR(stopper) }}>{names[stopper]}: 🔒 Stopper</div>
           <div style={{ color: P_COLOR(scorer) }}>{names[scorer]}: 💰 Scorer — {phaseScores[scorer]}pts</div>
@@ -5117,18 +5589,19 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
 }
 
 // ── Football Darts Scorer ──────────────────────────────────────────────────────
-export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; goalsToWin?: number;
   botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   // null = kickoff (uncontested — both need to hit bull to win possession)
-  const [goals, setGoals]           = useState<[number,number]>([0,0]);
-  const [possession, setPossession] = useState<0|1|null>(null);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [goals, setGoals]           = useSnapState<[number,number]>("FootballScorer.goals", [0,0]);
+  const [possession, setPossession] = useSnapState<0|1|null>("FootballScorer.possession", null);
+  const [turn, setTurn]             = useSnapState<0|1>("FootballScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("FootballScorer.visitDarts", []);
   const [msg, setMsg]               = useState("KICKOFF — hit the bull to win possession!");
   const names = [p1Name, p2Name];
 
@@ -5198,12 +5671,27 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
     return "— hit Bull to steal possession from opponent";
   };
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Football Darts" sub={`First to ${goalsToWin} goals`}
+        rules="Hit the bull to win possession. With possession, any double scores a goal. You keep the ball until your opponent hits the bull."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: goals[i], unit: goals[i] === 1 ? "goal" : "goals", badge: possession === i ? "⚽ Ball" : undefined, line: { label: "Ball", value: possessionLabel(i) }, stats: [{ label: "First to", value: goalsToWin }, { label: "Lead", value: goals[i] - goals[i === 0 ? 1 : 0] }] })) as [any, any]}
+        note={msg || turnMsg().replace(/^— /, "")}
+        visitDarts={visitDarts} disabled={isBotTurnFB} waitingMsg={isBotTurnFB ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        highlight={possession === turn ? undefined : [25]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Football Darts</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>Football Darts</h2>
           <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>
             Hit Bull to win/steal possession · Any double = goal when in possession · Possession is kept until opponent hits Bull · First to {goalsToWin} wins
           </p>
@@ -5230,18 +5718,19 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
 }
 
 // ── Golf Darts Scorer ──────────────────────────────────────────────────────────
-export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged }: {
+export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI }: {
   p1Name: string; p2Name: string; holes?: number;
   botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [hole, setHole]             = useState(1);
-  const [half, setHalf]             = useState<0|1>(0);
-  const [totalScores, setTotal]     = useState<[number,number]>([0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [hole, setHole]             = useSnapState("GolfScorer.hole", 1);
+  const [half, setHalf]             = useSnapState<0|1>("GolfScorer.half", 0);
+  const [totalScores, setTotal]     = useSnapState<[number,number]>("GolfScorer.totalScores", [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("GolfScorer.visitDarts", []);
   const names = [p1Name, p2Name];
 
   const nextHalf = useCallback((addedScore: number) => {
@@ -5294,12 +5783,29 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Golf Darts" sub={`Hole ${hole} of ${holes}`}
+        rules="Each hole's number is the target. Your score for the hole is the dart you hit it with (1, 2 or 3); miss all three and it's 4. Lowest total after the last hole wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: totalScores[i], unit: "strokes", line: { label: "Hole", value: `${hole}/${holes}` }, stats: [{ label: "Par", value: hole }, { label: "Lowest wins", value: "" }] })) as [any, any]}
+        targets={[hole]}
+        panel={<TargetChips items={Array.from({ length: holes }, (_, k) => String(k + 1))} current={hole - 1} />}
+        note={`Hit ${hole} · fewer darts is better`}
+        visitDarts={visitDarts} disabled={isBotTurnGolf} waitingMsg={isBotTurnGolf ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[hole]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Golf Darts</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>Golf Darts</h2>
           <p style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>Hole {hole}/{holes} — Target: {hole}</p>
           <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>Hit target in fewest darts. Miss all 3 = 4 strokes. LOWEST score wins.</p>
         </div>
@@ -5324,15 +5830,15 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
 }
 
 // ── Nearest Bull Scorer ────────────────────────────────────────────────────────
-export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
-  p1Name: string; p2Name: string; botConfig?: BotConfig;
+export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, newScoringUI }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig; newScoringUI?: boolean;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [phase,   setPhase]   = useState<"throwing"|"declare">("throwing");
-  const [thrown,  setThrown]  = useState<[boolean,boolean]>([false,false]);
-  const [p1Score, setP1Score] = useState<number|null>(null);
-  const [botScore,setBotScore]= useState<number|null>(null);
+  const [phase,   setPhase]   = useSnapState<"throwing"|"declare">("NearestBullScorer.phase", "throwing");
+  const [thrown,  setThrown]  = useSnapState<[boolean,boolean]>("NearestBullScorer.thrown", [false,false]);
+  const [p1Score, setP1Score] = useSnapState<number|null>("NearestBullScorer.p1Score", null);
+  const [botScore,setBotScore]= useSnapState<number|null>("NearestBullScorer.botScore", null);
   const names = [p1Name, p2Name];
 
   const computeBotScore = (acc: number): number => {
@@ -5352,6 +5858,46 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
     }, 900);
   };
 
+  if (newScoringUI) {
+    const pickScore = (v: number | null) => v === null ? "–" : v === 50 ? "Bull 50" : v === 25 ? "Outer 25" : "Miss";
+    const human = !botConfig;
+    const nbPad = human ? (phase === "throwing" ? (
+      <>
+        <div className="mx-note">Each player throws three darts. Tap when you've thrown.</div>
+        <div className="mp-winners">{[0, 1].map(i => (
+          <button key={i} className={thrown[i] ? "on" : ""} onClick={() => { if (!thrown[i]) setThrown(p => { const n = [...p] as [boolean, boolean]; n[i] = true; return n; }); }}>
+            <span>{names[i]}</span><small>{thrown[i] ? "✓ Thrown" : "Tap when thrown"}</small>
+          </button>))}</div>
+        {thrown[0] && thrown[1] && <button className="mp-next" style={{ marginTop: 10, width: "100%" }} onClick={() => setPhase("declare")}>Declare winner</button>}
+      </>
+    ) : (
+      <>
+        <div className="mx-note">Look at the board — who is closest?</div>
+        <div className="mp-winners">{[0, 1].map(i => <button key={i} onClick={() => onWin(i as 0 | 1, "Nearest the Bull")}><span>{names[i]}</span><small>Tap — they were closest</small></button>)}</div>
+      </>
+    )) : (
+      <>
+        <div className="mx-note">{p1Score === null ? "Your closest dart to the bull" : botScore === null ? `${p2Name} throwing…` : "Result"}</div>
+        {p1Score === null && <div className="mc-pad mp-tpad" style={{ gridTemplateColumns: "1fr" }}>
+          <button className="bull" onClick={() => handleP1Pick(50)}><span>Bull · 50</span></button>
+          <button onClick={() => handleP1Pick(25)}><span>Outer bull · 25</span></button>
+          <button className="miss" onClick={() => handleP1Pick(0)}>Miss</button>
+        </div>}
+      </>
+    );
+    return (
+      <ModernParty
+        heading="Nearest the Bull" sub="Closest dart wins"
+        names={[p1Name, p2Name]} turn={0}
+        cards={[{ score: human ? (thrown[0] ? "✓" : "–") : pickScore(p1Score), line: { label: "Status", value: human ? (thrown[0] ? "Thrown" : "To throw") : p1Score === null ? "To throw" : "Thrown" }, stats: [{ label: "Darts", value: 3 }, { label: "Aim", value: "Bull" }] },
+               { score: human ? (thrown[1] ? "✓" : "–") : pickScore(botScore), line: { label: "Status", value: human ? (thrown[1] ? "Thrown" : "To throw") : botScore === null ? "Waiting" : "Thrown" }, stats: [{ label: "Darts", value: 3 }, { label: "Aim", value: "Bull" }] }]}
+        visitDarts={[]} onDart={() => {}} onMiss={() => {}} onUndo={() => {}}
+        onAbandon={onAbandon}
+        customPad={nbPad}
+      />
+    );
+  }
+
   // ── Human vs Human ───────────────────────────────────────────────────────────
   if (!botConfig) {
     return (
@@ -5359,7 +5905,7 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
         <div className="pdc-divider" />
         <div className="text-center">
           <Target className="w-12 h-12 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
           <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Each player throws 3 darts. Closest dart to Bull wins.</p>
         </div>
         {phase === "throwing" ? (
@@ -5368,9 +5914,12 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
               {[0,1].map(i => (
                 <button key={i}
                   onClick={() => { if (!thrown[i]) { setThrown(p=>{const n=[...p] as [boolean,boolean]; n[i]=true; return n;}); } }}
-                  style={{ padding:"2rem 1rem", borderRadius:"0.75rem", cursor: thrown[i]?"default":"pointer", background: thrown[i]?`${P_COLOR(i)}22`:"rgba(255,255,255,0.04)", border: thrown[i]?`2px solid ${P_COLOR(i)}`:"1px solid rgba(255,255,255,0.1)", color: P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>
-                  <div className="font-bold text-lg">{names[i]}</div>
-                  <div className="text-xs mt-1 opacity-70">{thrown[i]?"✓ Thrown":"Tap when thrown"}</div>
+                  className="mc-card active:scale-[.97]"
+                  style={{ padding:"1.6rem 1rem", cursor: thrown[i]?"default":"pointer", textAlign:"center", fontFamily:"Oswald,sans-serif",
+                    ...(thrown[i] ? { borderColor:P_COLOR(i), boxShadow:`0 0 22px ${P_COLOR(i)}40` } : {}) }}>
+                  <Target className="w-7 h-7 mx-auto mb-2" style={{ color: thrown[i] ? P_COLOR(i) : "rgba(255,255,255,.35)" }} />
+                  <div className="font-bold text-xl uppercase tracking-wide" style={{ color:"#fff" }}>{names[i]}</div>
+                  <div className="text-[11px] mt-1.5 uppercase tracking-[.14em]" style={{ color: thrown[i] ? P_COLOR(i) : "rgba(255,255,255,.45)" }}>{thrown[i]?"✓ Thrown":"Tap when thrown"}</div>
                 </button>
               ))}
             </div>
@@ -5388,9 +5937,10 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
             <div className="grid grid-cols-2 gap-4">
               {[0,1].map(i => (
                 <button key={i} onClick={() => onWin(i as 0|1, "Nearest the Bull")}
-                  style={{ padding:"2.5rem 1rem", borderRadius:"0.75rem", cursor:"pointer", background:`${P_COLOR(i)}18`, border:`2px solid ${P_COLOR(i)}44`, color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>
+                  className="mc-card active:scale-[.97]"
+                  style={{ padding:"2rem 1rem", cursor:"pointer", textAlign:"center", borderColor:`${P_COLOR(i)}88`, boxShadow:`0 0 20px ${P_COLOR(i)}30`, color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>
                   <Trophy className="w-8 h-8 mx-auto mb-2" />
-                  <div className="font-bold text-xl">{names[i]}</div>
+                  <div className="font-bold text-xl uppercase tracking-wide" style={{ color:"#fff" }}>{names[i]}</div>
                   <div className="text-xs mt-1 opacity-60">Tap — they were closest</div>
                 </button>
               ))}
@@ -5415,7 +5965,7 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
       <div className="pdc-divider" />
       <div className="text-center">
         <Target className="w-12 h-12 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Pick your closest dart — bot throws automatically.</p>
       </div>
       {p1Score !== null && (
@@ -5453,16 +6003,31 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
 }
 
 // ── Manual Scorer ──────────────────────────────────────────────────────────────
-export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon }: {
+export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon, newScoringUI }: {
   p1Name: string; p2Name: string; gameName: string; rules?: string;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  newScoringUI?: boolean;
 }) {
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading={gameName} sub="Declare the winner"
+        names={[p1Name, p2Name]} turn={0}
+        cards={[{ score: "–" }, { score: "–" }]}
+        visitDarts={[]} onDart={() => {}} onMiss={() => {}} onUndo={() => {}}
+        onAbandon={onAbandon}
+        customPad={<><div className="mx-note">{rules ?? "Play your game, then tap who won."}</div>
+          <div className="mp-winners">{[0, 1].map(i => <button key={i} onClick={() => onWin(i as 0 | 1)}><span>{i === 0 ? p1Name : p2Name}</span><small>Tap — they won</small></button>)}</div></>}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-5">
       <div className="pdc-divider" />
       <div className="text-center">
         <Crosshair className="w-10 h-10 mx-auto mb-2" style={{ color: "#a78bfa" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{gameName}</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{gameName}</h2>
         {rules && <p className="text-xs mt-2 px-4" style={{ color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>{rules}</p>}
         <p className="text-sm mt-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
           Play your game — declare the winner when done
@@ -5491,21 +6056,22 @@ export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon
 // Each player calls ONE double at the start of the leg and must finish exactly
 // on it — hitting a different double (even one that would otherwise check you
 // out) doesn't count, so the whole leg has to be routed around your own call.
-export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { startScore?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const startScore = config?.startScore ?? 301;
   const DOUBLE_OPTIONS = [...Array.from({ length: 20 }, (_, i) => ({ seg: i + 1 })), { seg: 25 }];
 
-  const [called, setCalled] = useState<[{ seg: number; mult: 2 } | null, { seg: number; mult: 2 } | null]>([null, null]);
-  const [callPhase, setCallPhase] = useState<0 | 1 | null>(0);
-  const [remaining, setRemaining] = useState<[number, number]>([startScore, startScore]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [called, setCalled] = useSnapState<[{ seg: number; mult: 2 } | null, { seg: number; mult: 2 } | null]>("PickADoubleScorer.called", [null, null]);
+  const [callPhase, setCallPhase] = useSnapState<0 | 1 | null>("PickADoubleScorer.callPhase", 0);
+  const [remaining, setRemaining] = useSnapState<[number, number]>("PickADoubleScorer.remaining", [startScore, startScore]);
+  const [turn, setTurn] = useSnapState<0 | 1>("PickADoubleScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("PickADoubleScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const handleCall = (idx: 0 | 1, seg: number) => {
@@ -5564,6 +6130,25 @@ export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, on
   const dblLabel = (seg: number) => seg === 25 ? "DB" : `D${seg}`;
   const showPicker = callPhase !== null && !(botConfig && callPhase === 1);
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Pick a Double" sub={`${startScore} · finish on your called double`}
+        names={[p1Name, p2Name]} turn={callPhase !== null ? callPhase : turn}
+        cards={[0, 1].map(i => ({ score: remaining[i], line: { label: "Double", value: called[i] ? dblLabel(called[i]!.seg) : "not called" }, stats: [{ label: "From", value: startScore }, { label: "Visit", value: i === turn ? visitDarts.reduce((t, d) => t + d.value, 0) : "–" }] })) as [any, any]}
+        note={flash ?? (callPhase !== null ? `${names[callPhase]}, call your double` : `Finish on ${dblLabel(called[turn]!.seg)}`)}
+        visitDarts={visitDarts} disabled={isBotTurnPAD} waitingMsg={isBotTurnPAD ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={callPhase === null && remaining[turn] === (called[turn]!.seg === 25 ? 50 : called[turn]!.seg * 2) ? [called[turn]!.seg] : undefined}
+        onAbandon={onAbandon}
+        customPad={callPhase !== null ? (showPicker
+          ? <><div className="mx-note">You must finish this leg on the double you call</div>
+              <div className="mx-grid mp-pick">{DOUBLE_OPTIONS.map(opt => <button key={opt.seg} onClick={() => handleCall(callPhase, opt.seg)}><span>{dblLabel(opt.seg)}</span></button>)}</div></>
+          : <div className="mx-note">{p2Name} is calling a double…</div>) : undefined}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -5572,7 +6157,7 @@ export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, on
           <>
             <div className="text-center">
               <Crosshair className="w-8 h-8 mx-auto mb-2" style={{ color: P_COLOR(callPhase) }} />
-              <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{names[callPhase]}, call your double</h2>
+              <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{names[callPhase]}, call your double</h2>
               <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>You must finish THIS leg on this double — no other checkout counts</p>
             </div>
             <SectionCard>
@@ -5597,7 +6182,7 @@ export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, on
       ) : (
         <>
           <div className="text-center">
-            <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Pick a Double</h2>
+            <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Pick a Double</h2>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[0,1].map(i => (
@@ -5623,10 +6208,11 @@ export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, on
 // ── Legs Scorer ───────────────────────────────────────────────────────────────
 // Standard double-out X01, but the winner of each leg picks the NEXT leg's
 // starting score (clamped to the configured range) instead of it being fixed.
-export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { minScore?: number; maxScore?: number; legsToWin?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -5635,13 +6221,13 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
   const legsToWin = config?.legsToWin ?? 3;
   const defaultPick = Math.min(maxScore, Math.max(minScore, 301));
 
-  const [legWins, setLegWins] = useState<[number, number]>([0, 0]);
-  const [picker, setPicker] = useState<0 | 1>(0);
-  const [phase, setPhase] = useState<"picking" | "playing">("picking");
-  const [pickedScore, setPickedScore] = useState(defaultPick);
-  const [remaining, setRemaining] = useState<[number, number]>([defaultPick, defaultPick]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [legWins, setLegWins] = useSnapState<[number, number]>("LegsScorer.legWins", [0, 0]);
+  const [picker, setPicker] = useSnapState<0 | 1>("LegsScorer.picker", 0);
+  const [phase, setPhase] = useSnapState<"picking" | "playing">("LegsScorer.phase", "picking");
+  const [pickedScore, setPickedScore] = useSnapState("LegsScorer.pickedScore", defaultPick);
+  const [remaining, setRemaining] = useSnapState<[number, number]>("LegsScorer.remaining", [defaultPick, defaultPick]);
+  const [turn, setTurn] = useSnapState<0 | 1>("LegsScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("LegsScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const startLeg = (score: number) => {
@@ -5698,6 +6284,27 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
     return () => clearTimeout(t);
   }, [picker, phase, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Legs" sub={`First to ${legsToWin} legs`}
+        names={[p1Name, p2Name]} turn={phase === "picking" ? picker : turn}
+        cards={[0, 1].map(i => ({ score: phase === "picking" ? legWins[i] : remaining[i], unit: phase === "picking" ? "legs" : undefined, badge: `${legWins[i]} ${legWins[i] === 1 ? "leg" : "legs"}`, line: { label: "Leg from", value: pickedScore }, stats: [{ label: "Legs", value: `${legWins[i]}/${legsToWin}` }, { label: "Visit", value: phase === "playing" && i === turn ? visitDarts.reduce((t, d) => t + d.value, 0) : "–" }] })) as [any, any]}
+        note={flash ?? (phase === "picking" ? `${names[picker]} picks the start score` : "Check out on a double")}
+        visitDarts={visitDarts} disabled={isBotTurnLegs} waitingMsg={isBotTurnLegs ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+        customPad={phase === "picking" ? (
+          <div className="mp-legs">
+            <b>{pickedScore}</b>
+            <input type="range" min={minScore} max={maxScore} value={pickedScore} onChange={e => setPickedScore(Number(e.target.value))} />
+            <div className="mx-quick">{[101, 170, 201, 301, 501].filter(v => v >= minScore && v <= maxScore).map(v => <button key={v} className={pickedScore === v ? "gold" : ""} onClick={() => setPickedScore(v)}><span>{v}</span></button>)}</div>
+            <button className="mp-next" onClick={() => startLeg(pickedScore)}>Start leg at {pickedScore}</button>
+          </div>) : undefined}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -5705,7 +6312,7 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
         <>
           <div className="text-center">
             <Dices className="w-8 h-8 mx-auto mb-2" style={{ color: P_COLOR(picker) }} />
-            <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{names[picker]} picks the next leg</h2>
+            <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{names[picker]} picks the next leg</h2>
             <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Choose a starting score between {minScore} and {maxScore}</p>
           </div>
           <SectionCard>
@@ -5735,7 +6342,7 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
       ) : (
         <>
           <div className="text-center">
-            <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Legs — First to {legsToWin}</h2>
+            <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Legs — First to {legsToWin}</h2>
           </div>
           <div className="grid grid-cols-2 gap-3 text-xs text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
             {[0,1].map(i => <div key={i} style={{ color: P_COLOR(i) }}>{names[i]}: {legWins[i]} 🏆</div>)}
@@ -5759,15 +6366,16 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
 
 // ── Noughts & Crosses Scorer ───────────────────────────────────────────────────
 const NC_LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
+export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [cells, setCells] = useState<(0|1|null)[]>(Array(9).fill(null));
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [cells, setCells] = useSnapState<(0|1|null)[]>("NoughtsCrossesScorer.cells", Array(9).fill(null));
+  const [turn, setTurn] = useSnapState<0 | 1>("NoughtsCrossesScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("NoughtsCrossesScorer.visitDarts", []);
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -5805,12 +6413,28 @@ export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAband
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Noughts & Crosses" sub="Three in a row"
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: i === 0 ? "✕" : "○", line: { label: "Squares", value: cells.filter(c => c === i).length }, stats: [{ label: "Open", value: cells.filter(c => c === null).length }, { label: "Plays", value: i === 0 ? "Crosses" : "Noughts" }] })) as [any, any]}
+        panel={<div className="mp-ttt">{cells.map((c, i) => <span key={i} className={c === null ? "" : c === 0 ? "x" : "o"}>{c === null ? i + 1 : c === 0 ? "✕" : "○"}</span>)}</div>}
+        note="Hit an open number 1–9"
+        visitDarts={visitDarts} disabled={isBotTurnNC} waitingMsg={isBotTurnNC ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={cells.map((c, i) => c === null ? i + 1 : null).filter((x): x is number => x !== null)}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Grid3X3 className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Noughts &amp; Crosses</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Noughts &amp; Crosses</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Hit numbers 1–9 to claim a square — three in a row wins</p>
       </div>
       <div className="grid grid-cols-2 gap-3 text-xs text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
@@ -5849,18 +6473,19 @@ export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAband
 // ── Checkout Challenge Scorer ──────────────────────────────────────────────────
 // Every visit is a fresh, independent attempt at the same starting score — you
 // only win by actually checking it out inside one visit, not by accumulating.
-export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { startScore?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const startScore = config?.startScore ?? 170;
-  const [remaining, setRemaining] = useState<[number, number]>([startScore, startScore]);
-  const [attempts, setAttempts] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [remaining, setRemaining] = useSnapState<[number, number]>("CheckoutChallengeScorer.remaining", [startScore, startScore]);
+  const [attempts, setAttempts] = useSnapState<[number, number]>("CheckoutChallengeScorer.attempts", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("CheckoutChallengeScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("CheckoutChallengeScorer.visitDarts", []);
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -5901,12 +6526,27 @@ export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onW
 
   const suggested = CHECKOUTS[startScore];
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Checkout Challenge" sub={`${startScore} every visit`}
+        rules={`Every visit starts from a fresh ${startScore}. Check it out in one visit, finishing on a double, to win.`}
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: remaining[i], line: { label: "Checkout", value: i === turn && suggested ? suggested : "–" }, stats: [{ label: "Attempt", value: attempts[i] + 1 }, { label: "From", value: startScore }] })) as [any, any]}
+        note={suggested ? `Checkout: ${suggested}` : "Check out to win"}
+        visitDarts={visitDarts} disabled={isBotTurnCC} waitingMsg={isBotTurnCC ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Target className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Checkout Challenge</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Checkout Challenge</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Fresh {startScore} every visit — check out in ONE visit to win. Honour the double!</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -5925,17 +6565,18 @@ export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onW
 }
 
 // ── Fives Scorer ────────────────────────────────────────────────────────────────
-export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { target?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const target = config?.target ?? 51;
-  const [scores, setScores] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores] = useSnapState<[number, number]>("FivesScorer.scores", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("FivesScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("FivesScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const handleDart = (dart: Dart) => {
@@ -5977,11 +6618,27 @@ export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
   const liveTotal = visitDarts.reduce((s,d) => s+d.value, 0);
   const liveOK = visitDarts.length > 0 && liveTotal % 5 === 0;
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Fives" sub={`Race to ${target}`}
+        rules="Each visit counts only if its total is a multiple of 5; then you score total ÷ 5. First to the target wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: `/${target}`, line: { label: "To go", value: target - scores[i] }, stats: [{ label: "Visit", value: i === turn ? liveTotal : "–" }, { label: "Fives", value: i === turn && liveTotal % 5 === 0 ? liveTotal / 5 : "–" }] })) as [any, any]}
+        note={flash || (visitDarts.length ? (liveOK ? `${liveTotal} · a multiple of 5` : `${liveTotal} · not a multiple of 5 yet`) : "Score a multiple of 5")}
+        noteTone={flash && !flash.startsWith("✓") ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnFv} waitingMsg={isBotTurnFv ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Fives — Race to {target}</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Fives — Race to {target}</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Each visit must total a multiple of 5, or it scores nothing</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -6005,21 +6662,22 @@ export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
 }
 
 // ── Oche Roulette Scorer ────────────────────────────────────────────────────────
-export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { rounds?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const totalRounds = config?.rounds ?? 9;
   const pickTarget = () => { const pool = [...Array.from({length:20},(_,i)=>i+1), 25]; return pool[Math.floor(Math.random()*pool.length)]; };
 
-  const [round, setRound] = useState(1);
-  const [target, setTarget] = useState<number>(() => pickTarget());
-  const [scores, setScores] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [round, setRound] = useSnapState("OcheRouletteScorer.round", 1);
+  const [target, setTarget] = useSnapState<number>("OcheRouletteScorer.target", () => pickTarget());
+  const [scores, setScores] = useSnapState<[number, number]>("OcheRouletteScorer.scores", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("OcheRouletteScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("OcheRouletteScorer.visitDarts", []);
 
   const advanceRound = (finalScores: [number, number]) => {
     if (round >= totalRounds && finalScores[0] !== finalScores[1]) {
@@ -6057,12 +6715,29 @@ export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, o
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig, target]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Oche Roulette" sub={round > totalRounds ? "Sudden death" : `Round ${round} of ${totalRounds}`}
+        rules="Each round spins a random target. Both players get three darts at it: hits score, misses score nothing. Highest total after the last round wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], line: { label: "Target", value: target === 25 ? "Bull" : target }, stats: [{ label: "Round", value: round > totalRounds ? "SD" : `${round}/${totalRounds}` }, { label: "Lead", value: scores[i] - scores[i === 0 ? 1 : 0] }] })) as [any, any]}
+        targets={[target]}
+        panel={<div className="mp-big"><small>Tonight's target</small><b>{target === 25 ? "Bull" : target}</b></div>}
+        note={`Aim at ${target === 25 ? "the bull" : target}`}
+        visitDarts={visitDarts} disabled={isBotTurnOR} waitingMsg={isBotTurnOR ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Shuffle className="w-8 h-8 mx-auto mb-2" style={{ color: "#c084fc" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Oche Roulette</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Oche Roulette</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {round > totalRounds ? "SUDDEN DEATH — tied, one more spin" : `Round ${round}/${totalRounds}`}
         </p>
@@ -6093,18 +6768,19 @@ export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, o
 }
 
 // ── 180 Challenge Scorer ────────────────────────────────────────────────────────
-export function OneEightyScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function OneEightyScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { attempts?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const maxAttempts = config?.attempts ?? 10;
-  const [attempts, setAttempts] = useState<[number, number]>([0, 0]);
-  const [bestVisit, setBestVisit] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [attempts, setAttempts] = useSnapState<[number, number]>("OneEightyScorer.attempts", [0, 0]);
+  const [bestVisit, setBestVisit] = useSnapState<[number, number]>("OneEightyScorer.bestVisit", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("OneEightyScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("OneEightyScorer.visitDarts", []);
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -6150,12 +6826,28 @@ export function OneEightyScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="180 Challenge" sub="T20 · T20 · T20"
+        rules="Take turns going for a perfect visit: three treble 20s. The first to hit 180 wins. If nobody does, the best visit wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: bestVisit[i], line: { label: "Attempts", value: `${attempts[i]}/${maxAttempts}` }, stats: [{ label: "Best", value: bestVisit[i] }, { label: "Left", value: maxAttempts - attempts[i] }] })) as [any, any]}
+        targets={[20]} targetLabels={["20"]}
+        note="Go for T20, T20, T20"
+        visitDarts={visitDarts} disabled={isBotTurnOE} waitingMsg={isBotTurnOE ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[20]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Dices className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b9d" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>180 Challenge</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>180 Challenge</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>T20 · T20 · T20 — first perfect visit wins</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -6206,10 +6898,10 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [harePos, setHarePos] = useState(0);
-  const [houndPos, setHoundPos] = useState(0);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [harePos, setHarePos] = useSnapState("HareHoundsScorer.harePos", 0);
+  const [houndPos, setHoundPos] = useSnapState("HareHoundsScorer.houndPos", 0);
+  const [turn, setTurn] = useSnapState<0 | 1>("HareHoundsScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("HareHoundsScorer.visitDarts", []);
 
   const target = turn === 0 ? harePos + 1 : houndPos + 1;
 
@@ -6267,28 +6959,48 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
 
   const gap = harePos - houndPos;
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Hare and Hounds" sub="Race 1 → 20"
+        rules="Player one is the Hare, racing round the board 1 to 20. Player two is the Hound, chasing on the same path. Single moves one, double two, treble three. The Hare wins by finishing; the Hound wins by catching up."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[{ score: harePos, unit: "/20", badge: "🐇 Hare", line: { label: "Next", value: Math.min(20, harePos + 1) }, stats: [{ label: "Lead", value: gap }, { label: "To go", value: 20 - harePos }] },
+                { score: houndPos, unit: "/20", badge: "🐕 Hound", line: { label: "Next", value: Math.min(20, houndPos + 1) }, stats: [{ label: "Behind", value: gap }, { label: "To go", value: 20 - houndPos }] }]}
+        panel={<RaceTrack max={20} tickLabels={["START", "10", "FINISH"]} lanes={[
+          { label: names[0], pos: harePos, emoji: "🐇", playerIdx: 1, leadFill: true },
+          { label: names[1], pos: houndPos, emoji: "🐕", playerIdx: 0 },
+        ]} />}
+        note={harePos === 0 && houndPos === 0 ? "Under starter's orders" : gap > 0 ? `Hare ${gap} clear · hit ${target}` : `Hit ${target}`}
+        visitDarts={visitDarts} disabled={isBotTurnHH} waitingMsg={isBotTurnHH ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Rabbit className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Hare and Hounds</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Hare and Hounds</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {names[0]} is the Hare, racing 1→20. {names[1]} is the Hound, chasing the same path — catch the Hare's number to win. Single = 1 length, double = 2, treble = 3.
         </p>
       </div>
       {newScoringUI ? (
         <>
-          <TrackStats items={[
-            { label: `${names[0]} · Hare`, value: gap > 0 ? `${gap} lengths clear` : "level!", playerIdx: 0 },
-            { label: `${names[1]} · Hound`, value: gap > 0 ? "closing in" : "caught up!", playerIdx: 1 },
-          ]} />
+          <div className="text-center text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>
+            {harePos === 0 && houndPos === 0 ? "Under starter's orders" : gap > 0 ? `Hare ${gap} length${gap === 1 ? "" : "s"} clear` : "Neck and neck"}
+          </div>
+          {/* Runner colours follow this game's PlayerCards (first player pink), not P_COLOR's default. */}
           <RaceTrack
             max={20}
             tickLabels={["START", "10", "FINISH"]}
             lanes={[
-              { label: names[0], pos: harePos, emoji: "🐇", playerIdx: 0, leadFill: true },
-              { label: names[1], pos: houndPos, emoji: "🐕", playerIdx: 1 },
+              { label: names[0], pos: harePos, emoji: "🐇", playerIdx: 1, leadFill: true },
+              { label: names[1], pos: houndPos, emoji: "🐕", playerIdx: 0 },
             ]}
           />
         </>
@@ -6341,10 +7053,10 @@ export function PrisonerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, on
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [positions, setPositions] = useState<[number, number]>([0, 0]);
-  const [skipNext, setSkipNext] = useState<[boolean, boolean]>([false, false]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [positions, setPositions] = useSnapState<[number, number]>("PrisonerScorer.positions", [0, 0]);
+  const [skipNext, setSkipNext] = useSnapState<[boolean, boolean]>("PrisonerScorer.skipNext", [false, false]);
+  const [turn, setTurn] = useSnapState<0 | 1>("PrisonerScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("PrisonerScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const target = positions[turn] + 1;
@@ -6400,26 +7112,42 @@ export function PrisonerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, on
     // scoring dart mid-visit restart the whole 3-dart sequence.
   }, [turn, botConfig, skipNext]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Prisoner" sub="Round the clock 1 → 20"
+        rules="Round the clock from 1 to 20, but only the big (outer) single and the double/treble count. Hit the small inner single and you're jailed: your next visit is skipped."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: positions[i], unit: "/20", badge: skipNext[i] ? "🔒 Jailed" : undefined, out: skipNext[i], line: { label: "Next", value: Math.min(20, positions[i] + 1) }, stats: [{ label: "Done", value: positions[i] }, { label: "To go", value: 20 - positions[i] }] })) as [any, any]}
+        panel={<RaceTrack max={20} tickLabels={["START", "10", "FINISH"]} lanes={[
+          { label: names[0], pos: positions[0], emoji: skipNext[0] ? "🔒" : "🏃", playerIdx: 1, leadFill: true },
+          { label: names[1], pos: positions[1], emoji: skipNext[1] ? "🔒" : "🏃", playerIdx: 0 },
+        ]} />}
+        note={skipNext[turn] ? "In jail — visit skipped" : `Hit ${target} · big single, not the small one`}
+        noteTone={skipNext[turn] ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnPR || skipNext[turn]} waitingMsg={isBotTurnPR ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={[target]} ringMode onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Lock className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b6b" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Prisoner</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Prisoner</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Round the Clock 1–20 — but hit the INNER ring and you're jailed, skipping your next visit</p>
       </div>
       {newScoringUI && (
         <>
-          <TrackStats items={[
-            { label: names[0], value: skipNext[0] ? "🔒 jailed" : `${positions[0]}/20`, playerIdx: 0 },
-            { label: names[1], value: skipNext[1] ? "🔒 jailed" : `${positions[1]}/20`, playerIdx: 1 },
-          ]} />
           <RaceTrack
             max={20}
             tickLabels={["START", "10", "FINISH"]}
             lanes={[
-              { label: names[0], pos: positions[0], emoji: skipNext[0] ? "🔒" : "🏃", playerIdx: 0, leadFill: true },
-              { label: names[1], pos: positions[1], emoji: skipNext[1] ? "🔒" : "🏃", playerIdx: 1 },
+              { label: names[0], pos: positions[0], emoji: skipNext[0] ? "🔒" : "🏃", playerIdx: 1, leadFill: true },
+              { label: names[1], pos: positions[1], emoji: skipNext[1] ? "🔒" : "🏃", playerIdx: 0 },
             ]}
           />
         </>
@@ -6459,10 +7187,10 @@ export function KnockoutScorer({ p1Name, p2Name, config, botConfig, onWin, onAba
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const maxStrikes = config?.strikes ?? 3;
-  const [lastScore, setLastScore] = useState<number | null>(null);
-  const [strikes, setStrikes] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [lastScore, setLastScore] = useSnapState<number | null>("KnockoutScorer.lastScore", null);
+  const [strikes, setStrikes] = useSnapState<[number, number]>("KnockoutScorer.strikes", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("KnockoutScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("KnockoutScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const handleDart = (dart: Dart) => {
@@ -6504,12 +7232,28 @@ export function KnockoutScorer({ p1Name, p2Name, config, botConfig, onWin, onAba
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Knockout" sub={`${maxStrikes} strikes and you're out`}
+        rules="Each visit must beat the last visit's score. Fail and you take a strike. The opening visit sets the bar."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: strikes[i], unit: `/${maxStrikes} strikes`, out: strikes[i] >= maxStrikes, line: { label: "Needs", value: lastScore === null ? "any score" : `${lastScore + 1}+` }, stats: [{ label: "Bar", value: lastScore ?? "–" }, { label: "Lives left", value: Math.max(0, maxStrikes - strikes[i]) }] })) as [any, any]}
+        panel={<div className="mp-big"><small>{lastScore === null ? "Opening visit sets the bar" : "Beat this score"}</small><b>{lastScore ?? "—"}</b></div>}
+        note={flash ?? (lastScore === null ? "Set the opening bar" : `Needs ${lastScore + 1}+`)} noteTone={flash ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnKO} waitingMsg={isBotTurnKO ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Swords className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b6b" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Knockout</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Knockout</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Beat the bar or take a strike. {maxStrikes} strikes and you're out.</p>
       </div>
       <SectionCard>
@@ -6567,13 +7311,13 @@ export function TennisScorer({ p1Name, p2Name, config, botConfig, onWin, onAband
   const names = [p1Name, p2Name];
   const gamesToWin = config?.gamesToWin ?? 3;
 
-  const [server, setServer] = useState<0 | 1>(0);
-  const [halfIsA, setHalfIsA] = useState(true);
-  const [servePhase, setServePhase] = useState<"serve" | "return">("serve");
-  const [serverTotal, setServerTotal] = useState(0);
-  const [points, setPoints] = useState<[number, number]>([0, 0]);
-  const [games, setGames] = useState<[number, number]>([0, 0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [server, setServer] = useSnapState<0 | 1>("TennisScorer.server", 0);
+  const [halfIsA, setHalfIsA] = useSnapState("TennisScorer.halfIsA", true);
+  const [servePhase, setServePhase] = useSnapState<"serve" | "return">("TennisScorer.servePhase", "serve");
+  const [serverTotal, setServerTotal] = useSnapState("TennisScorer.serverTotal", 0);
+  const [points, setPoints] = useSnapState<[number, number]>("TennisScorer.points", [0, 0]);
+  const [games, setGames] = useSnapState<[number, number]>("TennisScorer.games", [0, 0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TennisScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const half = halfIsA ? TENNIS_HALF_A : TENNIS_HALF_B;
@@ -6637,12 +7381,28 @@ export function TennisScorer({ p1Name, p2Name, config, botConfig, onWin, onAband
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [thrower, botConfig, halfIsA]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Darts Tennis" sub={`First to ${gamesToWin} games`}
+        rules="The server throws three darts, then the returner. Only the numbers in play this point count. Highest visit wins the point. Four points takes the game (no deuce)."
+        names={[p1Name, p2Name]} turn={thrower}
+        cards={[0, 1].map(i => ({ score: TENNIS_LABELS[Math.min(points[i], 3)], badge: server === i ? "🎾 Serve" : undefined, line: { label: "Games", value: games[i] }, stats: [{ label: "Points", value: points[i] }, { label: "To win", value: gamesToWin }] })) as [any, any]}
+        panel={<TargetChips items={half.map(String)} current={-1} done={() => true} />}
+        note={flash ?? (servePhase === "serve" ? "Serving · numbers in play only" : `Returning · beat ${serverTotal}`)}
+        visitDarts={visitDarts} disabled={isBotTurnTN} waitingMsg={isBotTurnTN ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        allowed={half} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Award className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Darts Tennis</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Darts Tennis</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           Serve 3, return 3, at the half in play — highest visit wins the point. First to 4 points takes the game (no deuce), first to {gamesToWin} games wins the match.
         </p>
@@ -6709,11 +7469,11 @@ export function FollowTheLeaderScorer({ p1Name, p2Name, config, botConfig, onWin
   const names = [p1Name, p2Name];
   const startLives = config?.lives ?? 3;
 
-  const [leader, setLeader] = useState<0 | 1>(0);
-  const [lives, setLives] = useState<[number, number]>([startLives, startLives]);
-  const [calledTarget, setCalledTarget] = useState<{ seg: number; mult: 1|2|3; label: string } | null>(null);
-  const [phase, setPhase] = useState<"calling" | "chasing">("calling");
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [leader, setLeader] = useSnapState<0 | 1>("FollowTheLeaderScorer.leader", 0);
+  const [lives, setLives] = useSnapState<[number, number]>("FollowTheLeaderScorer.lives", [startLives, startLives]);
+  const [calledTarget, setCalledTarget] = useSnapState<{ seg: number; mult: 1|2|3; label: string } | null>("FollowTheLeaderScorer.calledTarget", null);
+  const [phase, setPhase] = useSnapState<"calling" | "chasing">("FollowTheLeaderScorer.phase", "calling");
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("FollowTheLeaderScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const chaser: 0 | 1 = leader === 0 ? 1 : 0;
@@ -6789,12 +7549,29 @@ export function FollowTheLeaderScorer({ p1Name, p2Name, config, botConfig, onWin
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [chaser, phase, botConfig, calledTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Follow the Leader" sub={`${startLives} lives each`}
+        rules="The leader calls a target by throwing one dart. The chaser must match it exactly within three darts or lose a life. Match it and the lead swaps."
+        names={[p1Name, p2Name]} turn={phase === "calling" ? leader : chaser}
+        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i]), unit: lives[i] === 1 ? "life" : "lives", out: lives[i] <= 0, badge: leader === i ? "👑 Leader" : undefined, line: { label: "Target", value: calledTarget?.label ?? "–" }, stats: [{ label: "Role", value: leader === i ? "Leader" : "Chaser" }, { label: "Lives", value: `${Math.max(0, lives[i])}/${startLives}` }] })) as [any, any]}
+        panel={<div className="mp-big"><small>{phase === "calling" ? `${names[leader]} is calling…` : `${names[chaser]} must hit`}</small><b>{calledTarget?.label ?? "?"}</b></div>}
+        note={flash ?? (phase === "calling" ? "Throw one dart to call the target" : `Hit ${calledTarget?.label} exactly`)}
+        visitDarts={phase === "chasing" ? visitDarts : []} disabled={isBotTurnFL} waitingMsg={isBotTurnFL ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => phase === "chasing" && visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={phase === "chasing" && calledTarget ? [calledTarget.seg] : undefined}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Footprints className="w-8 h-8 mx-auto mb-2" style={{ color: "#c084fc" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Follow the Leader</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Follow the Leader</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>The leader calls one dart. Match it exactly within 3 darts or lose a life — match it and the lead swaps.</p>
       </div>
       {newScoringUI ? (
@@ -6858,14 +7635,14 @@ export function BattleshipScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [fleet] = useState<[boolean[], boolean[]]>(() => [makeFleetCells(), makeFleetCells()]);
-  const [revealed, setRevealed] = useState<[boolean[], boolean[]]>(() => [Array(20).fill(false), Array(20).fill(false)]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [fleet] = useSnapState<[boolean[], boolean[]]>("BattleshipScorer.fleet", () => [makeFleetCells(), makeFleetCells()]);
+  const [revealed, setRevealed] = useSnapState<[boolean[], boolean[]]>("BattleshipScorer.revealed", () => [Array(20).fill(false), Array(20).fill(false)]);
+  const [turn, setTurn] = useSnapState<0 | 1>("BattleshipScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("BattleshipScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
   // Used only by the new-scoring-UI TerritoryGrid, to ring the most recent
   // hit — the original grid conveys this through the flash text instead.
-  const [lastHitCell, setLastHitCell] = useState<number | null>(null);
+  const [lastHitCell, setLastHitCell] = useSnapState<number | null>("BattleshipScorer.lastHitCell", null);
 
   const targetPlayer: 0 | 1 = turn === 0 ? 1 : 0;
 
@@ -6911,12 +7688,28 @@ export function BattleshipScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
 
   const shipsRemaining = (i: number) => 6 - fleet[i as 0|1].filter((f, idx) => f && revealed[i as 0|1][idx]).length;
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Battleship Darts" sub={`Firing at ${names[targetPlayer]}'s grid`}
+        rules="Each player has a hidden six-cell fleet on the numbers 1–20, hidden even from themselves. Fire at your opponent's numbers to find and sink their ships. Sink all six first to win."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: shipsRemaining(i), unit: "/6 ships", line: { label: "Hits taken", value: 6 - shipsRemaining(i) }, stats: [{ label: "Fired at", value: revealed[i].filter(Boolean).length }, { label: "Afloat", value: shipsRemaining(i) }] })) as [any, any]}
+        panel={<TerritoryGrid order={Array.from({ length: 20 }, (_, i) => i + 1)} lastHit={lastHitCell ?? undefined} claims={Object.fromEntries(Array.from({ length: 20 }, (_, i) => i).filter(i => revealed[targetPlayer][i] && fleet[targetPlayer][i]).map(i => [i + 1, turn as 0 | 1]))} />}
+        note={flash ?? `Fire at ${names[targetPlayer]}'s grid`}
+        visitDarts={visitDarts} disabled={isBotTurnBS} waitingMsg={isBotTurnBS ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        allowed={Array.from({ length: 20 }, (_, i) => i + 1)} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Ship className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Battleship Darts</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Battleship Darts</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Each player has a secret 6-cell fleet on the board (1–20) — hidden even from themselves. Fire at your opponent's numbers to sink it.</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -6986,7 +7779,7 @@ export function BlindKillersScorer({ p1Name, p2Name, config, botConfig, onWin, o
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const startLives = config?.lives ?? 3;
-  const [myNum] = useState<[number, number]>(() => {
+  const [myNum] = useSnapState<[number, number]>("BlindKillersScorer.myNum", () => {
     const pool = Array.from({ length: 20 }, (_, i) => i + 1);
     const i1 = Math.floor(Math.random() * pool.length);
     const n1 = pool.splice(i1, 1)[0];
@@ -6994,11 +7787,11 @@ export function BlindKillersScorer({ p1Name, p2Name, config, botConfig, onWin, o
     const n2 = pool.splice(i2, 1)[0];
     return [n1, n2];
   });
-  const [revealed, setRevealed] = useState<[boolean, boolean]>([false, false]);
-  const [isKiller, setIsKiller] = useState<[boolean, boolean]>([false, false]);
-  const [lives, setLives] = useState<[number, number]>([startLives, startLives]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [revealed, setRevealed] = useSnapState<[boolean, boolean]>("BlindKillersScorer.revealed", [false, false]);
+  const [isKiller, setIsKiller] = useSnapState<[boolean, boolean]>("BlindKillersScorer.isKiller", [false, false]);
+  const [lives, setLives] = useSnapState<[number, number]>("BlindKillersScorer.lives", [startLives, startLives]);
+  const [turn, setTurn] = useSnapState<0 | 1>("BlindKillersScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("BlindKillersScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const handleDart = (dart: Dart) => {
@@ -7041,12 +7834,27 @@ export function BlindKillersScorer({ p1Name, p2Name, config, botConfig, onWin, o
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Blind Killers" sub={`${startLives} lives each`}
+        rules="Everyone's double is secret, even from themselves. Throw for doubles: hit your own to go live as a killer, hit a live opponent's to take a life."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i]), unit: lives[i] === 1 ? "life" : "lives", out: lives[i] <= 0, badge: isKiller[i] ? "🔓 Killer" : undefined, line: { label: "Double", value: revealed[i] ? `D${myNum[i]}` : "🔒 hidden" }, stats: [{ label: "Status", value: isKiller[i] ? "Killer" : revealed[i] ? "Revealed" : "Hidden" }, { label: "Lives", value: `${Math.max(0, lives[i])}/${startLives}` }] })) as [any, any]}
+        note={flash ?? "Throw for a double, any double"}
+        visitDarts={visitDarts} disabled={isBotTurnBK} waitingMsg={isBotTurnBK ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <EyeOff className="w-8 h-8 mx-auto mb-2" style={{ color: "#a78bfa" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Blind Killers</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Blind Killers</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Everyone's double is secret — even to themselves. Hit your own to go live, hit a live opponent's to take a life.</p>
       </div>
       {newScoringUI ? (
@@ -7096,12 +7904,12 @@ export function DonkeyDerbyScorer({ p1Name, p2Name, botConfig, onWin, onAbandon,
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [nums] = useState<[number, number]>(assignDonkeyNums);
-  const [pos, setPos] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [nums] = useSnapState<[number, number]>("DonkeyDerbyScorer.nums", assignDonkeyNums);
+  const [pos, setPos] = useSnapState<[number, number]>("DonkeyDerbyScorer.pos", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("DonkeyDerbyScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("DonkeyDerbyScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("DonkeyDerbyScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over || visitDarts.length >= 3) return;
@@ -7155,28 +7963,44 @@ export function DonkeyDerbyScorer({ p1Name, p2Name, botConfig, onWin, onAbandon,
     // mid-visit restart the whole 3-dart sequence.
   }, [turn, botConfig, nums, over]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Donkey Derby" sub="First to 20 lengths"
+        rules="Each player's donkey runs on its own number. Hit yours to move forward; hit your rival's to knock them back. First to 20 lengths wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: pos[i], unit: "/20", line: { label: "Number", value: nums[i] }, stats: [{ label: "Lead", value: pos[i] - pos[i === 0 ? 1 : 0] }, { label: "To go", value: 20 - pos[i] }] })) as [any, any]}
+        panel={<RaceTrack max={20} tickLabels={["START", "10", "FINISH"]} lanes={[
+          { label: names[0], pos: pos[0], emoji: "🐴", playerIdx: 1, leadFill: true },
+          { label: names[1], pos: pos[1], emoji: "🐴", playerIdx: 0 },
+        ]} />}
+        note={flash ?? `Hit ${nums[turn]} to advance · ${nums[turn === 0 ? 1 : 0]} knocks ${names[turn === 0 ? 1 : 0]} back`}
+        visitDarts={visitDarts} disabled={isBotTurnDD || over} waitingMsg={isBotTurnDD ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={[nums[turn], nums[turn === 0 ? 1 : 0]]} targetLabels={[`${nums[turn]} · go`, `${nums[turn === 0 ? 1 : 0]} · knock`]}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <PawPrint className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Donkey Derby</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Donkey Derby</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {names[0]}'s donkey runs on {nums[0]}, {names[1]}'s on {nums[1]}. Hit your own number to advance — hit your rival's to knock them back. First to 20 lengths wins.
         </p>
       </div>
       {newScoringUI ? (
         <>
-          <TrackStats items={[
-            { label: `${names[0]} · #${nums[0]}`, value: `${pos[0]}/20`, playerIdx: 0 },
-            { label: `${names[1]} · #${nums[1]}`, value: `${pos[1]}/20`, playerIdx: 1 },
-          ]} />
           <RaceTrack
             max={20}
             tickLabels={["START", "10", "FINISH"]}
             lanes={[
-              { label: names[0], pos: pos[0], emoji: "🐴", playerIdx: 0, leadFill: true },
-              { label: names[1], pos: pos[1], emoji: "🐴", playerIdx: 1 },
+              { label: names[0], pos: pos[0], emoji: "🐴", playerIdx: 1, leadFill: true },
+              { label: names[1], pos: pos[1], emoji: "🐴", playerIdx: 0 },
             ]}
           />
         </>
@@ -7232,12 +8056,12 @@ export function LimboScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
   const names = [p1Name, p2Name];
   const startBar = config?.startBar ?? 60;
   const maxLives = config?.lives ?? 3;
-  const [bar, setBar] = useState(startBar);
-  const [lives, setLives] = useState<[number, number]>([maxLives, maxLives]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [bar, setBar] = useSnapState("LimboScorer.bar", startBar);
+  const [lives, setLives] = useSnapState<[number, number]>("LimboScorer.lives", [maxLives, maxLives]);
+  const [turn, setTurn] = useSnapState<0 | 1>("LimboScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("LimboScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("LimboScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over || visitDarts.length >= 3) return;
@@ -7281,12 +8105,28 @@ export function LimboScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig, bar, lives, over]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Limbo" sub={`Bar starts at ${startBar}`}
+        rules={`Score under the bar to clear it — the bar then drops to whatever you scored. Fail and you lose a life. ${maxLives} lives each.`}
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i as 0 | 1]), unit: lives[i as 0 | 1] === 1 ? "life" : "lives", out: lives[i as 0 | 1] <= 0, line: { label: "Stay under", value: bar }, stats: [{ label: "Bar", value: bar }, { label: "Visit", value: i === turn ? visitDarts.reduce((t, d) => t + d.value, 0) : "–" }] })) as [any, any]}
+        panel={<LimboBar value={bar} max={startBar} />}
+        note={flash ?? `Stay under ${bar}`} noteTone={flash ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnLM || over} waitingMsg={isBotTurnLM ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <ArrowDownToLine className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Limbo</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Limbo</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           Score under the bar to clear it — the bar starts at {startBar} and only ever drops to whatever you scored. Miss it and lose a life. {maxLives} lives each.
         </p>
@@ -7355,10 +8195,10 @@ export function SnakesLaddersScorer({ p1Name, p2Name, botConfig, onWin, onAbando
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [pos, setPos] = useState<[number, number]>([1, 1]);
-  const [turn, setTurn] = useState<0 | 1>(0);
+  const [pos, setPos] = useSnapState<[number, number]>("SnakesLaddersScorer.pos", [1, 1]);
+  const [turn, setTurn] = useSnapState<0 | 1>("SnakesLaddersScorer.turn", 0);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("SnakesLaddersScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over) return;
@@ -7393,12 +8233,29 @@ export function SnakesLaddersScorer({ p1Name, p2Name, botConfig, onWin, onAbando
     return () => clearTimeout(t1);
   }, [turn, botConfig, over]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Snakes & Ladders" sub="First to square 30"
+        rules="One dart a turn. Any number converts to a roll of 1–6 (the bull is 6). Land on a ladder to climb, a snake to slide. First to square 30 wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: pos[i], unit: "/30", line: { label: "To go", value: 30 - pos[i] }, stats: [{ label: "Square", value: pos[i] }, { label: "Lead", value: pos[i] - pos[i === 0 ? 1 : 0] }] })) as [any, any]}
+        panel={<SnakesLaddersBoard rows={SL_ROWS} ladders={SL_LADDERS} snakes={SL_SNAKES} positions={pos} />}
+        note={flash ?? "Throw any number for your roll"}
+        visitDarts={[]} visitLabel="Square" visitValue={pos[turn]}
+        disabled={isBotTurnSL || over} waitingMsg={isBotTurnSL ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => {}}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <LayoutGrid className="w-8 h-8 mx-auto mb-2" style={{ color: "#4ade80" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Snakes &amp; Ladders</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Snakes &amp; Ladders</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           One dart, any number — it converts to a 1-6 roll (Bull = 6). Land on a ladder and climb, land on a snake and slide. First to square 30 wins.
         </p>
@@ -7465,12 +8322,12 @@ export function QuackshotScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const totalRounds = config?.rounds ?? 8;
-  const [round, setRound] = useState(1);
-  const [scores, setScores] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [round, setRound] = useSnapState("QuackshotScorer.round", 1);
+  const [scores, setScores] = useSnapState<[number, number]>("QuackshotScorer.scores", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("QuackshotScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("QuackshotScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("QuackshotScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over || visitDarts.length >= 3) return;
@@ -7523,12 +8380,27 @@ export function QuackshotScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig, round, over]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Quackshot" sub={`Round ${Math.min(round, totalRounds)} of ${totalRounds}`}
+        rules="Aim for the bull: double bull +3, bull +2, the inner (small) single +1. The treble is a trap at −2 and the outer single −1. Highest score after the last round wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], line: { label: "Round", value: `${Math.min(round, totalRounds)}/${totalRounds}` }, stats: [{ label: "Lead", value: scores[i] - scores[i === 0 ? 1 : 0] }, { label: "Rounds left", value: Math.max(0, totalRounds - round + 1) }] })) as [any, any]}
+        note={flash ?? "Aim for the bull · watch the treble trap"}
+        visitDarts={visitDarts} disabled={isBotTurnQS || over} waitingMsg={isBotTurnQS ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        ringMode onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Target className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff9219" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Quackshot</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Quackshot</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {totalRounds} rounds, highest score wins — but the treble is a trap: it's worth less than missing wide. Aim for the bull.
         </p>
@@ -7555,8 +8427,8 @@ export function QuackshotScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
       </div>
       {newScoringUI ? (
         <TrackStats items={[
-          { label: names[0], value: `${scores[0]}`, playerIdx: 0 },
-          { label: names[1], value: `${scores[1]}`, playerIdx: 1 },
+          { label: names[0], value: `${scores[0]}`, playerIdx: 0, active: turn === 0 },
+          { label: names[1], value: `${scores[1]}`, playerIdx: 1, active: turn === 1 },
         ]} />
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -7592,12 +8464,12 @@ export function FightGameScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const maxHp = config?.hp ?? 9;
-  const [nums] = useState<[number, number]>(assignDonkeyNums);
-  const [hp, setHp] = useState<[number, number]>([maxHp, maxHp]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [nums] = useSnapState<[number, number]>("FightGameScorer.nums", assignDonkeyNums);
+  const [hp, setHp] = useSnapState<[number, number]>("FightGameScorer.hp", [maxHp, maxHp]);
+  const [turn, setTurn] = useSnapState<0 | 1>("FightGameScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("FightGameScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("FightGameScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over || visitDarts.length >= 3) return;
@@ -7650,12 +8522,28 @@ export function FightGameScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
     // for consistency with the same fix elsewhere.
   }, [turn, botConfig, over]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Fight Game" sub={`${maxHp} HP each`}
+        rules="Each fighter has a number. Hit your rival's number to damage them; hit your own to heal. Knock their HP to zero to win."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: hp[i], unit: "HP", out: hp[i] <= 0, line: { label: "Number", value: nums[i] }, stats: [{ label: "HP", value: `${hp[i]}/${maxHp}` }, { label: "Lead", value: hp[i] - hp[i === 0 ? 1 : 0] }] })) as [any, any]}
+        note={flash ?? `Hit ${nums[otherTurnFG]} to attack · ${nums[turn]} to heal`}
+        visitDarts={visitDarts} disabled={isBotTurnFG || over} waitingMsg={isBotTurnFG ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={[nums[otherTurnFG], nums[turn]]} targetLabels={[`${nums[otherTurnFG]} · attack`, `${nums[turn]} · heal`]}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
         <Flame className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b6b" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Fight Game</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Fight Game</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {names[0]} fights on {nums[0]}, {names[1]} fights on {nums[1]}. Hit your rival's number to damage them, hit your own to heal. {maxHp} HP each.
         </p>
@@ -7702,17 +8590,18 @@ function botSnookerDart(segs: number[], cfg: BotConfig): Dart {
   return { segment: seg, multiplier: 1, value: seg, label: `${seg}` };
 }
 
-export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [ballIdx,    setBallIdx]    = useState(0);
-  const [half,       setHalf]       = useState<0|1>(0);
-  const [scores,     setScores]     = useState<[number,number]>([0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [potted,     setPotted]     = useState(false);
+  const [ballIdx,    setBallIdx]    = useSnapState("SnookerScorer.ballIdx", 0);
+  const [half,       setHalf]       = useSnapState<0|1>("SnookerScorer.half", 0);
+  const [scores,     setScores]     = useSnapState<[number,number]>("SnookerScorer.scores", [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("SnookerScorer.visitDarts", []);
+  const [potted,     setPotted]     = useSnapState("SnookerScorer.potted", false);
   const names = [p1Name, p2Name];
   const ball  = SNOOKER_BALLS[ballIdx];
   const ballIdxRef = useRef(ballIdx); ballIdxRef.current = ballIdx;
@@ -7765,12 +8654,29 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
   const isRed = ballIdx < 15;
   const redCount = Math.min(ballIdx + 1, 15);
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Snooker Darts" sub={isRed ? `Red ${redCount} of 15` : `${ball.label} ball`}
+        rules="Pot the 15 reds by hitting any of 1–15, then the colours in order on their own numbers. Each pot scores the ball's value. Highest total wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: "pts", line: { label: "On", value: isRed ? `Red ${redCount}/15` : ball.label }, stats: [{ label: "Ball", value: `+${ball.value}` }, { label: "Lead", value: scores[i] - scores[i === 0 ? 1 : 0] }] })) as [any, any]}
+        targets={isRed ? undefined : ball.segs}
+        panel={<div className="mp-balls">{SNOOKER_BALLS.map((b, i) => <i key={i} style={{ background: b.color, opacity: i < ballIdx ? 0.2 : i === ballIdx ? 1 : 0.4, boxShadow: i === ballIdx ? `0 0 8px ${b.color}` : "none" }} />)}</div>}
+        note={potted ? "Potted!" : `${ball.emoji} ${isRed ? "Any of 1–15" : `Aim at ${ball.segs[0]}`} · +${ball.value}`}
+        visitDarts={visitDarts} disabled={isBotTurnSnk || potted} waitingMsg={isBotTurnSnk ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && !potted && setVisitDarts(p => p.slice(0, -1))}
+        highlight={ball.segs} allowed={ball.segs} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Snooker Darts</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Snooker Darts</h2>
           <div className="flex items-center justify-center gap-2 mt-1">
             <span className="text-lg">{ball.emoji}</span>
             <span className="font-black text-sm" style={{fontFamily:"Oswald,sans-serif", color:ball.color}}>
@@ -7809,21 +8715,22 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
 }
 
 // ── JDC Challenge 41 ──────────────────────────────────────────────────────────
-export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const SH1 = [10,11,12,13,14,15];
   const DBL = [...Array.from({length:20},(_,i)=>i+1), 25];
   const SH2 = [15,16,17,18,19,20];
-  const [phase, setPhase]           = useState<"sh1"|"dbl"|"sh2">("sh1");
-  const [scores, setScores]         = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [idx, setIdx]               = useState(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [shHits, setShHits]         = useState({s:false,d:false,t:false});
+  const [phase, setPhase]           = useSnapState<"sh1"|"dbl"|"sh2">("JDCChallenge41Scorer.phase", "sh1");
+  const [scores, setScores]         = useSnapState<[number,number]>("JDCChallenge41Scorer.scores", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("JDCChallenge41Scorer.turn", 0);
+  const [idx, setIdx]               = useSnapState("JDCChallenge41Scorer.idx", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("JDCChallenge41Scorer.visitDarts", []);
+  const [shHits, setShHits]         = useSnapState("JDCChallenge41Scorer.shHits", {s:false,d:false,t:false});
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
   const handleDartRefJDC = useRef<(d: Dart) => void>(() => {});
@@ -7883,12 +8790,29 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
     :phase==="dbl"?`Phase 2 — Doubles ${DBL[0]}–D${DBL.at(-1)}`
     :`Phase 3 — Shanghai ${SH2[0]}–${SH2.at(-1)}`;
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="JDC Challenge 41" sub={label}
+        rules="Three phases: Shanghai on 10–15, then doubles, then Shanghai on 15–20. Score what you hit on each target. A Shanghai (single, double and treble of the target in one visit) scores a bonus."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], line: { label: "Target", value: phase === "dbl" ? `D${target}` : target }, stats: [{ label: "Phase", value: phase === "sh1" ? "1/3" : phase === "dbl" ? "2/3" : "3/3" }, { label: "S·D·T", value: i === turn && phase !== "dbl" ? `${shHits.s ? "✓" : "·"}${shHits.d ? "✓" : "·"}${shHits.t ? "✓" : "·"}` : "–" }] })) as [any, any]}
+        targets={[target]}
+        panel={<TargetChips items={phaseArr.map(t => phase === "dbl" ? `D${t}` : String(t))} current={idx} />}
+        note={msg || (phase === "dbl" ? `Hit D${target}` : `Aim at ${target}`)}
+        visitDarts={visitDarts} disabled={isBotTurnJDC} waitingMsg={isBotTurnJDC ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>JDC Challenge 41</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>JDC Challenge 41</h2>
           <p className="text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>{label}</p>
           <p className="text-sm mt-1" style={{color:"rgba(255,255,255,0.5)",fontFamily:"Oswald,sans-serif"}}>
             Target: <strong style={{color:"#fff"}}>{phase==="dbl"?`D${target}`:target}</strong>
@@ -7910,17 +8834,18 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
 }
 
 // ── Exponential Bundle ─────────────────────────────────────────────────────────
-export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const TARGETS=[7,8,9,10,11,12];
-  const [tIdx,setTIdx]             = useState(0);
-  const [half,setHalf]             = useState<0|1>(0);
-  const [scores,setScores]         = useState<[number,number]>([0,0]);
-  const [visitDarts,setVisitDarts] = useState<Dart[]>([]);
+  const [tIdx,setTIdx]             = useSnapState("ExponentialBundleScorer.tIdx", 0);
+  const [half,setHalf]             = useSnapState<0|1>("ExponentialBundleScorer.half", 0);
+  const [scores,setScores]         = useSnapState<[number,number]>("ExponentialBundleScorer.scores", [0,0]);
+  const [visitDarts,setVisitDarts] = useSnapState<Dart[]>("ExponentialBundleScorer.visitDarts", []);
   const names=[p1Name,p2Name];
   const target=TARGETS[tIdx];
   const handleDartRefExp = useRef<(d: Dart) => void>(() => {});
@@ -7956,12 +8881,30 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Exponential Bundle" sub={`Round ${tIdx + 1} of 6`}
+        rules="Each round has a target. A single scores the number, a double scores it squared and a treble scores it cubed. Highest total wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: scores[i], line: { label: "Target", value: target }, stats: [{ label: "Round", value: `${tIdx + 1}/6` }, { label: "Treble", value: target * target * target }] })) as [any, any]}
+        targets={[target]}
+        panel={<TargetChips items={TARGETS.map(String)} current={tIdx} />}
+        note={`${target} · S ${target} · D ${target * target} · T ${target * target * target}`}
+        visitDarts={visitDarts} visitValue={visitDarts.reduce((t, d) => d.segment !== target ? t : t + Math.pow(target, d.multiplier), 0)}
+        disabled={isBotTurnExp} waitingMsg={isBotTurnExp ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Exponential Bundle</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Exponential Bundle</h2>
           <p className="text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>Round {tIdx+1}/6 — Target: <strong>{target}</strong></p>
           <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>S={target} · D={target}²={target*target} · T={target}³={target*target*target} per dart</p>
         </div>
@@ -7979,22 +8922,23 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
 }
 
 // ── Shooting Gallery ───────────────────────────────────────────────────────────
-export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const ROUNDS=5;
   const rng=()=>Math.floor(Math.random()*10)+121;
-  const [round,setRound]             = useState(0);
-  const [half,setHalf]               = useState<0|1>(0);
-  const [scores,setScores]           = useState<[number,number]>([0,0]);
-  const [dartCount,setDartCount]     = useState(0);
-  const [roundTarget,setRoundTarget] = useState(rng);
-  const [remain,setRemain]           = useState(()=>roundTarget);
+  const [round,setRound]             = useSnapState("ShootingGalleryScorer.round", 0);
+  const [half,setHalf]               = useSnapState<0|1>("ShootingGalleryScorer.half", 0);
+  const [scores,setScores]           = useSnapState<[number,number]>("ShootingGalleryScorer.scores", [0,0]);
+  const [dartCount,setDartCount]     = useSnapState("ShootingGalleryScorer.dartCount", 0);
+  const [roundTarget,setRoundTarget] = useSnapState("ShootingGalleryScorer.roundTarget", rng);
+  const [remain,setRemain]           = useSnapState("ShootingGalleryScorer.remain", ()=>roundTarget);
   const [msg,setMsg]                 = useState("");
-  const [sgHistory,setSgHistory]     = useState<{remain:number,dartCount:number}[]>([]);
+  const [sgHistory,setSgHistory]     = useSnapState<{remain:number,dartCount:number}[]>("ShootingGalleryScorer.sgHistory", []);
   const names=[p1Name,p2Name];
   const handleDartRefSG = useRef<(d: Dart) => void>(() => {});
   const isBotTurnSG = !!botConfig && half === 1;
@@ -8041,12 +8985,29 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
     return () => clearTimeout(t);
   }, [half, remain, dartCount, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Shooting Gallery" sub={`Round ${round + 1} of ${ROUNDS}`}
+        rules="Each round sets a checkout target. Check it out on a double in as few darts as you can; that many darts is your score. Bust or take 9+ darts and it's 10. Lowest total wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: "darts", line: { label: "Left", value: i === half ? remain : "–" }, stats: [{ label: "Round", value: `${round + 1}/${ROUNDS}` }, { label: "Target", value: roundTarget }] })) as [any, any]}
+        panel={<div className="mp-big"><small>Remaining · dart {dartCount + 1}</small><b>{remain}</b></div>}
+        note={msg || "Check out on a double"}
+        visitDarts={[]} visitLabel="Target" visitValue={roundTarget}
+        disabled={isBotTurnSG} waitingMsg={isBotTurnSG ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={handleSgUndo}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Shooting Gallery</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Shooting Gallery</h2>
           <p className="text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>Round {round+1}/{ROUNDS} — Target: <strong>{roundTarget}</strong></p>
           <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>Checkout in fewest darts. Bust or 9+ darts = +10. LOWEST score wins.</p>
         </div>
@@ -8067,17 +9028,18 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
 }
 
 // ── Dead Centre ────────────────────────────────────────────────────────────────
-export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; target?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [scores,setScores]         = useState<[number,number]>([0,0]);
-  const [turn,setTurn]             = useState<0|1>(0);
-  const [visitDarts,setVisitDarts] = useState<Dart[]>([]);
-  const [visitPts,setVisitPts]     = useState(0);
-  const [busted,setBusted]         = useState(false);
+  const [scores,setScores]         = useSnapState<[number,number]>("DeadCentreScorer.scores", [0,0]);
+  const [turn,setTurn]             = useSnapState<0|1>("DeadCentreScorer.turn", 0);
+  const [visitDarts,setVisitDarts] = useSnapState<Dart[]>("DeadCentreScorer.visitDarts", []);
+  const [visitPts,setVisitPts]     = useSnapState("DeadCentreScorer.visitPts", 0);
+  const [busted,setBusted]         = useSnapState("DeadCentreScorer.busted", false);
   const [msg,setMsg]               = useState("");
   const names=[p1Name,p2Name];
 
@@ -8119,12 +9081,29 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
     return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(t3);};
   },[turn,botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Dead Centre" sub={`Race to ${target}`}
+        rules={`Every dart must hit the bull (25 or 50). Miss the bull with any dart and your score resets to 0. First to ${target} wins.`}
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: `/${target}`, line: { label: "To go", value: target - scores[i] }, stats: [{ label: "Visit", value: i === turn ? visitPts : "–" }, { label: "Bull only", value: "" }] })) as [any, any]}
+        targets={[25]} targetLabels={["Bull"]}
+        note={msg || (busted ? "Busted — back to 0" : "Bull only")} noteTone={msg || busted ? "bust" : "gold"}
+        visitDarts={visitDarts} visitValue={visitPts}
+        disabled={isBotTurnDC} waitingMsg={isBotTurnDC ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[25]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Dead Centre</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Dead Centre</h2>
           <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>Hit Bull (25 or 50) every dart or score RESETS to 0. Race to {target}.</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -8145,16 +9124,17 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
 }
 
 // ── Three-in-a-Bed Scorer ──────────────────────────────────────────────────────
-export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, onWin, onAbandon }: {
+export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, onWin, onAbandon, newScoringUI }: {
   p1Name: string; p2Name: string; winsNeeded?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [roundWins, setRoundWins]   = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [phase, setPhase]           = useState<"call"|"throw">("call");
-  const [target, setTarget]         = useState<number|null>(null);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [roundWins, setRoundWins]   = useSnapState<[number,number]>("ThreeInABedScorer.roundWins", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("ThreeInABedScorer.turn", 0);
+  const [phase, setPhase]           = useSnapState<"call"|"throw">("ThreeInABedScorer.phase", "call");
+  const [target, setTarget]         = useSnapState<number|null>("ThreeInABedScorer.target", null);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("ThreeInABedScorer.visitDarts", []);
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
   const NUMS = Array.from({length:20},(_,i)=>i+1);
@@ -8217,11 +9197,28 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, phase, target, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Three-in-a-Bed" sub={`First to ${winsNeeded} rounds`}
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: roundWins[i], unit: `/${winsNeeded}`, line: { label: "Called", value: i === turn && target ? `T${target}` : "–" }, stats: [{ label: "Rounds", value: roundWins[i] }, { label: "To win", value: winsNeeded - roundWins[i] }] })) as [any, any]}
+        note={msg || (phase === "call" ? (isBotTurn3B ? `${p2Name} is choosing…` : "Call your treble") : `All three in T${target}`)}
+        visitDarts={visitDarts} disabled={isBotTurn3B} waitingMsg={isBotTurn3B ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={phase === "throw" && target ? [target] : undefined} targetLabels={target ? [`T${target}`] : undefined}
+        onAbandon={onAbandon}
+        customPad={phase === "call" ? (isBotTurn3B ? <div className="mx-note">{p2Name} is choosing a treble…</div>
+          : <><div className="mx-note">Pick your treble</div><div className="mx-grid mp-pick">{NUMS.map(n => <button key={n} onClick={() => callTarget(n)}><span>T{n}</span></button>)}</div></>) : undefined}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider"/>
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Three-in-a-Bed</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Three-in-a-Bed</h2>
         <p className="text-xs mt-1" style={{color:"rgba(255,255,255,0.3)"}}>
           Call a treble, throw all 3 darts — all 3 must hit the same treble · First to {winsNeeded} rounds wins
         </p>
@@ -8280,7 +9277,8 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
 // ── Team X01 Scorer ────────────────────────────────────────────────────────────
 const TEAM_COLORS: [string, string] = ["#22c55e", "#ee0a78"];
 
-export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState }: {
+export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState, newScoringUI }: {
+  newScoringUI?: boolean;
   teamNames: [string[], string[]];
   config: { startingScore: number; doubleOut?: boolean; doubleIn?: boolean };
   onWin: (w: 0|1, detail?: string) => void;
@@ -8310,13 +9308,13 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, doubleOut = true } = config;
-  const [scores, setScores]         = useState<[number, number]>(() => initialRecovery?.scores ?? [startingScore, startingScore]);
-  const [teamTurn, setTeamTurn]     = useState<0|1>(() => initialRecovery?.teamTurn ?? 0);
-  const [playerIdx, setPlayerIdx]   = useState<[number, number]>(() => initialRecovery?.playerIdx ?? [0, 0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
-  const [bust, setBust]             = useState(false);
+  const [scores, setScores]         = useSnapState<[number, number]>("TeamX01Scorer.scores", () => initialRecovery?.scores ?? [startingScore, startingScore]);
+  const [teamTurn, setTeamTurn]     = useSnapState<0|1>("TeamX01Scorer.teamTurn", () => initialRecovery?.teamTurn ?? 0);
+  const [playerIdx, setPlayerIdx]   = useSnapState<[number, number]>("TeamX01Scorer.playerIdx", () => initialRecovery?.playerIdx ?? [0, 0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TeamX01Scorer.visitDarts", () => initialRecovery?.visitDarts ?? []);
+  const [bust, setBust]             = useSnapState("TeamX01Scorer.bust", false);
   const [bustMsg, setBustMsg]       = useState("");
-  const [history, setHistory]       = useState<{ team:0|1; player:number; score:number; left:number }[]>(() => initialRecovery?.history ?? []);
+  const [history, setHistory]       = useSnapState<{ team:0|1; player:number; score:number; left:number }[]>("TeamX01Scorer.history", () => initialRecovery?.history ?? []);
   useEffect(() => {
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     const liveScores: [number, number] = [...scores] as [number, number];
@@ -8406,6 +9404,44 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
 
   const currentPlayerName = (team: 0|1) => teamNames[team][playerIdx[team]];
 
+  // Premium scorer (same frame as the 1v1 X01 scorer), behind New Scoring UI.
+  const [preferredTeamStyle] = useScorerStyle();
+  const [teamMode, setTeamMode] = useState<ModernMode>(preferredTeamStyle === "perdart" ? "perdart" : "total");
+  const [classicTeam, setClassicTeam] = useState(false);
+  const [teamQueue, setTeamQueue] = useState<Dart[]>([]);
+  const teamDartRef = useRef(handleDart); teamDartRef.current = handleDart;
+  useEffect(() => {
+    if (!teamQueue.length) return;
+    if (bust) { setTeamQueue([]); return; }
+    const [d, ...rest] = teamQueue;
+    setTeamQueue(rest);
+    teamDartRef.current(d);
+  }, [teamQueue, bust]);
+  if (newScoringUI && !classicTeam) {
+    const teamLabel = (t: 0 | 1) => teamNames[t].join(" & ");
+    const visits = (t: 0 | 1) => history.filter(h => h.team === t);
+    const stat = (t: 0 | 1) => { const v = visits(t); const tot = v.reduce((a, h) => a + h.score, 0); return { avg: v.length ? (tot / v.length).toFixed(1) : "–", darts: v.length * 3 }; };
+    const live = Math.max(0, scores[teamTurn] - (bust ? 0 : cum));
+    const lastFor = (t: 0 | 1) => { const v = visits(t); return v.length ? v[v.length - 1].score : null; };
+    return (
+      <ModernX01
+        mode={teamMode} canTotal onMode={setTeamMode}
+        names={[teamLabel(0), teamLabel(1)]} solo={false}
+        scores={scores} turn={teamTurn}
+        heading={`Team ${startingScore}`} legsLine={`${currentPlayerName(teamTurn)} to throw`}
+        legWins={[0, 0]} legsNeeded={1}
+        stats={[stat(0), stat(1)]}
+        routes={[teamTurn === 0 && live <= 170 ? CHECKOUTS[live] : undefined, teamTurn === 1 && live <= 170 ? CHECKOUTS[live] : undefined]}
+        visitDarts={visitDarts} bust={bust} bustMsg={bustMsg}
+        disabled={bust || teamQueue.length > 0} doubleOut={doubleOut}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        onDarts={ds => { if (!bust && visitDarts.length === 0) setTeamQueue(ds); }}
+        menu={[{ label: "Use classic scorer for this match", onClick: () => setClassicTeam(true) }, { label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } }]}
+        lastVisit={[lastFor(0), lastFor(1)]}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -8481,7 +9517,8 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
 }
 
 // ── Team Cricket Scorer ────────────────────────────────────────────────────────
-export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState }: {
+export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState, newScoringUI }: {
+  newScoringUI?: boolean;
   teamNames: [string[], string[]];
   cutThroat?: boolean;
   onWin: (w: 0|1, detail?: string) => void;
@@ -8493,12 +9530,12 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
   onRecoveryState?: (state: TeamCricketRecoveryState) => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [marks, setMarks]           = useState<CricketMarks>(() => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-  const [scores, setScores]         = useState<[number,number]>(() => initialRecovery?.scores ?? [0,0]);
-  const [teamTurn, setTeamTurn]     = useState<0|1>(() => initialRecovery?.teamTurn ?? 0);
-  const [playerIdx, setPlayerIdx]   = useState<[number,number]>(() => initialRecovery?.playerIdx ?? [0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
-  const [lastHit, setLastHit]       = useState(() => initialRecovery?.lastHit ?? "");
+  const [marks, setMarks]           = useSnapState<CricketMarks>("TeamCricketScorer.marks", () => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]         = useSnapState<[number,number]>("TeamCricketScorer.scores", () => initialRecovery?.scores ?? [0,0]);
+  const [teamTurn, setTeamTurn]     = useSnapState<0|1>("TeamCricketScorer.teamTurn", () => initialRecovery?.teamTurn ?? 0);
+  const [playerIdx, setPlayerIdx]   = useSnapState<[number,number]>("TeamCricketScorer.playerIdx", () => initialRecovery?.playerIdx ?? [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TeamCricketScorer.visitDarts", () => initialRecovery?.visitDarts ?? []);
+  const [lastHit, setLastHit]       = useSnapState("TeamCricketScorer.lastHit", () => initialRecovery?.lastHit ?? "");
   useEffect(() => {
     onLiveState?.({ mode: "cricket", scores, turn: teamTurn, currentPlayer: teamNames[teamTurn][playerIdx[teamTurn]], detail: [`${marks[0].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`, `${marks[1].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`], lastVisit: lastHit || undefined });
   }, [marks, scores, teamTurn, playerIdx, lastHit, onLiveState]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -8589,12 +9626,35 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
 
   const currentPlayer = (team: 0|1) => teamNames[team][playerIdx[team]];
 
+  const [classicTeamCri, setClassicTeamCri] = useState(false);
+  const [teamMissQueue, setTeamMissQueue] = useState(0);
+  const teamCriDartRef = useRef(handleDart); teamCriDartRef.current = handleDart;
+  useEffect(() => {
+    if (teamMissQueue <= 0) return;
+    setTeamMissQueue(q => q - 1);
+    teamCriDartRef.current({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  }, [teamMissQueue]);
+  if (newScoringUI && !classicTeamCri) {
+    return (
+      <ModernCricket
+        heading={`${cutThroat ? "Cut-Throat" : "Team Cricket"}`} legsLine={`${currentPlayer(teamTurn)} to throw`}
+        names={[teamNames[0].join(" & "), teamNames[1].join(" & ")]} solo={false} cutThroat={cutThroat}
+        scores={scores} marks={marks as [number[], number[]]} nums={CRICKET_NUMS} labels={CRICKET_NUMS.map(n => n === 25 ? "Bull" : String(n))}
+        turn={teamTurn} legWins={[0, 0]} legsNeeded={1}
+        visitDarts={visitDarts} disabled={teamMissQueue > 0}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        onEndVisit={() => { if (teamMissQueue === 0) setTeamMissQueue(Math.max(1, 3 - visitDarts.length)); }}
+        menu={[{ label: "Use classic scorer for this match", onClick: () => setClassicTeamCri(true) }, { label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } }]}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>
             Team {cutThroat ? "Cut-Throat " : ""}Cricket
           </h2>
         </div>
@@ -8652,7 +9712,8 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
 }
 
 // ── Multi-player Killer Scorer (3–6 individual players) ────────────────────────
-export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: {
+export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon, newScoringUI }: {
+  newScoringUI?: boolean;
   playerNames: string[];
   lives?: number;
   onWin: (winnerIdx: number, detail?: string) => void;
@@ -8663,14 +9724,14 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
   const MCOLORS = ["#22c55e","#ee0a78","#ffd24a","#38bdf8","#f97316","#a78bfa"];
   const pColor = (i: number) => MCOLORS[i % MCOLORS.length];
 
-  const [phase, setPhase]           = useState<"assign"|"play">("assign");
-  const [assigningIdx, setAssigning] = useState(0);
-  const [killerNums, setKillerNums] = useState<(number|null)[]>(() => Array(n).fill(null));
-  const [isKiller, setIsKiller]     = useState<boolean[]>(() => Array(n).fill(false));
-  const [playerLives, setPlayerLives] = useState<number[]>(() => Array(n).fill(lives));
-  const [eliminated, setEliminated] = useState<boolean[]>(() => Array(n).fill(false));
-  const [turn, setTurn]             = useState(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [phase, setPhase]           = useSnapState<"assign"|"play">("MultiKillerScorer.phase", "assign");
+  const [assigningIdx, setAssigning] = useSnapState("MultiKillerScorer.assigningIdx", 0);
+  const [killerNums, setKillerNums] = useSnapState<(number|null)[]>("MultiKillerScorer.killerNums", () => Array(n).fill(null));
+  const [isKiller, setIsKiller]     = useSnapState<boolean[]>("MultiKillerScorer.isKiller", () => Array(n).fill(false));
+  const [playerLives, setPlayerLives] = useSnapState<number[]>("MultiKillerScorer.playerLives", () => Array(n).fill(lives));
+  const [eliminated, setEliminated] = useSnapState<boolean[]>("MultiKillerScorer.eliminated", () => Array(n).fill(false));
+  const [turn, setTurn]             = useSnapState("MultiKillerScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("MultiKillerScorer.visitDarts", []);
   const [msg, setMsg]               = useState("");
 
   const nextLivingPlayer = useCallback((from: number, elim: boolean[]) => {
@@ -8749,12 +9810,40 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(p => p.slice(0, -1)); };
 
+  if (newScoringUI) {
+    const cards = playerNames.map((_, i) => ({
+      score: phase === "assign" ? (killerNums[i] !== null ? `D${killerNums[i]}` : "—") : Math.max(0, playerLives[i]),
+      unit: phase === "assign" ? undefined : (playerLives[i] === 1 ? "life" : "lives"),
+      out: eliminated[i], badge: isKiller[i] && !eliminated[i] ? "☠ Killer" : eliminated[i] ? "Out" : undefined,
+      line: { label: "Double", value: killerNums[i] !== null ? `D${killerNums[i]}` : "picking" },
+    }));
+    return (
+      <ModernParty
+        heading="Killer" sub={`${n} players · ${lives} lives`}
+        names={playerNames} turn={phase === "assign" ? assigningIdx : turn}
+        cards={cards}
+        note={msg || (phase === "play" ? (!isKiller[turn] ? `Hit D${killerNums[turn]} to become Killer` : "Hit an opponent's double") : undefined)}
+        visitDarts={phase === "play" ? visitDarts : []}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        highlight={killerNums.filter((num): num is number => num !== null)}
+        onAbandon={onAbandon}
+        customPad={phase === "assign" ? <>
+          <div className="mx-note">{playerNames[assigningIdx]} — tap your double</div>
+          <div className="kp-grid">{Array.from({ length: 20 }, (_, i) => i + 1).map(num => {
+            const owner = killerNums.indexOf(num);
+            return <button key={num} disabled={owner !== -1} className={owner !== -1 ? "taken" : ""} style={owner !== -1 ? { ["--pc" as any]: pColor(owner) } : undefined} onClick={() => owner === -1 && assignNumber(num)}><span>D{num}</span>{owner !== -1 && <small>{playerNames[owner]}</small>}</button>;
+          })}</div>
+        </> : undefined}
+      />
+    );
+  }
+
   if (phase === "assign") {
     return (
       <div style={{ maxWidth: "512px", margin: "0 auto", padding: "1rem 0.5rem" }}>
         <div className="pdc-divider" />
         <div className="text-center mb-4">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Killer — Pick Numbers</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Killer — Pick Numbers</h2>
           <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
             <span style={{ color: pColor(assigningIdx) }}>{playerNames[assigningIdx]}</span> — tap your double (1–20)
           </p>
@@ -8795,7 +9884,7 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
-        <h2 className="text-2xl font-bold uppercase text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
           Killer — {n} Players
         </h2>
         <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(n, 3)},1fr)` }}>
@@ -8844,12 +9933,12 @@ export function DoublesTeamCricketScorer({ team1, team2, cutThroat = false, incl
 }) {
   const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
-  const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-  const [scores, setScores]     = useState<[number,number]>([0,0]);
-  const [turn, setTurn]         = useState<0|1>(0);
-  const [active, setActive]     = useState<[0|1, 0|1]>([0, 0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [lastHit, setLastHit]   = useState<string>("");
+  const [marks, setMarks]       = useSnapState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>("DoublesTeamCricketScorer.marks", [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]     = useSnapState<[number,number]>("DoublesTeamCricketScorer.scores", [0,0]);
+  const [turn, setTurn]         = useSnapState<0|1>("DoublesTeamCricketScorer.turn", 0);
+  const [active, setActive]     = useSnapState<[0|1, 0|1]>("DoublesTeamCricketScorer.active", [0, 0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("DoublesTeamCricketScorer.visitDarts", []);
+  const [lastHit, setLastHit]   = useSnapState<string>("DoublesTeamCricketScorer.lastHit", "");
 
   const teams = [team1, team2] as [[string, string], [string, string]];
   const TC = (i: 0|1) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -8930,7 +10019,7 @@ export function DoublesTeamCricketScorer({ team1, team2, cutThroat = false, incl
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>{cutThroat ? "Cut-Throat Cricket" : "Cricket"} Doubles</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>{cutThroat ? "Cut-Throat Cricket" : "Cricket"} Doubles</h2>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {([0,1] as const).map(i => (
@@ -8989,13 +10078,13 @@ export function TeamHalveItScorer({ team1, team2, gameKey, onWin, onAbandon }: {
   const targets = isBobs ? Array.from({length:20},(_,i)=>i+1) : HALVEIT_TARGETS;
   const targetLabels = isBobs ? targets.map(n=>`D${n}`) : HALVEIT_LABELS;
 
-  const [round, setRound]           = useState(0);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [active, setActive]         = useState<[0|1, 0|1]>([0, 0]);
-  const [scores, setScores]         = useState<[number,number]>(isBobs ? [27,27] : [0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [roundScore, setRoundScore] = useState(0);
-  const [hit, setHit]               = useState(false);
+  const [round, setRound]           = useSnapState("TeamHalveItScorer.round", 0);
+  const [turn, setTurn]             = useSnapState<0|1>("TeamHalveItScorer.turn", 0);
+  const [active, setActive]         = useSnapState<[0|1, 0|1]>("TeamHalveItScorer.active", [0, 0]);
+  const [scores, setScores]         = useSnapState<[number,number]>("TeamHalveItScorer.scores", isBobs ? [27,27] : [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TeamHalveItScorer.visitDarts", []);
+  const [roundScore, setRoundScore] = useSnapState("TeamHalveItScorer.roundScore", 0);
+  const [hit, setHit]               = useSnapState("TeamHalveItScorer.hit", false);
 
   const teams = [team1, team2] as [[string, string], [string, string]];
   const TC = (i: 0|1) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -9039,7 +10128,7 @@ export function TeamHalveItScorer({ team1, team2, gameKey, onWin, onAbandon }: {
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"} Doubles</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"} Doubles</h2>
           <p className="text-sm" style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>Round {round+1}/{targets.length} — Target: {targetLabels[round]}</p>
           {!isBobs && <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>Miss = team score halved</p>}
         </div>
@@ -9093,11 +10182,11 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
   const maxRounds = config.rounds ?? 0;
   const bullsOnly = config.bullsOnly ?? false;
 
-  const [scores, setScores]         = useState<[number,number]>([0,0]);
-  const [rounds, setRounds]         = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [active, setActive]         = useState<[0|1, 0|1]>([0, 0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores]         = useSnapState<[number,number]>("TeamCountUpScorer.scores", [0,0]);
+  const [rounds, setRounds]         = useSnapState<[number,number]>("TeamCountUpScorer.rounds", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("TeamCountUpScorer.turn", 0);
+  const [active, setActive]         = useSnapState<[0|1, 0|1]>("TeamCountUpScorer.active", [0, 0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TeamCountUpScorer.visitDarts", []);
 
   const teams = [team1, team2] as [[string, string], [string, string]];
   const TC = (i: 0|1) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -9137,7 +10226,7 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>
             {bullsOnly ? "Bull Rush Doubles" : maxRounds > 0 ? "High Score Doubles" : "Count Up Doubles"}
           </h2>
           <p className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.3)" }}>
@@ -9180,20 +10269,21 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
 }
 
 // ── 99 Darts Scorer ────────────────────────────────────────────────────────────
-export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPracticeStats }: {
+export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string;
   config: { variant?: "standard" | "doubles" | "trebles" };
   onWin: (w: 0|1, d?: string) => void;
   onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const variant = config.variant ?? "standard";
-  const [target, setTarget]         = useState<number | null>(null);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [dartsThrown, setDartsThrown] = useState(0);
-  const [score, setScore]           = useState(0);
-  const [done, setDone]             = useState(false);
+  const [target, setTarget]         = useSnapState<number | null>("NinetyNineDartsScorer.target", null);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("NinetyNineDartsScorer.visitDarts", []);
+  const [dartsThrown, setDartsThrown] = useSnapState("NinetyNineDartsScorer.dartsThrown", 0);
+  const [score, setScore]           = useSnapState("NinetyNineDartsScorer.score", 0);
+  const [done, setDone]             = useSnapState("NinetyNineDartsScorer.done", false);
   const [flashMsg, setFlashMsg]     = useState<string | null>(null);
 
   const TOTAL_DARTS = 99;
@@ -9261,34 +10351,31 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
       ? "Only doubles count · 1 pt per hit · max 99"
       : "Only trebles count · 1 pt per hit · max 99";
     return (
-      <div style={{ minHeight:"100dvh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"1.5rem", ...siteBg }}>
-        <div className="text-center mb-6">
+      <div className="kp-root" style={{ minHeight:"100dvh", display:"flex", flexDirection:"column", justifyContent:"center", gap:16, padding:"1.5rem 1rem", ...siteBg }}>
+        <div className="kp-head">
           <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color:"#00c8a0", fontFamily:"Oswald,sans-serif" }}>
             99 Darts · {variantLabel}
           </div>
-          <h2 className="text-3xl font-black uppercase" style={{ fontFamily:"Oswald,sans-serif", color:"#fff" }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>
             Pick Your Target
           </h2>
-          <p className="text-xs mt-2" style={{ color:"rgba(255,255,255,0.3)" }}>{rule}</p>
+          <p className="text-xs mt-2" style={{ color:"rgba(255,255,255,0.4)" }}>{rule}</p>
         </div>
-        <div className="grid grid-cols-5 gap-2 mb-3" style={{ maxWidth:"17rem" }}>
-          {nums.map(n => (
-            <button key={n} onClick={() => setTarget(n)}
-              className="rounded-lg font-black text-lg transition-all active:scale-95 hover:brightness-125"
-              style={{ fontFamily:"Oswald,sans-serif", padding:"0.55rem 0", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"#fff" }}>
-              {n}
+        <div className="mc-card" style={{ padding:12, width:"100%", maxWidth:"26rem", margin:"0 auto" }}>
+          <div className="kp-grid">
+            {nums.map(n => (
+              <button key={n} onClick={() => setTarget(n)}><span>{n}</span></button>
+            ))}
+          </div>
+          {variant !== "trebles" && (
+            <button onClick={() => setTarget(25)} className="active:scale-95"
+              style={{ marginTop:8, width:"100%", height:52, borderRadius:14, fontFamily:"Oswald,sans-serif", fontWeight:700, fontSize:16, letterSpacing:".12em", textTransform:"uppercase",
+                background:"linear-gradient(180deg,#2a0f1d,#12080f)", border:"1px solid rgba(255,0,92,.55)", color:"#ff5c93", boxShadow:"0 0 16px rgba(255,0,92,.2)" }}>
+              Bull
             </button>
-          ))}
+          )}
         </div>
-        {variant !== "trebles" && (
-          <button onClick={() => setTarget(25)}
-            className="rounded-lg font-black text-sm transition-all active:scale-95 hover:brightness-125 mb-6"
-            style={{ fontFamily:"Oswald,sans-serif", padding:"0.55rem 2.5rem", background:"rgba(255,0,92,0.15)", border:"1px solid rgba(255,0,92,0.4)", color:"#ff005c" }}>
-            Bull
-          </button>
-        )}
-        {variant === "trebles" && <div className="mb-6" />}
-        <button onClick={onAbandon} className="text-xs" style={{ color:"rgba(255,255,255,0.2)" }}>← Back</button>
+        <button onClick={onAbandon} className="kp-abandon" style={{ width:"100%", maxWidth:"26rem", margin:"0 auto" }}>← Back</button>
       </div>
     );
   }
@@ -9299,6 +10386,20 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
   const remaining = TOTAL_DARTS - dartsInFlight;
   const visitNum  = Math.floor(dartsThrown / 3) + 1;
   const pct = dartsInFlight > 0 ? Math.round((score / (dartsInFlight * maxPerDart)) * 100) : 0;
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading={`99 Darts · ${targetLabel}`} sub={variantLabel}
+        names={[p1Name, ""]} turn={0} solo
+        cards={[{ score, unit: `/${maxScore}`, line: { label: "Accuracy", value: `${pct}%` }, stats: [{ label: "Visit", value: `${done ? 33 : visitNum}/33` }, { label: "Darts left", value: remaining }] }, { score: 0 }]}
+        note={flashMsg ?? `Aim at ${targetLabel}`}
+        visitDarts={visitDarts} disabled={done}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        targets={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <ScorerLayout
@@ -9372,16 +10473,16 @@ export function Master501Scorer({
 }) {
   const safeTimeout = useSafeTimeout();
   const START = 501;
-  const [score,      setScore]      = useState(START);
-  const [legWins,    setLegWins]    = useState(0);
-  const [legLosses,  setLegLosses]  = useState(0);
-  const [dil,        setDil]        = useState(0);   // darts in current leg (committed)
-  const [visitDarts, setVD]         = useState<Dart[]>([]);
-  const [bust,       setBust]       = useState(false);
+  const [score,      setScore]      = useSnapState("Master501Scorer.score", START);
+  const [legWins,    setLegWins]    = useSnapState("Master501Scorer.legWins", 0);
+  const [legLosses,  setLegLosses]  = useSnapState("Master501Scorer.legLosses", 0);
+  const [dil,        setDil]        = useSnapState("Master501Scorer.dil", 0);   // darts in current leg (committed)
+  const [visitDarts, setVD]         = useSnapState<Dart[]>("Master501Scorer.visitDarts", []);
+  const [bust,       setBust]       = useSnapState("Master501Scorer.bust", false);
   const [bustMsg,    setBustMsg]    = useState("");
   const [flash,      setFlash]      = useState("");
-  const [legDone,    setLegDone]    = useState<"win" | "loss" | null>(null);
-  const [matchDone,  setMatchDone]  = useState<"win" | "loss" | null>(null);
+  const [legDone,    setLegDone]    = useSnapState<"win" | "loss" | null>("Master501Scorer.legDone", null);
+  const [matchDone,  setMatchDone]  = useSnapState<"win" | "loss" | null>("Master501Scorer.matchDone", null);
   const { fs, toggle: toggleFs, supported: fsSupported } = useFullscreen();
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 

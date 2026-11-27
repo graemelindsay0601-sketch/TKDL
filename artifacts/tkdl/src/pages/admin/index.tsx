@@ -12,11 +12,14 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, UserMinus, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2, Activity, Search, ChevronsUp, Radio, Layers3, Gamepad2 } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, UserMinus, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2, Activity, Search, ChevronsUp, Radio, Layers3, Gamepad2, Crown } from "lucide-react";
 import { format } from "date-fns";
 
 import { ADMIN_PIN_KEY, PinScreen } from "./pin-screen";
 import { CollapsibleAdminSection } from "./collapsible-section";
+import { SeasonTablesCheck } from "./season-tables-check";
+import { PageHero } from "@/components/premium/Premium";
+import "./admin-premium.css";
 import { FeatureFlags } from "./feature-flags";
 import { GameTypesManager } from "./game-types-manager";
 import { UserAccountsManager } from "./user-accounts-manager";
@@ -34,9 +37,12 @@ import { AnnouncementsManager } from "./announcements-manager";
 import { NotificationAnalytics } from "./notification-analytics";
 import { NotificationDeliveryHistory } from "./notification-delivery-history";
 import { IntegrityHealth } from "./integrity-health";
+import { LeagueWeek } from "./league-week";
+import { LeagueChallenges } from "./league-challenges";
 import { OperationsDashboard } from "./operations-dashboard";
 import { BroadcastHealth } from "./broadcast-health";
 import { ArcadeBalance } from "./arcade-balance";
+import { AchievementsV2Admin } from "./achievements-v2-admin";
 
 const AdminCardClashPanel = lazy(() => import("@/components/admin-card-clash-panel"));
 const AdminChallengesPanel = lazy(() => import("@/components/admin-challenges-panel"));
@@ -46,11 +52,14 @@ const ADMIN_TOOLS = [
   ["operations", "Operations Centre", "status season notifications database"],
   ["broadcast-health", "Broadcast Health", "live programme stories diagnostics rebuild"],
   ["arcade-balance", "Arcade Balancing", "boss battle board curse difficulty runs"],
+  ["achievements-v2", "Achievements", "new achievements cabinet switch on preview report coins"],
   ["feature-flags", "Feature Flags", "access settings toggles"],
   ["game-types", "Game Types", "scorer formats"],
   ["user-accounts", "User Accounts", "login password players"],
+  ["league-challenges", "League Target & The Gaffer", "monthly target gaffer vote challenge cancel"],
   ["integrity-health", "Integrity & Health", "league checks problems"],
   ["singles-season", "Singles Season", "standings playoffs"],
+  ["season-tables", "Past season tables", "final tables standings no games tidy"],
   ["doubles-season", "Doubles Event", "draw teams champions"],
   ["shift-wars", "Shift Wars", "teams roster points"],
   ["roster", "Roster", "player access modes"],
@@ -273,41 +282,43 @@ function AdminContent({ onLock }: { onLock: () => void }) {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="pdc-divider" />
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <ShieldAlert className="w-6 h-6" style={{ color: "#ff005c", filter: "drop-shadow(0 0 6px rgba(255,0,92,0.6))" }} />
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c", textShadow: "0 0 20px rgba(255,0,92,0.4)" }}>Admin Panel</h1>
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>League management · Dangerous operations</p>
-          </div>
+    <div className="space-y-8 adm-root">
+      <PageHero
+        kicker={<>Restricted · TKDL HQ</>}
+        icon={<ShieldAlert className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />}
+        title="Admin panel"
+        sub="League management, seasons, players and the switches behind the app. Some of these change live data."
+        accent="#ff005c"
+        accent2="#ffd24a"
+      >
+        <div className="adm-hero-row">
+          <div className="adm-plaque"><b>{ADMIN_TOOLS.length}</b><span>Tools</span></div>
+          <div className="adm-plaque"><b>{players?.length ?? 0}</b><span>Players</span></div>
+          <button
+            onClick={() => {
+              // Clear the server-side admin session too — otherwise the API
+              // stays authorized even after the UI locks itself.
+              fetch("/api/admin/lock", { method: "POST" }).catch(() => {});
+              sessionStorage.removeItem(ADMIN_PIN_KEY);
+              onLock();
+            }}
+            className="adm-lock">
+            <Lock className="w-3.5 h-3.5" /> Lock
+          </button>
         </div>
-        <button
-          onClick={() => {
-            // Clear the server-side admin session too — otherwise the API
-            // stays authorized even after the UI locks itself.
-            fetch("/api/admin/lock", { method: "POST" }).catch(() => {});
-            sessionStorage.removeItem(ADMIN_PIN_KEY);
-            onLock();
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold hover:bg-white/5 transition-colors"
-          style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif", border: "1px solid rgba(255,255,255,0.08)" }}>
-          <Lock className="w-3 h-3" /> Lock
-        </button>
-      </div>
+      </PageHero>
 
-      <div className="pdc-card p-4 space-y-3" style={{ borderColor: "rgba(255,255,255,0.09)" }}>
+      <div className="pm-card adm-finder">
         <div className="flex flex-col sm:flex-row gap-2">
           <label className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
-            <Input value={toolSearch} onChange={event => setToolSearch(event.target.value)} placeholder="Find an admin tool…" className="pl-9" style={{ background: "rgba(255,255,255,.035)", borderColor: "rgba(255,255,255,.1)" }} />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/35" />
+            <Input value={toolSearch} onChange={event => setToolSearch(event.target.value)} placeholder="Find an admin tool…" className="adm-search pl-10" />
           </label>
-          <Button variant="outline" onClick={() => window.dispatchEvent(new Event("tkdl-admin-collapse-all"))} className="gap-2 text-xs uppercase" style={{ borderColor: "rgba(255,255,255,.12)", color: "rgba(255,255,255,.6)" }}><ChevronsUp className="w-4 h-4" />Collapse all</Button>
+          <Button variant="outline" onClick={() => window.dispatchEvent(new Event("tkdl-admin-collapse-all"))} className="adm-ghost gap-2 text-xs uppercase"><ChevronsUp className="w-4 h-4" />Collapse all</Button>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {matchingTools.map(([id, label]) => <button key={id} onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wider" style={{ background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.08)", color: "rgba(255,255,255,.52)", fontFamily: "Oswald, sans-serif" }}>{label}</button>)}
-          {matchingTools.length === 0 && <span className="text-xs text-white/30">No admin tool matches that search.</span>}
+          {matchingTools.map(([id, label]) => <button key={id} onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="adm-chip">{label}</button>)}
+          {matchingTools.length === 0 && <span className="text-xs text-white/40">No admin tool matches that search.</span>}
         </div>
       </div>
 
@@ -315,13 +326,26 @@ function AdminContent({ onLock }: { onLock: () => void }) {
       <BroadcastHealth />
       <ArcadeBalance />
 
-      <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Layers3 className="w-4 h-4" />Access and configuration</div>
+      <div className="adm-group"><Layers3 className="w-4 h-4" /><span>Access and configuration</span></div>
 
+      <div id="achievements-v2" className="scroll-mt-24">
+        <CollapsibleAdminSection sectionId="achievements-v2" title="Achievements (new)" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.25)" background="rgba(255,210,74,0.03)" defaultOpen>
+          <AchievementsV2Admin />
+        </CollapsibleAdminSection>
+      </div>
       <div id="feature-flags" className="scroll-mt-24"><FeatureFlags /></div>
       <div id="game-types" className="scroll-mt-24"><GameTypesManager /></div>
       <div id="user-accounts" className="scroll-mt-24"><UserAccountsManager players={players} /></div>
 
-      <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Trophy className="w-4 h-4" />League operations</div>
+      <div className="adm-group"><Trophy className="w-4 h-4" /><span>League operations</span></div>
+
+      <CollapsibleAdminSection sectionId="league-week" title="Weekly round-up & pairings" icon={Users} accent="#3ee0b4" borderColor="rgba(62,224,180,0.2)" background="rgba(62,224,180,0.025)">
+        <LeagueWeek />
+      </CollapsibleAdminSection>
+
+      <CollapsibleAdminSection sectionId="league-challenges" title="League Target & The Gaffer" icon={Crown} accent="#ffd24a" borderColor="rgba(255,210,74,0.2)" background="rgba(255,210,74,0.025)">
+        <LeagueChallenges players={players as { id: number; name: string }[] | undefined} />
+      </CollapsibleAdminSection>
 
       <CollapsibleAdminSection sectionId="integrity-health" title="Integrity & Health" icon={Activity} accent="#a855f7" borderColor="rgba(168,85,247,0.2)" background="rgba(168,85,247,0.025)">
         <IntegrityHealth />
@@ -330,6 +354,10 @@ function AdminContent({ onLock }: { onLock: () => void }) {
       {/* Season Manager — Singles */}
       <CollapsibleAdminSection sectionId="singles-season" title="Season Manager (Singles)" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
         <div className="p-5"><SeasonEditor /></div>
+      </CollapsibleAdminSection>
+
+      <CollapsibleAdminSection sectionId="season-tables" title="Past season tables" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
+        <div className="p-5"><SeasonTablesCheck /></div>
       </CollapsibleAdminSection>
 
       {/* Season Manager — Doubles Event */}
@@ -581,7 +609,7 @@ function AdminContent({ onLock }: { onLock: () => void }) {
         </CollapsibleAdminSection>
       </div>
 
-      <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Radio className="w-4 h-4" />Communications and content</div>
+      <div className="adm-group"><Radio className="w-4 h-4" /><span>Communications and content</span></div>
 
       <div id="notifications" className="scroll-mt-24"><TestComms /></div>
       <InterviewDeskTest />
@@ -592,7 +620,7 @@ function AdminContent({ onLock }: { onLock: () => void }) {
       <NotificationDeliveryHistory />
       <CollapsibleAdminSection sectionId="tkdl-live-admin" title="TKDL Live Control Room" icon={Radio} accent="#ff005c"><Suspense fallback={<AdminLoading />}><AdminBroadcastPanel /></Suspense></CollapsibleAdminSection>
 
-      <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Gamepad2 className="w-4 h-4" />Games and diagnostics</div>
+      <div className="adm-group"><Gamepad2 className="w-4 h-4" /><span>Games and diagnostics</span></div>
       {!CARD_CLASH_BENCHED && <CollapsibleAdminSection sectionId="card-clash-admin" title="Card Clash Administration" icon={Gamepad2} accent="#00b4ff"><Suspense fallback={<AdminLoading />}><AdminCardClashPanel /></Suspense></CollapsibleAdminSection>}
       <CollapsibleAdminSection sectionId="challenges-admin" title="Challenge Administration" icon={Trophy} accent="#22c55e"><Suspense fallback={<AdminLoading />}><AdminChallengesPanel /></Suspense></CollapsibleAdminSection>
       <SweepTool />

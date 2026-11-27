@@ -123,6 +123,12 @@ router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promis
     // double-count. The client still sees the same { ok: true } either way.
     if (!inserted) return;
 
+    // Fire-and-forget: a solo session may knock someone down today's daily drill board.
+    if (body.player1Id && !body.player2Id) {
+      import("../lib/daily-drill-db").then(m => m.notifyDrillOvertakes(body.player1Id!, Number((inserted as { id: number }).id)))
+        .catch(err => req.log.error({ err }, "Daily drill overtake alert error"));
+    }
+
     // Fire-and-forget: shadow bot achievement check for P1. Logged, not
     // swallowed — a bare .catch(() => {}) here left zero diagnostic trail
     // if this ever actually failed, unlike every other error path in this
@@ -318,14 +324,14 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
         FROM practice_sessions ps,
              jsonb_array_elements(ps.session_data->'dartLog') AS t(dart)
         WHERE ps.player1_id = ${playerId}
-          AND ps.session_data ? 'dartLog'
+          AND ps.session_data ? 'dartLog' AND NOT (dart ? 'typed')
           AND dart->>'phase' = 'checkout'
         UNION ALL
         SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult
         FROM practice_sessions ps,
              jsonb_array_elements(ps.session_data->'p2DartLog') AS t(dart)
         WHERE ps.player2_id = ${playerId}
-          AND ps.session_data ? 'p2DartLog'
+          AND ps.session_data ? 'p2DartLog' AND NOT (dart ? 'typed')
           AND dart->>'phase' = 'checkout'
       )
       SELECT
@@ -608,7 +614,7 @@ router.get("/players/:id/dart-profile", async (req, res): Promise<void> => {
         FROM practice_sessions,
           jsonb_array_elements(session_data->'dartLog') AS dart
         WHERE player1_id = ${playerId}
-          AND session_data ? 'dartLog'
+          AND session_data ? 'dartLog' AND NOT (dart ? 'typed')
         UNION ALL
         SELECT
           (dart->>'seg')::int   AS seg,
@@ -618,7 +624,7 @@ router.get("/players/:id/dart-profile", async (req, res): Promise<void> => {
         FROM practice_sessions,
           jsonb_array_elements(session_data->'p2DartLog') AS dart
         WHERE player2_id = ${playerId}
-          AND session_data ? 'p2DartLog'
+          AND session_data ? 'p2DartLog' AND NOT (dart ? 'typed')
       )
       SELECT seg, mult, phase, COUNT(*)::int AS throws
       FROM dart_data
@@ -877,7 +883,7 @@ router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
       WITH dart_data AS (
         SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult, dart->>'phase' AS phase
         FROM practice_sessions, jsonb_array_elements(session_data->'dartLog') AS dart
-        WHERE player1_id = ${playerId} AND session_data ? 'dartLog'
+        WHERE player1_id = ${playerId} AND session_data ? 'dartLog' AND NOT (dart ? 'typed')
       )
       SELECT seg, mult, phase, COUNT(*)::int AS throws
       FROM dart_data WHERE seg IS NOT NULL AND mult IS NOT NULL
@@ -919,7 +925,7 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
         WITH dart_data AS (
           SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult, dart->>'phase' AS phase
           FROM practice_sessions, jsonb_array_elements(session_data->'dartLog') AS dart
-          WHERE player1_id = ${playerId} AND session_data ? 'dartLog'
+          WHERE player1_id = ${playerId} AND session_data ? 'dartLog' AND NOT (dart ? 'typed')
         )
         SELECT seg, mult, phase, COUNT(*)::int AS throws
         FROM dart_data WHERE seg IS NOT NULL AND mult IS NOT NULL
@@ -1152,6 +1158,18 @@ router.get("/shadow-bot/:playerId/matches", async (req, res): Promise<void> => {
 });
 
 // GET /api/practice/game-leaderboard?gameTypeKey=...
+// Ghost race: a player's best finished solo leg of a game (fewest darts) with its dart log, to race against.
+router.get("/practice/ghost", async (req, res): Promise<void> => {
+  const playerId = Number(req.query.playerId), key = String(req.query.gameTypeKey ?? "");
+  if (!Number.isInteger(playerId) || playerId <= 0 || !key) { res.status(400).json({ error: "playerId and gameTypeKey are needed" }); return; }
+  const r = (await db.execute(sql`SELECT p1_darts, created_at, session_data->'dartLog' AS log FROM practice_sessions
+    WHERE player1_id = ${playerId} AND player2_id IS NULL AND game_type_key = ${key} AND winner_idx = 0 AND p1_darts >= 6
+      AND session_data ? 'dartLog' AND jsonb_array_length(session_data->'dartLog') = p1_darts
+    ORDER BY p1_darts ASC, created_at DESC LIMIT 1`)).rows[0] as { p1_darts: number; created_at: string; log: { seg: number; mult: number; val: number }[] } | undefined;
+  if (!r) { res.json({ ghost: null }); return; }
+  res.json({ ghost: { darts: Number(r.p1_darts), playedAt: r.created_at, values: r.log.map(d => Number(d.val) || 0), mults: r.log.map(d => Number(d.mult) || 1) } });
+});
+
 router.get("/practice/game-leaderboard", async (req, res): Promise<void> => {
   try {
     const key = String(req.query.gameTypeKey ?? "").trim();
@@ -1276,7 +1294,7 @@ export async function generatePracticeRoutine(playerId: number) {
           FROM practice_sessions ps,
                jsonb_array_elements(ps.session_data->'dartLog') AS t(dart)
           WHERE ps.player1_id = ${playerId}
-            AND ps.session_data ? 'dartLog'
+            AND ps.session_data ? 'dartLog' AND NOT (dart ? 'typed')
             AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
         )
         SELECT seg, mult, phase, COUNT(*) AS throws

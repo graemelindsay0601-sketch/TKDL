@@ -1,0 +1,12 @@
+import { sql } from "drizzle-orm";
+import { createRequire } from "node:module";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { createCareerStatsService } from "../src/career/stats/service.ts";
+const pg = createRequire(new URL("../../../lib/db/package.json", import.meta.url))("pg") as typeof import("pg");
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const db = drizzle(pool) as never;
+const playerId = Number(process.argv[2]);
+const id = String((await (db as any).execute(sql`SELECT id FROM career_saves WHERE player_id=${playerId} ORDER BY created_at DESC LIMIT 1`)).rows[0].id);
+const t = performance.now(); const r = await createCareerStatsService(db).read({ playerId }, id);
+console.log(Math.round(performance.now() - t), "ms"); const c = r.career; console.log(JSON.stringify({ ...c, doubles: c.doubles.slice(0, 6) }, null, 1).slice(0, 1500));
+await pool.end();

@@ -1,3 +1,4 @@
+import { PageHero, Chapter, PmCard } from "@/components/premium/Premium";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Target, ArrowRight, CheckCircle, Lock, RotateCcw, Zap, Shield, Flame, TrendingUp } from "lucide-react";
@@ -5,6 +6,7 @@ import { Master501Scorer } from "@/lib/scorers";
 import { type PracticeStats } from "@/lib/stats-types";
 import { SessionHistorySection } from "@/components/session-history";
 import { useCurrentPlayer } from "@/context/auth";
+import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { useWakeLock, useZoomLock, useExitGuard, useMatchSnapshot, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
 import { useToast } from "@/hooks/use-toast";
 
@@ -331,6 +333,8 @@ export default function Master501() {
             </div>
           )}
 
+          {playerId && <div className="w-full max-w-sm text-left"><NearlyThere players={[{ id: playerId }]} areas={["MASTER501"]} /></div>}
+
           <button onClick={handlePlayAgain} className="px-8 py-3 rounded-xl font-black uppercase tracking-widest text-sm"
             style={{ fontFamily: "Oswald,sans-serif", cursor: "pointer", background: acc + "20", border: `1px solid ${acc}50`, color: acc }}>
             <RotateCcw size={13} className="inline mr-1.5" />
@@ -364,7 +368,7 @@ export default function Master501() {
             <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald,sans-serif", color: startCfg.color, letterSpacing: "0.22em" }}>
               {startCfg.name} · Master-501
             </div>
-            <div className="font-black uppercase" style={{ fontFamily: "Oswald,sans-serif", fontSize: "2.4rem", color: "#fff", lineHeight: 1 }}>
+            <div className="pm-chrome uppercase" style={{ fontFamily: "Oswald,sans-serif", fontWeight: 700, fontSize: "3rem", lineHeight: 1, letterSpacing: ".03em" }}>
               BULL UP
             </div>
             <div className="text-sm" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald,sans-serif" }}>
@@ -496,7 +500,7 @@ export default function Master501() {
   const interruptedRun = readMatchSnapshot<M501Snapshot>(M501_SNAPSHOT_KEY);
 
   return (
-    <div className="space-y-5 pb-10">
+    <div className="space-y-5 pb-10 pm-page">
 
       {/* ── INTERRUPTED RUN RECOVERY ────────────────────────────────────────── */}
       {interruptedRun && (
@@ -520,223 +524,133 @@ export default function Master501() {
         </div>
       )}
 
-      {/* ── HERO / SALES PITCH ─────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl"
-        style={{ background: "linear-gradient(135deg, rgba(0,200,160,0.12) 0%, rgba(0,102,255,0.07) 60%, transparent 100%)", border: "1px solid rgba(0,200,160,0.25)" }}>
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div style={{ position: "absolute", top: -60, right: -60, width: 240, height: 240, background: "radial-gradient(circle, rgba(0,200,160,0.22) 0%, transparent 65%)" }} />
-          <div style={{ position: "absolute", bottom: -40, left: -40, width: 180, height: 180, background: "radial-gradient(circle, rgba(0,102,255,0.14) 0%, transparent 65%)" }} />
+      {/* ── HERO ─────────────────────────────────────────────────────────────── */}
+      <PageHero kicker="TKDL Master-501" icon={<Zap className="w-3.5 h-3.5" />} accent="#00c8a0" accent2="#0066ff"
+        title={<>Can you beat <span style={{ WebkitTextFillColor: "#3df0c8", textShadow: "0 0 24px rgba(0,200,160,.55)" }}>the clock?</span></>}
+        sub={<>Every leg has a dart limit — go over it and the leg is gone. Start at 60 darts per leg; by the World Championship you've got just <b style={{ color: "#ff5c93" }}>15</b>.</>}>
+        <div className="grid grid-cols-4 gap-2 mt-4">
+          {[
+            { v: "60→15", l: "Dart limit", c: "#3df0c8" },
+            { v: "5", l: "Tiers", c: "#7fb4ff" },
+            { v: "15", l: "Rounds", c: "#ff7aa6" },
+            { v: "∞", l: "Saves", c: "#ffd24a" },
+          ].map(t => (
+            <div key={t.l} className="rounded-2xl px-1 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)" }}>
+              <div className="tabular-nums leading-none whitespace-nowrap" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 20, color: t.c, textShadow: `0 0 14px ${t.c}77` }}>{t.v}</div>
+              <div className="pm-lab justify-center mt-1" style={{ fontSize: 8, letterSpacing: ".1em" }}>{t.l}</div>
+            </div>
+          ))}
         </div>
-        <div className="relative p-5 md:p-7">
-          <div className="flex items-center gap-2 mb-3">
-            <Zap className="w-3.5 h-3.5 fill-current" style={{ color: "#00c8a0" }} />
-            <span className="text-xs font-black uppercase tracking-widest" style={{ color: "#00c8a0", fontFamily: "Oswald,sans-serif", letterSpacing: "0.22em" }}>
-              TKDL MASTER-501
-            </span>
-          </div>
-          <h1 className="font-black uppercase leading-none mb-3"
-            style={{ fontFamily: "Oswald,sans-serif", fontSize: "clamp(1.8rem, 5vw, 3rem)", letterSpacing: "0.06em", color: "#fff" }}>
-            CAN YOU BEAT<br />THE CLOCK?
-          </h1>
-          <p className="text-sm leading-relaxed mb-5 max-w-lg" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald,sans-serif" }}>
-            Every leg has a dart limit. Go over it and the leg is gone — no excuses, no extensions.
-            Start at 60 darts per leg. By the time you reach the World Championship tier, you've got just <span style={{ color: "#ff005c", fontWeight: 900 }}>15</span>.
-            Five tiers. Fifteen rounds. Pure solo pressure.
-          </p>
+      </PageHero>
 
-          {/* Feature bullets */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
-            {[
-              { icon: <Zap className="w-3.5 h-3.5" />,        color: "#00c8a0", title: "Dart Limits",    desc: "60 → 15 darts" },
-              { icon: <Shield className="w-3.5 h-3.5" />,     color: "#38bdf8", title: "5 Tiers",        desc: "Challenger to Worlds" },
-              { icon: <Flame className="w-3.5 h-3.5" />,      color: "#ff005c", title: "15 Rounds",      desc: "BO5 · BO9 · BO11" },
-              { icon: <TrendingUp className="w-3.5 h-3.5" />, color: "#ffd24a", title: "Career Ladder",  desc: "Progress saves forever" },
-            ].map(f => (
-              <div key={f.title} className="flex items-start gap-2 px-3 py-2.5 rounded-xl"
-                style={{ background: `${f.color}0e`, border: `1px solid ${f.color}28` }}>
-                <div className="shrink-0 mt-0.5" style={{ color: f.color }}>{f.icon}</div>
-                <div>
-                  <div className="font-black uppercase text-xs" style={{ fontFamily: "Oswald,sans-serif", color: f.color, fontSize: "0.62rem", letterSpacing: "0.1em" }}>{f.title}</div>
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.6rem" }}>{f.desc}</div>
-                </div>
-              </div>
-            ))}
+      {/* ── LADDER STANDINGS ─────────────────────────────────────────────────── */}
+      <Chapter title="Ladder standings" accent="#00c8a0" aside={<span className="pm-chip">By tier · round</span>} />
+      {activeLbRows.length === 0 ? (
+        <PmCard accent="#00c8a0">
+          <div className="px-4 py-8 text-center">
+            <div className="w-14 h-14 mx-auto rounded-full flex items-center justify-center" style={{ background: "radial-gradient(circle at 35% 30%, rgba(0,200,160,.4), #0d0b14 75%)", border: "1px solid rgba(0,200,160,.6)", boxShadow: "0 0 18px rgba(0,200,160,.35)" }}><Target className="w-6 h-6" style={{ color: "#fff" }} /></div>
+            <div className="pm-chrome uppercase mt-3" style={{ fontFamily: "Oswald,sans-serif", fontWeight: 700, fontSize: 20 }}>No runs yet</div>
+            <div className="text-sm" style={{ color: "#a9a4bd" }}>Be the first to climb the ladder</div>
           </div>
-        </div>
-      </div>
-
-      {/* ── MINI LEADERBOARD ───────────────────────────────────────────────── */}
-      <div className="pdc-card overflow-hidden">
-        <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          <div className="flex items-center gap-2">
-            <Target className="w-3.5 h-3.5" style={{ color: "#00c8a0" }} />
-            <span className="font-black uppercase tracking-widest text-xs" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.5)", fontSize: "0.6rem", letterSpacing: "0.15em" }}>
-              LADDER STANDINGS
-            </span>
-          </div>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald,sans-serif", fontSize: "0.58rem" }}>Ranked by tier · round</span>
-        </div>
-        {activeLbRows.length === 0 ? (
-          <div className="px-4 py-8 text-center space-y-2">
-            <div className="text-3xl">🎯</div>
-            <div className="font-black uppercase text-sm" style={{ fontFamily: "Oswald,sans-serif", color: "rgba(255,255,255,0.4)" }}>No runs yet</div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Be the first to climb the ladder</div>
-          </div>
-        ) : (
-          <div>
-            {activeLbRows.slice(0, 6).map((row, idx) => {
-              const meta   = M501_TIER_META[row.tier] ?? M501_TIER_META[1];
-              const avg    = Number(row.best_avg);
-              const coPct  = row.co_attempts > 0 ? Math.round((row.co_hits / row.co_attempts) * 100) : null;
-              // #c0c8d8 for 2nd, not #94a3b8 -- matches the #1/#2/#3 podium
-              // colors used everywhere else in the app (dashboard.tsx,
-              // season-detail.tsx, leaderboard.tsx), per a 2026-09-25
-              // visual-consistency pass.
-              const POS_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
-              const posColor   = POS_COLORS[idx] ?? "rgba(255,255,255,0.2)";
-              return (
-                <div key={row.id} className="px-4 py-2.5 border-b flex items-center gap-3"
-                  style={{ borderColor: "rgba(255,255,255,0.04)", background: idx === 0 ? "rgba(0,200,160,0.04)" : undefined }}>
-                  <span className="font-black text-sm w-5 shrink-0 text-center tabular-nums"
-                    style={{ fontFamily: "Oswald,sans-serif", color: posColor, fontSize: idx < 3 ? "0.85rem" : "0.7rem" }}>
-                    {idx < 3 ? ["🥇","🥈","🥉"][idx] : idx + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <span className="font-black uppercase text-sm" style={{ fontFamily: "Oswald,sans-serif", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.8)" }}>
-                      {row.name}
-                    </span>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-xs px-1.5 py-0.5 rounded font-black uppercase"
-                        style={{ background: `${meta.color}18`, color: meta.color, border: `1px solid ${meta.color}30`, fontFamily: "Oswald,sans-serif", fontSize: "0.55rem", letterSpacing: "0.08em" }}>
-                        {meta.emoji} T{row.tier} {meta.label}
-                      </span>
-                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald,sans-serif", fontSize: "0.58rem" }}>R{row.round}</span>
-                    </div>
-                  </div>
-                  <div className="hidden sm:flex items-center gap-3 shrink-0">
-                    <div className="text-center">
-                      <div className="font-mono text-xs font-bold" style={{ color: "#22c55e" }}>{row.total_wins}<span style={{ color: "rgba(255,255,255,0.2)" }}>W</span></div>
-                    </div>
-                    {avg > 0 && (
-                      <div className="text-center" style={{ minWidth: "3rem" }}>
-                        <div className="font-black text-sm tabular-nums" style={{ fontFamily: "Oswald,sans-serif", color: avg >= 90 ? "#ffd24a" : avg >= 80 ? "#22c55e" : "rgba(255,255,255,0.45)", lineHeight: 1 }}>{avg.toFixed(1)}</div>
-                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald,sans-serif", fontSize: "0.5rem" }}>AVG</div>
-                      </div>
-                    )}
-                    {row.total_180s > 0 && (
-                      <div className="text-center">
-                        <div className="font-black text-sm" style={{ fontFamily: "Oswald,sans-serif", color: "#ffd24a", lineHeight: 1 }}>{row.total_180s}</div>
-                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald,sans-serif", fontSize: "0.5rem" }}>180s</div>
-                      </div>
-                    )}
-                    {coPct !== null && (
-                      <div className="text-center">
-                        <div className="font-black text-sm" style={{ fontFamily: "Oswald,sans-serif", color: coPct >= 50 ? "#00c8a0" : "rgba(255,255,255,0.4)", lineHeight: 1 }}>{coPct}%</div>
-                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald,sans-serif", fontSize: "0.5rem" }}>CO%</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="max-w-xl mx-auto w-full space-y-5">
-      {/* Player selector */}
-      <div>
-        <h2 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald,sans-serif" }}>Player</h2>
-        <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)}
-          className="w-full px-3 py-2.5 rounded-lg text-sm"
-          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", fontFamily: "Oswald,sans-serif", cursor: "pointer" }}>
-          <option value="">Select player…</option>
-          {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </div>
-
-      {/* Career ladder — each unlocked round has an inline play / replay button */}
-      <div>
-        <h2 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald,sans-serif" }}>Career Ladder</h2>
+        </PmCard>
+      ) : (
         <div className="space-y-2">
-          {M501_TIERS.map(tier => {
-            const tierFullyDone = playerId ? tier.tier < currentTier : false;
+          {activeLbRows.slice(0, 6).map((row, idx) => {
+            const meta  = M501_TIER_META[row.tier] ?? M501_TIER_META[1];
+            const avg   = Number(row.best_avg);
+            const coPct = row.co_attempts > 0 ? Math.round((row.co_hits / row.co_attempts) * 100) : null;
+            const medal = ["linear-gradient(180deg,#ffe58a,#d99a00)", "linear-gradient(180deg,#ffffff,#9aa6bd)", "linear-gradient(180deg,#f0b27a,#9c5a2a)"][idx];
+            const pc = ["#ffd24a", "#c0c8d8", "#cd7f32"][idx];
             return (
-              <div key={tier.tier} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${tier.color}25` }}>
-                {/* Tier header */}
-                <div className="px-3 py-1.5 flex items-center gap-2" style={{ background: tier.color + "12" }}>
-                  <span className="text-xs font-black uppercase tracking-wider" style={{ fontFamily: "Oswald,sans-serif", color: tierFullyDone ? "#22c55e" : tier.color }}>
-                    {tier.name}
-                  </span>
-                  {tierFullyDone && <CheckCircle size={11} style={{ color: "#22c55e" }} />}
-                  {!playerId && tier.tier > 1 && <Lock size={9} style={{ color: "rgba(255,255,255,0.18)" }} />}
+              <div key={row.id} className="pm-lbrow flex items-center gap-3 rounded-2xl px-3 py-3"
+                style={{ background: idx < 3 ? `linear-gradient(90deg, ${pc}26, rgba(23,20,31,.95) 50%, rgba(12,10,18,.97))` : undefined, borderColor: idx < 3 ? `${pc}66` : undefined }}>
+                <div className="shrink-0 flex items-center justify-center rounded-full" style={{ width: 38, height: 38, background: medal ?? "linear-gradient(180deg,#3a3550,#1d1a2b)", color: medal ? "#141018" : "#e4e0f0", fontFamily: "Oswald, sans-serif", fontSize: 15, boxShadow: medal ? `0 0 14px ${pc}66` : "inset 0 1px 0 rgba(255,255,255,.1)" }}>{idx + 1}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="uppercase truncate" style={{ fontFamily: "Oswald,sans-serif", fontSize: 16, letterSpacing: ".03em", color: "#fff" }}>{row.name}</div>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span className="pm-chip" style={{ fontSize: 9, padding: "2px 7px", color: meta.color, borderColor: `${meta.color}66`, background: `${meta.color}14` }}>{meta.emoji} T{row.tier} {meta.label}</span>
+                    <span className="text-[11px]" style={{ color: "#a9a4bd", fontFamily: "Oswald,sans-serif", letterSpacing: ".04em" }}>
+                      R{row.round} · <span style={{ color: "#4ade80" }}>{row.total_wins}W</span>{row.total_180s > 0 ? <> · <span style={{ color: "#ffd24a" }}>{row.total_180s}</span> 180s</> : null}{coPct !== null ? ` · ${coPct}% CO` : ""}
+                    </span>
+                  </div>
                 </div>
-                {/* Round cells */}
-                <div className="grid grid-cols-3 divide-x" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                  {M501_ROUNDS.map(r => {
-                    const isCompleted = playerId ? (tier.tier < currentTier || (tier.tier === currentTier && r.round < currentRound)) : false;
-                    const isCurrent   = playerId ? (tier.tier === currentTier && r.round === currentRound) : false;
-                    const isLocked    = !isCompleted && !isCurrent;
-                    const cellKey     = `${tier.tier}-${r.round}`;
-                    const isStarting  = startingCell === cellKey;
-                    const dartLimit   = tier.dartLimits[r.round - 1 as 0|1|2];
-
-                    return (
-                      <div key={r.round} className="px-2.5 py-2.5 flex flex-col gap-1.5"
-                        style={{ borderColor: "rgba(255,255,255,0.05)", background: isCurrent ? tier.color + "14" : "transparent" }}>
-                        {/* Round label + dart count */}
-                        <div className="flex items-baseline gap-1">
-                          <span style={{ fontFamily: "Oswald,sans-serif", fontWeight: isCurrent ? 900 : 500, fontSize: "0.72rem",
-                            color: isLocked ? "rgba(255,255,255,0.18)" : isCurrent ? "#fff" : "rgba(255,255,255,0.65)" }}>
-                            R{r.round}
-                          </span>
-                          <span style={{ fontFamily: "Oswald,sans-serif", fontSize: "0.58rem",
-                            color: isLocked ? "rgba(255,255,255,0.1)" : isCurrent ? tier.color : "rgba(255,255,255,0.3)" }}>
-                            {dartLimit}d · {r.label}
-                          </span>
-                        </div>
-
-                        {/* Action button */}
-                        {isCurrent && (
-                          <button
-                            onClick={() => handleStartAt(tier.tier, r.round)}
-                            disabled={isStarting}
-                            className="w-full py-1.5 rounded-lg font-black uppercase text-center transition-all"
-                            style={{
-                              fontFamily: "Oswald,sans-serif", fontSize: "0.6rem", letterSpacing: "0.08em", cursor: "pointer",
-                              background: `linear-gradient(135deg, ${tier.color}, ${tier.color}99)`,
-                              color: "#fff", border: "none", opacity: isStarting ? 0.6 : 1,
-                            }}>
-                            {isStarting ? "…" : "▶ PLAY"}
-                          </button>
-                        )}
-                        {isCompleted && (
-                          <button
-                            onClick={() => handleStartAt(tier.tier, r.round)}
-                            disabled={isStarting}
-                            className="w-full py-1 rounded-lg font-black uppercase text-center transition-all"
-                            style={{
-                              fontFamily: "Oswald,sans-serif", fontSize: "0.55rem", letterSpacing: "0.06em", cursor: "pointer",
-                              background: "rgba(34,197,94,0.08)", color: "#22c55e",
-                              border: "1px solid rgba(34,197,94,0.2)", opacity: isStarting ? 0.6 : 1,
-                            }}>
-                            {isStarting ? "…" : "↺ REPLAY"}
-                          </button>
-                        )}
-                        {isLocked && (
-                          <div className="w-full py-1 rounded-lg text-center"
-                            style={{ background: "rgba(255,255,255,0.03)", fontSize: "0.55rem", color: "rgba(255,255,255,0.1)", fontFamily: "Oswald,sans-serif" }}>
-                            🔒
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                {avg > 0 && (
+                  <div className="shrink-0 text-right">
+                    <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald,sans-serif", fontWeight: 700, fontSize: 24, color: avg >= 90 ? "#ffd24a" : "#3df0c8", textShadow: "0 0 12px rgba(0,200,160,.45)" }}>{avg.toFixed(1)}</div>
+                    <div className="pm-lab justify-end" style={{ fontSize: 8.5 }}>best avg</div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
+      )}
+
+      <div className="max-w-xl mx-auto w-full space-y-5">
+      {/* Player selector */}
+      <Chapter title="Your run" accent="#00c8a0" />
+      <PmCard accent="#00c8a0">
+        <div className="p-4">
+          <label className="pm-lab mb-2" style={{ color: "#3df0c8" }}>Player</label>
+          <select value={playerId ?? ""} onChange={e => setPlayerId(Number(e.target.value) || null)}
+            className="w-full px-4 rounded-full text-sm uppercase"
+            style={{ height: 44, background: "linear-gradient(180deg, rgba(0,200,160,.2), rgba(0,200,160,.05))", border: "1px solid rgba(0,200,160,.55)", color: "#fff", fontFamily: "Oswald,sans-serif", letterSpacing: ".04em", cursor: "pointer", boxShadow: "0 0 14px rgba(0,200,160,.2)" }}>
+            <option value="">Pick a player…</option>
+            {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+      </PmCard>
+
+      {/* Career ladder — each unlocked round has an inline play / replay button */}
+      <Chapter title="Career ladder" accent="#ffd24a" />
+      <div className="space-y-3">
+        {M501_TIERS.map(tier => {
+          const tierFullyDone = playerId ? tier.tier < currentTier : false;
+          const isActiveTier = playerId ? tier.tier === currentTier : false;
+          return (
+            <div key={tier.tier} className="pm-card overflow-hidden relative" style={{ ["--pm-acc" as any]: tierFullyDone ? "#22c55e" : tier.color, opacity: playerId && !tierFullyDone && !isActiveTier ? 0.75 : 1 }}>
+              <div className="absolute pointer-events-none" style={{ right: -60, top: -60, width: 180, height: 180, borderRadius: "50%", background: `radial-gradient(circle, ${tier.color}30, transparent 70%)` }} />
+              <div className="relative px-4 pt-3 pb-2 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ fontFamily: "Oswald,sans-serif", fontSize: 13, color: "#141018", background: `linear-gradient(180deg, ${tier.color}, ${tier.color}99)`, boxShadow: `0 0 12px ${tier.color}77` }}>{tier.tier}</span>
+                <span className="uppercase" style={{ fontFamily: "Oswald,sans-serif", fontSize: 16, letterSpacing: ".05em", color: tierFullyDone ? "#4ade80" : "#f2eefc" }}>{tier.name}</span>
+                {tierFullyDone && <CheckCircle size={14} style={{ color: "#22c55e" }} />}
+                {!playerId && tier.tier > 1 && <Lock size={12} style={{ color: "#6b6680" }} />}
+              </div>
+              <div className="relative grid grid-cols-3 gap-2 px-3 pb-3">
+                {M501_ROUNDS.map(r => {
+                  const isCompleted = playerId ? (tier.tier < currentTier || (tier.tier === currentTier && r.round < currentRound)) : false;
+                  const isCurrent   = playerId ? (tier.tier === currentTier && r.round === currentRound) : false;
+                  const isLocked    = !isCompleted && !isCurrent;
+                  const cellKey     = `${tier.tier}-${r.round}`;
+                  const isStarting  = startingCell === cellKey;
+                  const dartLimit   = tier.dartLimits[r.round - 1 as 0|1|2];
+                  return (
+                    <div key={r.round} className="rounded-xl px-2 py-2 flex flex-col gap-1.5 items-center text-center"
+                      style={{ background: isCurrent ? `linear-gradient(180deg, ${tier.color}33, ${tier.color}0a)` : "rgba(255,255,255,.035)", border: `1px solid ${isCurrent ? tier.color + "aa" : "rgba(255,255,255,.08)"}`, boxShadow: isCurrent ? `0 0 14px ${tier.color}44` : undefined }}>
+                      <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald,sans-serif", fontWeight: 700, fontSize: 20, color: isLocked ? "#4d4860" : "#fff", textShadow: isCurrent ? `0 0 10px ${tier.color}` : undefined }}>{dartLimit}<span style={{ fontSize: 11, color: isLocked ? "#4d4860" : "#a9a4bd" }}>d</span></div>
+                      <div style={{ fontFamily: "Oswald,sans-serif", fontSize: 9.5, letterSpacing: ".06em", color: isLocked ? "#4d4860" : "#a9a4bd" }}>R{r.round} · {r.label}</div>
+                      {isCurrent && (
+                        <button onClick={() => handleStartAt(tier.tier, r.round)} disabled={isStarting}
+                          className="w-full py-1.5 rounded-full uppercase transition-all"
+                          style={{ fontFamily: "Oswald,sans-serif", fontSize: "0.65rem", letterSpacing: "0.1em", cursor: "pointer", background: "linear-gradient(180deg, #ffe58a, #e0a800)", color: "#1a1200", border: "1px solid #ffd24a", boxShadow: "0 0 12px rgba(255,210,74,.45)", opacity: isStarting ? 0.6 : 1 }}>
+                          {isStarting ? "…" : "▶ Play"}
+                        </button>
+                      )}
+                      {isCompleted && (
+                        <button onClick={() => handleStartAt(tier.tier, r.round)} disabled={isStarting}
+                          className="w-full py-1.5 rounded-full uppercase transition-all"
+                          style={{ fontFamily: "Oswald,sans-serif", fontSize: "0.6rem", letterSpacing: "0.08em", cursor: "pointer", background: "rgba(34,197,94,0.14)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.45)", opacity: isStarting ? 0.6 : 1 }}>
+                          {isStarting ? "…" : "↺ Replay"}
+                        </button>
+                      )}
+                      {isLocked && <div className="w-full py-1.5 rounded-full flex justify-center" style={{ background: "rgba(255,255,255,0.03)" }}><Lock size={11} style={{ color: "#4d4860" }} /></div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Match history */}

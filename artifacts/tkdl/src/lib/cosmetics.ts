@@ -4,7 +4,7 @@ import { Flame, Zap, Skull, Crown, Trophy, Rocket, Ghost, Gem, Star, Shield, Swo
 
 export interface CosmeticDefinition {
   id: string;
-  category: "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE" | "RANK_UP_EFFECT" | "ACCOUNT_ACCENT";
+  category: "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE" | "RANK_UP_EFFECT" | "ACCOUNT_ACCENT" | "CLUBHOUSE_ROOM";
   name: string;
   rarity: "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
   price: number;
@@ -167,10 +167,29 @@ export function nameStyleCSS(cosmetic: CosmeticDefinition | undefined | null): C
   return {};
 }
 
+/** Earned-only unlocks from League Target (-lt-) and The Gaffer (-gf-). They get effects nothing in the Store has. */
+export function isExclusiveUnlock(cosmetic: CosmeticDefinition | undefined | null): boolean {
+  return !!cosmetic && /-(lt|gf)-/.test(cosmetic.id);
+}
+
 // LEGENDARY gradients get a slow animated shimmer (index.css's
-// .cosmetic-name-legendary) — everything else renders static.
+// .cosmetic-name-legendary) — everything else renders static. Exclusive unlocks
+// add a pulsing glow on top (.cosmetic-name-exclusive).
 export function nameStyleClassName(cosmetic: CosmeticDefinition | undefined | null): string {
-  return cosmetic?.gradient && cosmetic.rarity === "LEGENDARY" ? "cosmetic-name-legendary" : "";
+  const base = cosmetic?.gradient && cosmetic.rarity === "LEGENDARY" ? "cosmetic-name-legendary" : "";
+  return isExclusiveUnlock(cosmetic) ? `${base} cosmetic-name-exclusive` : base;
+}
+
+/** Animated treatment for an exclusive FRAME (index.css), or "" for everything else. */
+export function frameClassName(cosmetic: CosmeticDefinition | undefined | null): string {
+  if (!isExclusiveUnlock(cosmetic) || cosmetic!.category !== "FRAME") return "";
+  return cosmetic!.id === "frame-lt-bullseye" ? "cosmetic-frame-bullseye" : "cosmetic-frame-exclusive";
+}
+
+/** Small icon shown in front of an exclusive leaderboard tag. */
+export function tagIcon(cosmetic: CosmeticDefinition | undefined | null): string {
+  if (!isExclusiveUnlock(cosmetic)) return "";
+  return cosmetic!.id.includes("-lt-") ? "🎯" : cosmetic!.id === "tag-gf-the-gaffer" ? "👑" : "🛡️";
 }
 
 // CSS for a BANNER cosmetic — its `gradient` column is a full CSS

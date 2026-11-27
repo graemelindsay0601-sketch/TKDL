@@ -464,6 +464,7 @@ export const statsService = {
             AND session_data ? 'dartLog'
             AND ${categoryFilter}
         ) t
+        WHERE NOT (dart ? 'typed') -- darts made up from a typed visit total (see the X01 scorer)
         GROUP BY seg
       )
       SELECT * FROM dart_analysis WHERE seg IS NOT NULL AND seg > 0 AND seg <= 25

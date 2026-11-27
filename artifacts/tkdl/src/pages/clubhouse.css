@@ -1,0 +1,17 @@
+.ch-root { position: fixed; inset: 0; z-index: 60; background: #08060c; color: #fff; font-family: Inter, system-ui, sans-serif; }
+.ch-canvas { position: absolute; inset: 0; }
+.ch-head { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: max(10px, env(safe-area-inset-top)) 12px 10px; background: linear-gradient(180deg, rgba(8,6,12,.85), transparent); pointer-events: none; }
+.ch-head > * { pointer-events: auto; }
+.ch-back { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: #fff; }
+.ch-spacer { width: 42px; }
+.ch-title { text-align: center; display: flex; flex-direction: column; }
+.ch-title small { font-size: 10px; font-weight: 900; letter-spacing: .2em; text-transform: uppercase; color: #ffd24a; }
+.ch-title b { font-family: Oswald, sans-serif; font-weight: 700; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.ch-hint { position: absolute; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: rgba(8,6,12,.75); border: 1px solid rgba(255,255,255,.15); font-size: 12px; color: #d8d4e6; pointer-events: none; }
+.ch-note { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px; background: rgba(255,210,74,.12); border: 1px solid rgba(255,210,74,.4); color: #ffd24a; font-size: 11px; white-space: nowrap; }
+.ch-card { position: absolute; left: 12px; right: 12px; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border-radius: 18px; background: linear-gradient(165deg, rgba(255,210,74,.14), rgba(22,20,32,.97) 55%); border: 1px solid rgba(255,210,74,.5); box-shadow: 0 -10px 40px rgba(0,0,0,.6); }
+.ch-card b { font-family: Oswald, sans-serif; font-size: 22px; letter-spacing: .04em; text-transform: uppercase; color: #ffe58a; padding-right: 36px; }
+.ch-card span { font-size: 14px; color: #d8d4e6; }
+.ch-x { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: #c9c5d8; display: grid; place-items: center; }
+
+.ch-walk { height: 42px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(255,210,74,.5); background: rgba(255,210,74,.12); color: #ffd24a; font-family: Oswald, sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }

@@ -6,6 +6,8 @@ import { ReplayLibrary } from "@/features/broadcast/ReplayLibrary";
 import { LiveExtras } from "@/features/broadcast/LiveExtras";
 import { ChannelHome } from "@/features/broadcast/ChannelHome";
 import "./tkdl-live.css";
+import { DartboardBackdrop, Glow } from "@/components/premium/Premium";
+import { Menu, X, Home, Radio, PlaySquare, Trophy, LayoutList, ArrowLeft } from "lucide-react";
 
 /**
  * TKDL LIVE — the automated broadcast "show" (see the handover doc's
@@ -38,6 +40,7 @@ export default function TkdlLive() {
   const [showAwards, setShowAwards] = useState(false);
   const [showReplays, setShowReplays] = useState(false);
   const [showExtras, setShowExtras] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showHome, setShowHome] = useState(true);
 
   useEffect(() => {
@@ -64,15 +67,20 @@ export default function TkdlLive() {
 
   if (failed || !status?.available) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center select-none" style={SHELL_STYLE}>
-        <div className="text-center px-6">
-          <div className="font-black uppercase text-white/80" style={{ fontSize: "1.4rem", letterSpacing: "0.2em" }}>
-            TKDL LIVE
+      <div className="fixed inset-0 flex items-center justify-center select-none overflow-hidden" style={{ ...SHELL_STYLE, background: "linear-gradient(160deg, #1a1430 0%, #0d0a18 45%, #06060b 100%)" }}>
+        <Glow x="85%" y="12%" color="#ffd24a" size={520} opacity={0.26} />
+        <Glow x="8%" y="80%" color="#a855f7" size={480} opacity={0.26} />
+        <Glow x="80%" y="105%" color="#ff005c" size={420} opacity={0.16} />
+        <DartboardBackdrop size={620} opacity={0.07} style={{ right: -220, top: -140, transform: "rotate(8deg)" }} />
+        <div className="relative text-center px-6" style={{ zIndex: 1, maxWidth: 420 }}>
+          <span className="pm-chip" style={{ color: "#ff8fb3", borderColor: "rgba(255,92,147,.5)", background: "rgba(255,0,92,.12)" }}><span className="live-dot" style={{ width: 6, height: 6 }} />On air soon</span>
+          <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(3rem, 14vw, 4.6rem)", lineHeight: 1, marginTop: 14 }}>
+            <span className="pm-chrome">TKDL</span><span className="pm-metal">LIVE</span>
           </div>
-          <div className="mt-3 text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
-            Coming soon.
-          </div>
-          <Link href="/" className="inline-block mt-6 text-xs font-bold uppercase" style={{ color: "#ff005c", letterSpacing: "0.15em" }}>
+          <p className="mt-3 text-sm" style={{ color: "#a9a4bd", fontFamily: "Inter, sans-serif" }}>
+            The league's own TV show: match-night stories, rivalries and the title race, presented by Chalky and Ton. It's being finished off and goes live for everyone soon.
+          </p>
+          <Link href="/" className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 rounded-full uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: 13, letterSpacing: "0.14em", color: "#1a1200", background: "linear-gradient(180deg,#ffe58a,#e0a800)", boxShadow: "0 0 22px rgba(255,210,74,.35)" }}>
             ← Back to the Hub
           </Link>
         </div>
@@ -110,63 +118,35 @@ export default function TkdlLive() {
         // (real user screenshot: "TKDL LIVE" and this pill rendering right
         // on top of "09:43"). `env(safe-area-inset-top)` is 0 on any device
         // that doesn't need it, so this is a no-op everywhere else.
-        <div className="absolute left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-1.5 rounded-full"
-          style={{ top: "max(1.5rem, calc(env(safe-area-inset-top) + 0.75rem))", background: "rgba(255,210,74,0.14)", border: "1px solid rgba(255,210,74,0.4)", backdropFilter: "blur(8px)" }}>
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#ffd24a" }} />
-          <span className="font-black uppercase text-xs" style={{ color: "#ffd24a", letterSpacing: "0.15em" }}>
-            Admin Preview — players can't see this yet
-          </span>
-        </div>
+        <div className="lv-admin-chip"><span className="w-1.5 h-1.5 rounded-full" style={{ background: "#ffd24a" }} />Admin preview</div>
       )}
 
       {/* Stacked (not side-by-side) so neither link's width has to be
           guessed — /broadcast (the plain standings board) is the other
           full-bleed kiosk screen, previously reachable only by its own URL
           with no way across from here. */}
-      <nav className="tkdl-live-actions" aria-label="TKDL LIVE destinations">
-        <button
-          type="button"
-          onClick={() => setShowHome(true)}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
-          style={{ color: "#07030d", background: "white", border: "1px solid rgba(255,255,255,0.2)", letterSpacing: "0.13em" }}
-        >
-          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">Channel Home</span><span className="tkdl-live-actions__mobile-label">Home</span></span>
-          <span aria-hidden="true">⌂</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowExtras(true)}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
-          style={{ color: "white", background: "linear-gradient(90deg, rgba(255,0,92,0.82), rgba(0,102,255,0.82))", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 0 24px rgba(255,0,92,0.18)", letterSpacing: "0.13em" }}
-        >
-          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">Inside the League</span><span className="tkdl-live-actions__mobile-label">Inside</span></span>
-          <span aria-hidden="true">◎</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowReplays(true)}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
-          style={{ color: "white", background: "rgba(7,5,15,0.84)", border: "1px solid rgba(255,255,255,0.18)", backdropFilter: "blur(10px)", letterSpacing: "0.13em" }}
-        >
-          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">Replay Library</span><span className="tkdl-live-actions__mobile-label">Replays</span></span>
-          <span aria-hidden="true">▶</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowAwards(true)}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
-          style={{ color: "#07030d", background: "#ffd24a", boxShadow: "0 0 24px rgba(255,210,74,0.3)", letterSpacing: "0.13em" }}
-        >
-          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">League Awards</span><span className="tkdl-live-actions__mobile-label">Awards</span></span>
-          <span aria-hidden="true">🏆</span>
-        </button>
-        <Link href="/broadcast" className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
-          Standings Board →
-        </Link>
-        <Link href="/" className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
-          ← Back to the Hub
-        </Link>
-      </nav>
+      <button type="button" className="lv-menu-btn" aria-expanded={menuOpen} aria-label="TKDL LIVE menu" onClick={() => setMenuOpen(o => !o)}>
+        {menuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />} Menu
+      </button>
+      {menuOpen && (
+        <nav className="lv-menu" aria-label="TKDL LIVE destinations">
+          <div className="lv-menu-k">TKDL LIVE</div>
+          {([
+            [() => setShowHome(true), Home, "#ffffff", "Channel home", "Every show and segment"],
+            [() => setShowExtras(true), Radio, "#ff5c93", "Inside the league", "Profiles, voices and stats"],
+            [() => setShowReplays(true), PlaySquare, "#7fb4ff", "Replay library", "Watch earlier editions"],
+            [() => setShowAwards(true), Trophy, "#ffd24a", "League awards", "This season's winners"],
+          ] as const).map(([go, Icon, c, label, sub]) => (
+            <button key={label} type="button" onClick={() => { setMenuOpen(false); go(); }}>
+              <span className="ico" style={{ ["--c" as any]: c }}><Icon className="w-4 h-4" /></span>
+              <span>{label}<small>{sub}</small></span>
+            </button>
+          ))}
+          <hr />
+          <Link href="/broadcast"><span className="ico" style={{ ["--c" as any]: "#4ade80" }}><LayoutList className="w-4 h-4" /></span><span>Standings board<small>The big-screen table</small></span></Link>
+          <Link href="/"><span className="ico" style={{ ["--c" as any]: "#a9a4bd" }}><ArrowLeft className="w-4 h-4" /></span><span>Back to the Hub</span></Link>
+        </nav>
+      )}
     </div>
   );
 }

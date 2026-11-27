@@ -1,0 +1,95 @@
+/* TKDL LIVE — premium chrome (top bar, ticker, menu). Same language as the
+   app's hero cards: chrome/gold type, pill chips, glass panels. */
+.lv-top{position:relative;z-index:10;flex-shrink:0;display:flex;align-items:center;gap:12px;min-height:58px;padding:max(10px,env(safe-area-inset-top)) clamp(16px,2.6vw,32px) 6px;font-family:Oswald,sans-serif;
+  background:linear-gradient(180deg,rgba(5,4,10,.92),rgba(5,4,10,.55) 60%,transparent)}
+.lv-mark{font-weight:700;font-size:clamp(20px,2.2vw,26px);letter-spacing:.02em;line-height:1}
+.lv-mark b{color:#ff005c;font-weight:700;text-shadow:0 0 16px rgba(255,0,92,.45)}
+.lv-live{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:999px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#ff8fb3;background:rgba(255,0,92,.14);border:1px solid rgba(255,92,147,.5)}
+.lv-live .live-dot{width:6px;height:6px}
+.lv-special{display:inline-flex;align-items:center;min-height:24px;padding:0 10px;border-radius:999px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#1a1200;background:linear-gradient(180deg,#ffe58a,#e0a800);box-shadow:0 0 16px rgba(255,210,74,.35)}
+.lv-sub{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#a9a4bd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lv-top.is-special{background:linear-gradient(180deg,rgba(34,26,10,.92),rgba(5,4,10,.55) 60%,transparent)}
+@media(max-width:600px){.lv-sub{display:none}}
+
+.lv-ticker{background:linear-gradient(180deg,rgba(12,10,20,.75),rgba(5,4,10,.97))!important;border-top:1px solid rgba(255,210,74,.28)!important}
+.lv-ticker-label{background:linear-gradient(180deg,#ffe58a,#e0a800)!important;color:#1a1200!important;font-family:Oswald,sans-serif;letter-spacing:.2em!important;border-radius:0 999px 999px 0;padding:0 16px!important;box-shadow:0 0 18px rgba(255,210,74,.35)}
+.lv-tick{display:inline-flex;align-items:center;gap:8px;margin:0 6px;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);font-family:Oswald,sans-serif;font-size:12px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.lv-tick i{width:6px;height:6px;border-radius:50%;box-shadow:0 0 6px currentColor}
+.lv-tick b{color:#fff;font-weight:600}
+.lv-tick em{font-style:normal;font-size:9px;letter-spacing:.18em;color:#ffd24a}
+.lv-tick span{color:#8e89a3}
+
+/* Menu: one button instead of six */
+.lv-menu-btn{position:fixed;z-index:45;top:max(14px,calc(env(safe-area-inset-top) + 8px));right:clamp(16px,2.6vw,32px);display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 14px;border-radius:999px;font-family:Oswald,sans-serif;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#fff;background:linear-gradient(180deg,rgba(23,20,31,.9),rgba(12,10,18,.92));border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(10px);cursor:pointer}
+.lv-menu-btn:hover{border-color:rgba(255,210,74,.5)}
+.lv-menu{position:fixed;z-index:46;top:max(60px,calc(env(safe-area-inset-top) + 54px));right:clamp(16px,2.6vw,32px);width:min(300px,calc(100vw - 32px));padding:10px;border-radius:22px;border:1px solid transparent;
+  background:radial-gradient(120% 80% at 0% 0%,rgba(255,210,74,.14),transparent 55%) padding-box,linear-gradient(180deg,#17141f,#0c0a12) padding-box,linear-gradient(140deg,rgba(255,210,74,.7),rgba(255,255,255,.1) 30%,rgba(255,255,255,.03) 60%,rgba(255,210,74,.45)) border-box;
+  box-shadow:0 24px 60px rgba(0,0,0,.65),0 0 40px rgba(255,210,74,.08);animation:lvMenuIn .18s ease-out}
+@keyframes lvMenuIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
+.lv-menu .lv-menu-k{padding:6px 10px 8px;font-family:Oswald,sans-serif;font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#ffd24a}
+.lv-menu a,.lv-menu button{width:100%;display:flex;align-items:center;gap:12px;padding:10px;border-radius:14px;background:none;border:0;color:#e4e0f0;font-family:Oswald,sans-serif;font-size:15px;letter-spacing:.06em;text-transform:uppercase;text-align:left;cursor:pointer}
+.lv-menu a:hover,.lv-menu button:hover{background:rgba(255,255,255,.05)}
+.lv-menu .ico{width:34px;height:34px;flex-shrink:0;border-radius:11px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 45%,transparent)}
+.lv-menu small{display:block;font-family:Inter,sans-serif;font-size:11px;letter-spacing:0;text-transform:none;color:#8e89a3;margin-top:1px}
+.lv-menu hr{border:0;height:1px;margin:6px 8px;background:rgba(255,255,255,.08)}
+.lv-admin-chip{position:fixed;z-index:40;left:clamp(16px,2.6vw,32px);top:max(62px,calc(env(safe-area-inset-top) + 56px));display:inline-flex;align-items:center;gap:6px;min-height:22px;padding:0 10px;border-radius:999px;font-family:Oswald,sans-serif;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:#ffd24a;background:rgba(20,16,6,.8);border:1px solid rgba(255,210,74,.4);pointer-events:none}
+
+/* Whoever is talking is lit in gold; the other presenter steps back. */
+.presenter-bust-filter{transition:filter .45s ease}
+.presenter-bust-active{filter:drop-shadow(0 0 22px rgba(255,210,74,.32)) drop-shadow(0 12px 28px rgba(0,0,0,.6)) contrast(1.06) saturate(1.1) brightness(1.06)!important}
+.presenter-bust-inactive{filter:drop-shadow(0 12px 24px rgba(0,0,0,.8)) grayscale(.35) brightness(.55) contrast(1.05)!important}
+
+/* Story column: left-hand, clear of the presenters on wide screens. */
+.lv-story-col{width:100%;max-width:100%;min-width:0;display:flex;flex-direction:column;align-items:flex-start;text-align:left}
+@media(min-width:900px){.lv-story-col{max-width:min(480px,36vw)}}
+
+/* Wide screens: the story card owns the left, so the presenters stand a
+   little right of centre (still on the desk). */
+@media(min-width:900px){[data-broadcast-region="presenters"]{transform:translateX(12vw);transition:transform .5s ease}}
+@media(max-width:600px){.lv-admin-chip{top:max(18px,calc(env(safe-area-inset-top) + 12px));left:176px}}
+
+/* ── Full-screen takeover ─────────────────────────────────────────── */
+.lv-takeover-bg{position:absolute;inset:0;z-index:1;overflow:hidden;opacity:0;transition:opacity .6s ease;pointer-events:none}
+.lv-takeover-bg.is-on{opacity:1}
+[data-broadcast-region="presenters"]{transition:opacity .5s ease,transform .5s ease}
+.lv-takeover [data-broadcast-region="presenters"]{opacity:0!important}
+.lv-takeover .lv-story-col{max-width:min(1100px,100%)!important}
+.lv-takeover [data-broadcast-region="graphic"]{width:100%}
+
+/* ── Segment stinger: a pink-to-gold sweep with the mark ──────────── */
+.lv-stinger{position:fixed;inset:0;z-index:30;pointer-events:none;overflow:hidden}
+.lv-stinger__bar{position:absolute;top:-20%;bottom:-20%;left:-60%;width:55%;transform:skewX(-18deg);background:linear-gradient(90deg,transparent,#ff005c 25%,#ffd24a 75%,transparent);box-shadow:0 0 80px rgba(255,0,92,.6);animation:lvSweep .55s cubic-bezier(.6,0,.3,1) forwards;opacity:.92}
+.lv-stinger__mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);font-family:Oswald,sans-serif;font-weight:700;font-size:clamp(36px,6vw,72px);letter-spacing:.02em;animation:lvMark .55s ease forwards;filter:drop-shadow(0 6px 18px rgba(0,0,0,.7))}
+.lv-stinger__mark b{color:#ff005c;font-weight:700}
+@keyframes lvSweep{from{left:-60%}to{left:110%}}
+@keyframes lvMark{0%{opacity:0;transform:translate(-50%,-50%) scale(.85)}35%,70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.06)}}
+
+/* Takeover scenes: content centred in the frame, and the older cards in
+   the custom scenes (interview, fan verdict, season launch, player focus,
+   power rankings) wear the same premium card. */
+.lv-takeover .lv-scene-shell{justify-content:center!important}
+.lv-takeover [data-broadcast-region="scene"] .rounded-2xl{border-radius:20px!important;border:1px solid rgba(255,210,74,.3)!important;
+  background:radial-gradient(120% 80% at 0% 0%,rgba(255,210,74,.12),transparent 55%),linear-gradient(180deg,rgba(23,20,31,.92),rgba(12,10,18,.94))!important;
+  box-shadow:0 20px 50px rgba(0,0,0,.5),0 0 30px rgba(255,210,74,.06)!important}
+.lv-takeover [data-broadcast-region="scene"] .rounded-full.border{border-color:rgba(255,210,74,.4)!important;background:rgba(255,210,74,.08)!important;color:#ffd24a!important;font-family:Oswald,sans-serif}
+.lv-takeover .lv-story-col{margin-top:auto;margin-bottom:auto}
+.lv-takeover .lv-scene-shell>.grid{align-content:center}
+
+/* ── Motion ───────────────────────────────────────────────────────── */
+/* A slow camera push on the studio, so the frame is never fully still.
+   The presenters push with it (same box, same origin) so they stay on the
+   desk; `scale`/`translate` are used rather than `transform` so this never
+   fights the presenters' own positioning transform. */
+.lv-studio-push,[data-broadcast-region="presenters"]{animation:lvPush 40s ease-in-out infinite alternate;transform-origin:50% 60%}
+@keyframes lvPush{from{scale:1}to{scale:1.05}}
+/* The speaking presenter moves a touch as they talk. */
+.presenter-bust-active{animation:lvTalk 2.8s ease-in-out infinite}
+@keyframes lvTalk{0%,100%{translate:0 0;rotate:0deg}30%{translate:0 -2px;rotate:-.4deg}65%{translate:0 1px;rotate:.3deg}}
+@media (prefers-reduced-motion: reduce){.lv-studio-push,[data-broadcast-region="presenters"],.presenter-bust-active{animation:none}}
+
+/* Takeovers on a big screen: everything a size up so it fills the frame. */
+@media(min-width:1000px) and (min-height:620px){
+  .lv-takeover .lv-story-col{zoom:1.2}
+  .lv-takeover .lv-scene-shell>.grid,.lv-takeover .lv-scene-shell>div:not(.lv-story-col){zoom:1.15}
+}
+.lv-tick .lv-tick-tag{font-size:9px;letter-spacing:.14em;color:#ffd24a;padding:1px 6px;border-radius:999px;border:1px solid rgba(255,210,74,.35)}

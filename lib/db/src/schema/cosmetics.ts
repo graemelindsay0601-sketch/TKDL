@@ -200,7 +200,7 @@ import { playersTable } from "./players";
 // player-detail, not chat — since the request that led to this one was
 // explicitly scoped "account page only", unlike every other cosmetic slot
 // above which is at least visible to whoever views that player's profile.
-export const COSMETIC_CATEGORIES = ["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR", "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "STICKER", "CHECKOUT_EFFECT", "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT", "ACCOUNT_ACCENT"] as const;
+export const COSMETIC_CATEGORIES = ["NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR", "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "STICKER", "CHECKOUT_EFFECT", "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT", "ACCOUNT_ACCENT", "CLUBHOUSE_ROOM"] as const;
 export type CosmeticCategory = (typeof COSMETIC_CATEGORIES)[number];
 
 export const cosmeticDefinitionsTable = pgTable("cosmetic_definitions", {

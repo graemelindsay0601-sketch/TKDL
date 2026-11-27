@@ -4,7 +4,9 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/context/auth";
+import { AuthProvider, useAuth } from "@/context/auth";
+import { useAchievementsV2Access } from "@/components/achievements-v2/api";
+import { UnlockCelebration } from "@/components/achievements-v2/UnlockCelebration";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { lazyWithRetry } from "@/lib/lazy-with-retry";
@@ -15,9 +17,11 @@ const Leaderboard = lazyWithRetry(() => import("@/pages/leaderboard"), "leaderbo
 const SubmitMatch = lazyWithRetry(() => import("@/pages/submit-match"), "submit-match");
 const Players = lazyWithRetry(() => import("@/pages/players"), "players");
 const PlayerDetail = lazyWithRetry(() => import("@/pages/player-detail"), "player-detail");
+const Clubhouse = lazyWithRetry(() => import("@/pages/clubhouse"), "clubhouse");
 const Seasons = lazyWithRetry(() => import("@/pages/seasons"), "seasons");
 const SeasonDetail = lazyWithRetry(() => import("@/pages/season-detail"), "season-detail");
 const Achievements = lazyWithRetry(() => import("@/pages/achievements"), "achievements");
+const AchievementsV2 = lazyWithRetry(() => import("@/pages/achievements-v2"), "achievements-v2");
 const AchievementDetail = lazyWithRetry(() => import("@/pages/achievement-detail"), "achievement-detail");
 const Admin = lazyWithRetry(() => import("@/pages/admin"), "admin");
 const Rules = lazyWithRetry(() => import("@/pages/rules"), "rules");
@@ -67,11 +71,19 @@ function PageLoader() {
   );
 }
 
+/** The new achievements once they're switched on (admins see a preview before); the old page lives on as Classics. */
+function AchievementsHome() {
+  const { enabled, admin } = useAchievementsV2Access();
+  const { user } = useAuth();
+  return enabled || admin || user?.isAdmin ? <AchievementsV2 /> : <Achievements />;
+}
+
 function RoutePage({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
-        {children}
+        {/* Each page eases in when opened (pm-route-in, premium.css). */}
+        <div className="pm-route-in">{children}</div>
       </Suspense>
     </ErrorBoundary>
   );
@@ -88,6 +100,9 @@ function AppRoutes() {
       <Route path="/broadcast">
         <Suspense fallback={null}><Broadcast /></Suspense>
       </Route>
+      <Route path="/clubhouse/:id">
+        <Suspense fallback={null}><Clubhouse /></Suspense>
+      </Route>
       <Route path="/tkdl-live">
         <Suspense fallback={null}><TkdlLive /></Suspense>
       </Route>
@@ -99,6 +114,7 @@ function AppRoutes() {
       </Route>
       <Route>
         <Layout>
+          <UnlockCelebration />
           <Switch>
             <Route path="/">
               <RoutePage><Dashboard /></RoutePage>
@@ -124,8 +140,11 @@ function AppRoutes() {
             <Route path="/achievements/:system/:key">
               <RoutePage><AchievementDetail /></RoutePage>
             </Route>
-            <Route path="/achievements">
+            <Route path="/achievements/classics">
               <RoutePage><Achievements /></RoutePage>
+            </Route>
+            <Route path="/achievements">
+              <RoutePage><AchievementsHome /></RoutePage>
             </Route>
             <Route path="/rules">
               <RoutePage><Rules /></RoutePage>

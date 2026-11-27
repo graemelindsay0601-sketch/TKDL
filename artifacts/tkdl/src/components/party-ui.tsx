@@ -104,45 +104,39 @@ export function RaceTrack({
   tickLabels?: [string, string, string];
 }) {
   const safeMax = Math.max(1, max);
-  const lead = lanes.find((l) => l.leadFill) ?? lanes[0];
   return (
     <div
       style={{
-        position: "relative", height: 20, borderRadius: 20,
+        position: "relative", height: 40, borderRadius: 14,
         background: "repeating-linear-gradient(90deg, #163a1f 0 16px, #12321a 16px 32px)",
         boxShadow: "inset 0 2px 6px rgba(0,0,0,0.75), inset 0 0 0 1px rgba(255,255,255,0.04)",
-        margin: "26px 4px 32px",
+        margin: "6px 4px 26px",
       }}
     >
-      {lead && (
+      <div style={{ position: "absolute", left: 8, right: 8, top: "50%", height: 1, background: "rgba(255,255,255,0.08)" }} />
+      {lanes.map((l, i) => (
         <div
+          key={`fill-${i}`}
           style={{
-            position: "absolute", left: 0, top: 0, height: "100%",
-            width: `${Math.min(100, (lead.pos / safeMax) * 100)}%`, borderRadius: 20,
-            background: `linear-gradient(90deg, #0c6b34, ${P_COLOR(0)})`,
-            boxShadow: `0 0 14px -2px ${P_GLOW(0)}`, transition: "width .4s",
+            position: "absolute", left: 4, top: i === 0 ? 5 : 23, height: 12, borderRadius: 8,
+            width: `calc((100% - 28px) * ${Math.min(1, l.pos / safeMax)} + 10px)`,
+            background: `linear-gradient(90deg, transparent, ${P_COLOR(l.playerIdx)}88)`, transition: "width .4s",
           }}
         />
-      )}
+      ))}
       {lanes.map((l, i) => (
         <div
           key={i}
           style={{
-            position: "absolute", top: "50%", left: `${Math.min(100, (l.pos / safeMax) * 100)}%`,
-            transform: "translate(-50%,-50%)", fontSize: "1.3rem", transition: "left .4s",
-            filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.7))",
+            position: "absolute", top: i === 0 ? 11 : 29, left: `calc(14px + (100% - 28px) * ${Math.min(1, l.pos / safeMax)})`,
+            transform: "translate(-50%,-50%)", transition: "left .4s", zIndex: 2 - i,
+            width: 22, height: 22, borderRadius: "50%", display: "grid", placeItems: "center", fontSize: "0.78rem",
+            background: "rgba(8,8,11,0.9)", border: `2px solid ${P_COLOR(l.playerIdx)}`,
+            boxShadow: `0 0 10px -2px ${P_GLOW(l.playerIdx)}, 0 4px 8px rgba(0,0,0,0.6)`,
           }}
+          title={l.label}
         >
           {l.emoji}
-          <span
-            style={{
-              position: "absolute", top: -20, left: "50%", transform: "translateX(-50%)",
-              fontFamily: FONT, fontSize: "0.55rem", fontWeight: 700, color: "rgba(255,255,255,0.7)",
-              background: "rgba(8,8,11,0.75)", padding: "1px 5px", borderRadius: 6, whiteSpace: "nowrap",
-            }}
-          >
-            {l.label}
-          </span>
         </div>
       ))}
       {tickLabels && (
@@ -169,23 +163,31 @@ function tickStyle(pos: "left" | "center" | "right"): React.CSSProperties {
 // A lightweight stat-pill pair that sits above a RaceTrack — deliberately not
 // another illustrated shape, so a track game doesn't carry two competing
 // motifs (track + tower) for the same one number.
-export function TrackStats({ items }: { items: { label: string; value: string; playerIdx: 0 | 1 }[] }) {
+export function TrackStats({ items }: { items: { label: string; value: string; playerIdx: 0 | 1; active?: boolean; sub?: string }[] }) {
   return (
-    <div style={{ display: "flex", gap: 8 }}>
-      {items.map((it, i) => (
-        <div
-          key={i}
-          style={{
-            flex: 1, padding: "9px 11px", borderRadius: 10, background: "rgba(255,255,255,0.03)",
-            border: `1px solid ${P_COLOR(it.playerIdx)}4d`,
-          }}
-        >
-          <div style={{ fontFamily: FONT, fontSize: "0.58rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>
-            {it.label}
+    <div style={{ display: "flex", gap: 10 }}>
+      {items.map((it, i) => {
+        const color = P_COLOR(it.playerIdx);
+        return (
+          <div
+            key={i}
+            style={{
+              flex: 1, minWidth: 0, position: "relative", overflow: "hidden", padding: "10px 12px 11px", borderRadius: 14,
+              background: `linear-gradient(160deg, ${it.active ? `${color}22` : "rgba(255,255,255,0.045)"}, rgba(10,10,14,0.9))`,
+              border: `1px solid ${it.active ? color : `${color}40`}`,
+              boxShadow: it.active ? `0 0 18px -4px ${P_GLOW(it.playerIdx)}` : "inset 0 1px 0 rgba(255,255,255,0.05)",
+              transition: "border-color .2s, box-shadow .2s, background .2s",
+            }}
+          >
+            {it.active && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: color }} />}
+            <div style={{ fontFamily: FONT, fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color, opacity: it.active ? 1 : 0.6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {it.label}
+            </div>
+            <div style={{ fontFamily: FONT, fontSize: "1.9rem", lineHeight: 1.05, fontWeight: 800, color: "#fff", opacity: it.active ? 1 : 0.7, marginTop: 2 }}>{it.value}</div>
+            {it.sub && <div style={{ fontSize: "0.62rem", color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{it.sub}</div>}
           </div>
-          <div style={{ fontFamily: FONT, fontSize: "0.92rem", fontWeight: 700, color: P_COLOR(it.playerIdx) }}>{it.value}</div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -377,7 +379,7 @@ export function LimboBar({ value, max }: { value: number; max: number }) {
   const safeMax = Math.max(1, max);
   const pct = Math.max(0, Math.min(100, (value / safeMax) * 100));
   return (
-    <div style={{ position: "relative", height: 120, margin: "10px 26px 30px" }}>
+    <div style={{ position: "relative", height: 64, margin: "16px 26px 24px" }}>
       <div
         style={{
           position: "absolute", inset: 0, borderRadius: 10,

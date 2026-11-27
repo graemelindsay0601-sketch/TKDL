@@ -1,3 +1,4 @@
+import { PageHero, Chapter } from "@/components/premium/Premium";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Lock, CircuitBoard, Trophy, Star, Ghost, Shield, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
@@ -66,318 +67,131 @@ export default function ShadowBot() {
   const onlineCount = roster.filter(r => !r.locked).length;
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-8">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5 pm-page">
 
       {/* ══ HERO ══ */}
-      <div className="relative overflow-hidden rounded-2xl"
-        style={{
-          background: "linear-gradient(135deg, rgba(255,0,92,0.07) 0%, rgba(9,9,15,0.99) 55%, rgba(0,40,100,0.04) 100%)",
-          border: "1px solid rgba(255,0,92,0.18)",
-          minHeight: "320px",
-        }}>
-        {/* Glow orbs */}
-        <div className="absolute top-0 left-0 w-96 h-96 pointer-events-none"
-          style={{ background: "radial-gradient(circle at 15% 25%, rgba(255,0,92,0.14), transparent 60%)" }} />
-        <div className="absolute bottom-0 right-0 w-64 h-64 pointer-events-none"
-          style={{ background: "radial-gradient(circle at 85% 85%, rgba(167,139,250,0.05), transparent 65%)" }} />
-        {/* Circuit grid texture */}
-        <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
-          style={{ backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,0.6) 0px, transparent 1px, transparent 40px, rgba(255,255,255,0.6) 41px), repeating-linear-gradient(90deg, rgba(255,255,255,0.6) 0px, transparent 1px, transparent 40px, rgba(255,255,255,0.6) 41px)" }} />
-
-        <div className="relative p-6 md:p-10">
-          {/* Eyebrow */}
-          <div className="flex items-center gap-2 mb-6">
-            <div className="p-2 rounded-xl"
-              style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.2)" }}>
-              <CircuitBoard className="w-5 h-5" style={{ color: "#ff005c", filter: "drop-shadow(0 0 8px rgba(255,0,92,0.8))" }} />
+      <PageHero kicker="TKDL shadow bot protocol" icon={<CircuitBoard className="w-3.5 h-3.5" />} accent="#ff005c" accent2="#22d3ee"
+        title={<><span>Play yourself.</span><br /><span style={{ WebkitTextFillColor: "#ff2f72", textShadow: "0 0 26px rgba(255,0,92,.55)" }}>Beat yourself.</span></>}
+        sub={<>Every dart you throw teaches your Shadow Bot — your patterns, favourite segments and checkout targets — then turns them into an opponent you can face. <b style={{ color: "#fff" }}>250 darts to activate.</b></>}>
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[
+            { v: onlineCount, l: "Bots online", c: "#ff7aa6" },
+            { v: `${TOTAL_BOT_GAMERSCORE}G`, l: "Available", c: "#ffd24a" },
+            { v: roster.length, l: "Roster", c: "#7ff0ff" },
+          ].map(t => (
+            <div key={t.l} className="rounded-2xl px-1 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)" }}>
+              <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 24, color: t.c, textShadow: `0 0 14px ${t.c}77` }}>{t.v}</div>
+              <div className="pm-lab justify-center mt-1" style={{ fontSize: 8.5, letterSpacing: ".12em" }}>{t.l}</div>
             </div>
-            <div className="text-xs font-black uppercase tracking-widest"
-              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,0,92,0.7)", letterSpacing: "0.2em" }}>
-              TKDL Shadow Bot Protocol
-            </div>
-          </div>
-
-          {/* Main headline */}
-          <div className="mb-6">
-            <h1 className="font-black uppercase leading-none mb-2"
-              style={{
-                fontFamily: "Oswald, sans-serif",
-                fontSize: "clamp(2.6rem, 7vw, 5rem)",
-                color: "#fff",
-                letterSpacing: "0.03em",
-                lineHeight: 0.9,
-              }}>
-              PLAY YOURSELF.
-            </h1>
-            <h2 className="font-black uppercase leading-none"
-              style={{
-                fontFamily: "Oswald, sans-serif",
-                fontSize: "clamp(2.6rem, 7vw, 5rem)",
-                letterSpacing: "0.03em",
-                lineHeight: 0.9,
-                color: "#ff005c",
-                textShadow: "0 0 40px rgba(255,0,92,0.5)",
-              }}>
-              BEAT YOURSELF.
-            </h2>
-          </div>
-
-          <p className="text-sm leading-relaxed mb-8 max-w-lg" style={{ color: "rgba(255,255,255,0.42)" }}>
-            Every dart you throw teaches your Shadow Bot. It learns your patterns, your favourite segments,
-            your checkout targets — then turns them into an opponent you can actually face.{" "}
-            <span style={{ color: "rgba(255,255,255,0.65)" }}>250 darts to activate.</span>
-          </p>
-
-          {/* Stat chips */}
-          <div className="flex flex-wrap gap-3 mb-6">
-            {[
-              { icon: Ghost,       color: "#ff005c",  label: `${onlineCount} Bots Online`            },
-              { icon: Star,        color: "#ffd24a",  label: `${TOTAL_BOT_GAMERSCORE}G Available`    },
-              { icon: TrendingUp,  color: "#22c55e",  label: "Live Form — Updates Every Session"     },
-            ].map(({ icon: Icon, color, label }) => (
-              <div key={label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
-                style={{ background: `${color}0d`, border: `1px solid ${color}22` }}>
-                <Icon className="w-3.5 h-3.5" style={{ color }} />
-                <span className="text-xs font-black uppercase"
-                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em" }}>
-                  {label}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Level roadmap */}
-          <div className="flex items-center gap-0 flex-wrap">
+          ))}
+        </div>
+        {/* Level roadmap */}
+        <div className="mt-4 rounded-2xl p-3" style={{ background: "rgba(0,0,0,.25)", border: "1px solid rgba(255,255,255,.08)" }}>
+          <div className="pm-lab mb-2.5" style={{ fontSize: 9 }}>Bot levels · 3-dart avg</div>
+          <div className="grid grid-cols-6 gap-2">
             {LEVEL_STEPS.map((step, i) => (
-              <div key={step.key} className="flex items-center">
-                <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs"
-                    style={{
-                      fontFamily: "Oswald, sans-serif",
-                      background: `${step.color}15`,
-                      border: `1px solid ${step.color}35`,
-                      color: step.color,
-                    }}>
-                    {i + 1}
-                  </div>
-                  <div className="text-center mt-1 hidden sm:block px-0.5">
-                    <div className="font-black uppercase"
-                      style={{ fontFamily: "Oswald, sans-serif", color: step.color, fontSize: "0.45rem", letterSpacing: "0.08em" }}>
-                      {step.label}
-                    </div>
-                    <div style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.42rem" }}>{step.threshold}</div>
-                  </div>
-                </div>
-                {i < LEVEL_STEPS.length - 1 && (
-                  <div className="w-4 sm:w-8 h-px mt-0 sm:-mt-5 mx-0.5" style={{ background: "rgba(255,255,255,0.07)" }} />
-                )}
+              <div key={step.key} className="flex flex-col items-center min-w-0">
+                <div className="rounded-md w-full" style={{ height: 6 + i * 4, marginTop: 20 - i * 4, background: `linear-gradient(180deg, ${step.color}, ${step.color}33)`, boxShadow: `0 0 8px ${step.color}66` }} />
+                <span className="whitespace-nowrap mt-1.5" style={{ fontFamily: "Oswald, sans-serif", fontSize: 8, letterSpacing: "0", textTransform: "uppercase", color: step.color }}>{step.label.replace("Pro Tour", "Pro")}</span>
+                <span className="tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: 9.5, color: "#8f8aa3" }}>{step.threshold}</span>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      </PageHero>
 
-      {/* ══ MINI LEADERBOARD ══ */}
+      {/* ══ TOP BOTS ══ */}
       {topBots.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4" style={{ color: "#ff005c" }} />
-              <h2 className="font-black uppercase text-sm tracking-wider"
-                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)", letterSpacing: "0.12em" }}>
-                Top Bots
-              </h2>
-            </div>
-            <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-              By form level
-            </span>
-          </div>
-
-          <div className="pdc-card overflow-hidden"
-            style={{ borderColor: "rgba(255,0,92,0.15)", background: "rgba(255,0,92,0.03)" }}>
-            {/* Header */}
-            <div className="grid px-4 py-2"
-              style={{
-                gridTemplateColumns: "2rem 1fr 6rem 5rem 5rem",
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
-              }}>
-              {["#", "Bot", "Level", "Avg", "Darts"].map(h => (
-                <div key={h} className="text-xs font-black uppercase tracking-widest text-right first:text-left"
-                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.18)", letterSpacing: "0.12em" }}>
-                  {h}
-                </div>
-              ))}
-            </div>
-
+        <>
+          <Chapter title="Top bots" accent="#ff005c" aside={<span className="pm-chip">By form</span>} />
+          <div className="space-y-2">
             {topBots.map((bot, i) => {
               const color = LEVEL_COLOR[bot.accuracyLevel ?? "beginner"] ?? "#94a3b8";
               const label = LEVEL_LABEL[bot.accuracyLevel ?? "beginner"] ?? "Beginner";
+              const medal = ["linear-gradient(180deg,#ffe58a,#d99a00)", "linear-gradient(180deg,#ffffff,#9aa6bd)", "linear-gradient(180deg,#f0b27a,#9c5a2a)"][i];
+              const pc = ["#ffd24a", "#c0c8d8", "#cd7f32"][i];
               return (
                 <Link key={bot.playerId} href={`/shadow-bot/${bot.playerId}`}>
-                  <div className="grid px-4 py-3 cursor-pointer transition-all hover:bg-white/[0.03]"
-                    style={{
-                      gridTemplateColumns: "2rem 1fr 6rem 5rem 5rem",
-                      borderBottom: i < topBots.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                    }}>
-                    {/* Rank */}
-                    <div className="font-black text-sm self-center"
-                      style={{ fontFamily: "Oswald, sans-serif", color: i === 0 ? "#ff005c" : "rgba(255,255,255,0.25)" }}>
-                      {i === 0 ? "👑" : i + 1}
-                    </div>
-                    {/* Name */}
-                    <div className="self-center min-w-0">
-                      <div className="font-black text-sm truncate"
-                        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)", letterSpacing: "0.02em" }}>
-                        Shadow {bot.playerName}
+                  <div className="pm-lbrow flex items-center gap-3 rounded-2xl px-3 py-3 cursor-pointer transition-all hover:-translate-y-0.5"
+                    style={{ background: i < 3 ? `linear-gradient(90deg, ${pc}26, rgba(23,20,31,.95) 50%, rgba(12,10,18,.97))` : undefined, borderColor: i < 3 ? `${pc}66` : undefined }}>
+                    <div className="shrink-0 flex items-center justify-center rounded-full" style={{ width: 38, height: 38, background: medal ?? "linear-gradient(180deg,#3a3550,#1d1a2b)", color: medal ? "#141018" : "#e4e0f0", fontFamily: "Oswald, sans-serif", fontSize: 15, boxShadow: medal ? `0 0 14px ${pc}66` : "inset 0 1px 0 rgba(255,255,255,.1)" }}>{i + 1}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: 16, letterSpacing: "0.03em", color: "#fff" }}><span style={{ color: "#ff7aa6" }}>Shadow </span>{bot.playerName}</div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="pm-chip" style={{ fontSize: 9, padding: "2px 7px", color, borderColor: `${color}66`, background: `${color}14` }}>{label}</span>
+                        <span className="text-[11px]" style={{ color: "#a9a4bd", fontFamily: "Oswald, sans-serif" }}>{bot.totalDarts.toLocaleString()} darts</span>
                       </div>
                     </div>
-                    {/* Level */}
-                    <div className="self-center text-right">
-                      <span className="font-black text-xs uppercase px-2 py-0.5 rounded"
-                        style={{ fontFamily: "Oswald, sans-serif", background: `${color}14`, color, border: `1px solid ${color}28`, fontSize: "0.55rem", letterSpacing: "0.08em" }}>
-                        {label}
-                      </span>
-                    </div>
-                    {/* Avg */}
-                    <div className="self-center text-right font-black text-sm"
-                      style={{ fontFamily: "Oswald, sans-serif", color }}>
-                      {bot.computedAvg != null ? bot.computedAvg.toFixed(1) : "—"}
-                    </div>
-                    {/* Darts */}
-                    <div className="self-center text-right text-xs"
-                      style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                      {bot.totalDarts.toLocaleString()}
+                    <div className="shrink-0 text-right">
+                      <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: i === 0 ? 28 : 24, color: i === 0 ? "#ffd24a" : color, textShadow: `0 0 14px ${i === 0 ? "rgba(255,210,74,.55)" : color + "77"}` }}>{bot.computedAvg != null ? bot.computedAvg.toFixed(1) : "—"}</div>
+                      <div className="pm-lab justify-end" style={{ fontSize: 8.5 }}>avg</div>
                     </div>
                   </div>
                 </Link>
               );
             })}
           </div>
-        </div>
+        </>
       )}
 
       {/* ══ BOT ROSTER ══ */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4" style={{ color: "rgba(255,255,255,0.25)" }} />
-            <h2 className="font-black uppercase text-sm tracking-wider"
-              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.55)", letterSpacing: "0.12em" }}>
-              Full Roster
-            </h2>
-          </div>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
-            {onlineCount} / {roster.length} online · tap to view bot
-          </span>
+      <Chapter title="Full roster" accent="#22d3ee" aside={<span className="pm-chip">{onlineCount} / {roster.length} online</span>} />
+      {roster.length === 0 ? (
+        <div className="pm-card py-10 text-center">
+          <div className="text-sm animate-pulse" style={{ color: "#8f8aa3" }}>Loading bots…</div>
         </div>
-
-        {roster.length === 0 ? (
-          <div className="section-card py-10 text-center">
-            <div className="text-sm animate-pulse" style={{ color: "rgba(255,255,255,0.2)" }}>Loading bots…</div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {roster.map((bot, rank) => {
-              const color     = bot.locked ? "rgba(255,255,255,0.12)" : (LEVEL_COLOR[bot.accuracyLevel ?? "beginner"] ?? "#94a3b8");
-              const label     = bot.locked ? "Offline" : (LEVEL_LABEL[bot.accuracyLevel ?? "beginner"] ?? "Beginner");
-              const activeLvl = bot.accuracyLevel ? LEVEL_STEPS.findIndex(s => s.key === bot.accuracyLevel) : -1;
-              return (
-                <Link key={bot.playerId} href={`/shadow-bot/${bot.playerId}`}>
-                  {/* .pdc-card (same accent-driven convention as seasons.tsx's
-                      SeasonCard) instead of a hand-rolled rounded-2xl div —
-                      per-bot color/lock state still overrides border/background. */}
-                  <div className="pdc-card overflow-hidden transition-all duration-200 hover:scale-[1.015] cursor-pointer"
-                    style={{
-                      background: bot.locked ? "rgba(255,255,255,0.02)" : `${color}07`,
-                      borderColor: bot.locked ? "rgba(255,255,255,0.06)" : `${color}22`,
-                    }}>
-                    <div className="h-0.5 w-full" style={{ background: bot.locked ? "rgba(255,255,255,0.06)" : color }} />
-                    <div className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <div className="text-xs font-bold uppercase mb-0.5"
-                            style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.52rem", letterSpacing: "0.12em" }}>
-                            {rank === 0 && !bot.locked ? "🏆 TOP BOT" : `BOT #${rank + 1}`}
-                          </div>
-                          <div className="font-black uppercase leading-tight"
-                            style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.05rem", color: bot.locked ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.88)" }}>
-                            Shadow {bot.playerName}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg shrink-0"
-                          style={{ background: bot.locked ? "rgba(255,0,92,0.06)" : `${color}14`, border: `1px solid ${bot.locked ? "rgba(255,0,92,0.15)" : `${color}28`}` }}>
-                          {bot.locked && <Lock className="w-2.5 h-2.5" style={{ color: "#ff005c" }} />}
-                          <span className="font-black uppercase"
-                            style={{ fontFamily: "Oswald, sans-serif", color: bot.locked ? "#ff005c" : color, fontSize: "0.5rem", letterSpacing: "0.08em" }}>
-                            {label}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Level pips */}
-                      <div className="flex items-center gap-1.5 mb-3">
-                        {LEVEL_STEPS.map((s, i) => (
-                          <BotLevelPip key={s.key} levelKey={s.key} active={!bot.locked && i <= activeLvl} />
-                        ))}
-                      </div>
-
-                      {/* Stats row */}
-                      <div className="flex items-center gap-3 text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)" }}>
-                        <span>
-                          <span className="font-bold" style={{ color: "rgba(255,255,255,0.6)" }}>{bot.totalDarts.toLocaleString()}</span> darts
-                        </span>
-                        <span>
-                          <span className="font-bold" style={{ color: "rgba(255,255,255,0.6)" }}>{bot.totalSessions}</span> sessions
-                        </span>
-                        {!bot.locked && bot.computedAvg != null && (
-                          <span>
-                            <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", color }}>{bot.computedAvg.toFixed(1)}</span> avg
-                          </span>
-                        )}
-                        {/* Form trend arrow */}
-                        {!bot.locked && (() => {
-                          const lvlIdx = LEVEL_STEPS.findIndex(s => s.key === bot.accuracyLevel);
-                          if (bot.progressToNext > 70 && lvlIdx < LEVEL_STEPS.length - 1) {
-                            return <TrendingUp className="w-3 h-3 ml-auto shrink-0" style={{ color: "#22c55e" }} />;
-                          } else if (bot.progressToNext < 20 && lvlIdx > 0) {
-                            return <TrendingDown className="w-3 h-3 ml-auto shrink-0" style={{ color: "#ff005c" }} />;
-                          } else {
-                            return <Minus className="w-3 h-3 ml-auto shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />;
-                          }
-                        })()}
-                      </div>
-
-                      {/* Progress bar */}
-                      {bot.locked && (
-                        <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.18)", fontSize: "0.58rem" }}>
-                          {bot.totalDarts} / 250 darts to activate
-                        </div>
-                      )}
-                      <div className="h-1 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.05)" }}>
-                        <div className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${bot.progressToNext}%`,
-                            background: bot.locked
-                              ? "linear-gradient(90deg, rgba(255,0,92,0.4), rgba(255,0,92,0.15))"
-                              : `linear-gradient(90deg, ${color}, ${color}70)`,
-                          }} />
-                      </div>
-
-                      {/* View link */}
-                      <div className="flex items-center justify-end">
-                        <span className="flex items-center gap-1 text-xs font-black uppercase"
-                          style={{ fontFamily: "Oswald, sans-serif", color: bot.locked ? "rgba(255,255,255,0.18)" : color, letterSpacing: "0.06em", fontSize: "0.55rem" }}>
-                          View Bot <ChevronRight className="w-2.5 h-2.5" />
-                        </span>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {roster.map((bot, rank) => {
+            const color     = bot.locked ? "#ff005c" : (LEVEL_COLOR[bot.accuracyLevel ?? "beginner"] ?? "#94a3b8");
+            const label     = bot.locked ? "Offline" : (LEVEL_LABEL[bot.accuracyLevel ?? "beginner"] ?? "Beginner");
+            const activeLvl = bot.accuracyLevel ? LEVEL_STEPS.findIndex(s => s.key === bot.accuracyLevel) : -1;
+            const lvlIdx = activeLvl;
+            const Trend = bot.locked ? null : bot.progressToNext > 70 && lvlIdx < LEVEL_STEPS.length - 1 ? TrendingUp : bot.progressToNext < 20 && lvlIdx > 0 ? TrendingDown : Minus;
+            const trendC = Trend === TrendingUp ? "#4ade80" : Trend === TrendingDown ? "#ff5c93" : "#8f8aa3";
+            return (
+              <Link key={bot.playerId} href={`/shadow-bot/${bot.playerId}`}>
+                <div className="pm-card relative overflow-hidden cursor-pointer transition-transform hover:-translate-y-0.5" style={{ ["--pm-acc" as any]: color, padding: 16, opacity: bot.locked ? 0.8 : 1 }}>
+                  <div className="absolute pointer-events-none" style={{ right: -60, top: -60, width: 180, height: 180, borderRadius: "50%", background: `radial-gradient(circle, ${color}2e, transparent 70%)` }} />
+                  <div className="relative flex items-center gap-3">
+                    <div className="shrink-0 rounded-full p-[2px]" style={{ background: bot.locked ? "linear-gradient(135deg,#ff005c55,#2a0010)" : `conic-gradient(from 200deg, ${color}, #fff8, ${color}, #0000 70%, ${color})`, boxShadow: `0 0 14px ${color}55` }}>
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: `radial-gradient(circle at 35% 30%, ${color}40, #0d0b14 75%)` }}>
+                        {bot.locked ? <Lock className="w-5 h-5" style={{ color: "#ff7aa6" }} /> : <Ghost className="w-5 h-5" style={{ color: "#fff", filter: `drop-shadow(0 0 6px ${color})` }} />}
                       </div>
                     </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="pm-lab" style={{ fontSize: 8.5, color: rank === 0 && !bot.locked ? "#ffd24a" : undefined }}>{rank === 0 && !bot.locked ? "🏆 Top bot · Shadow" : `Bot #${rank + 1} · Shadow`}</div>
+                      <div className={`uppercase leading-tight break-words ${bot.locked ? "" : "pm-chrome"}`} style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 19, letterSpacing: ".03em", color: bot.locked ? "#8f8aa3" : undefined }}>{bot.playerName}</div>
+                      <span className="pm-chip mt-1" style={{ fontSize: 9, padding: "2px 7px", color, borderColor: `${color}66`, background: `${color}14` }}>{bot.locked && <Lock className="w-2.5 h-2.5" />}{label}</span>
+                    </div>
+                    {!bot.locked && bot.computedAvg != null && (
+                      <div className="shrink-0 text-right self-start">
+                        <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 26, color, textShadow: `0 0 14px ${color}77` }}>{bot.computedAvg.toFixed(1)}</div>
+                        <div className="pm-lab justify-end" style={{ fontSize: 8.5 }}>avg</div>
+                      </div>
+                    )}
                   </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+
+                  <div className="relative flex items-center gap-1.5 mt-3">
+                    {LEVEL_STEPS.map((s, i) => (
+                      <BotLevelPip key={s.key} levelKey={s.key} active={!bot.locked && i <= activeLvl} />
+                    ))}
+                    {Trend && <Trend className="w-3.5 h-3.5 ml-auto" style={{ color: trendC }} />}
+                  </div>
+
+                  <div className="relative flex items-center justify-between mt-2 text-xs" style={{ color: "#8f8aa3", fontFamily: "Oswald, sans-serif", letterSpacing: ".04em" }}>
+                    <span>{bot.locked ? `${bot.totalDarts} / 250 darts to activate` : `${bot.totalDarts.toLocaleString()} darts · ${bot.totalSessions} sessions`}</span>
+                    <span className="flex items-center gap-0.5 uppercase" style={{ color: bot.locked ? "#8f8aa3" : color }}>View <ChevronRight className="w-3 h-3" /></span>
+                  </div>
+                  <div className="relative h-1.5 rounded-full overflow-hidden mt-1.5" style={{ background: "rgba(255,255,255,0.07)" }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${bot.progressToNext}%`, background: `linear-gradient(90deg, ${color}77, ${color})`, boxShadow: `0 0 8px ${color}` }} />
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

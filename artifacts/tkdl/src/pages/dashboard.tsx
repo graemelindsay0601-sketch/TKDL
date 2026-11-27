@@ -1,4 +1,5 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
+import { Chapter, PmCard, Glow, DartboardBackdrop, Tile, TileGrid, Dots } from "@/components/premium/Premium";
 import { useState, useEffect, useMemo } from "react";
 import {
   useGetStatsSummary,
@@ -20,6 +21,12 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { MatchSpotlight } from "@/components/MatchSpotlight";
+import { SeasonBadge } from "@/components/SeasonalTheme";
+import { DailyDrill } from "@/components/DailyDrill";
+import { RecordBanner } from "@/components/RecordBanner";
+import { LeagueTargetCard } from "@/components/league-target/LeagueTargetCard";
+import { GafferCard } from "@/components/gaffer/GafferCard";
+import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 
 // ══════════════════════════════════════════════════════════════════════════
 // HUB REWORK v3 — see the mockup this was built from for the full rationale.
@@ -86,9 +93,8 @@ function Flashback() {
   const { data } = useFetch<FlashbackMatch | null>("/api/matches/flashback");
   if (!data) return null;
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl flex-wrap"
-      style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.22)" }}>
-      <Calendar className="w-4 h-4 shrink-0" style={{ color: "#f59e0b" }} />
+    <PmCard accent="#f59e0b" className="flex items-center gap-3 px-4 py-3 flex-wrap">
+      <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(180deg,#ffd27a,#c97a00)", color: "#1a1200", boxShadow: "0 0 14px rgba(245,158,11,.45)" }}><Calendar className="w-4 h-4" /></span>
       <div className="flex-1 min-w-0">
         <div className="text-xs font-black uppercase tracking-wider mb-0.5"
           style={{ fontFamily: "Oswald, sans-serif", color: "#f59e0b", fontSize: "0.6rem", letterSpacing: "0.14em" }}>
@@ -101,7 +107,7 @@ function Flashback() {
           {data.wasUpsetWin && <span className="ml-1" style={{ color: "#a855f7" }}>· upset win</span>}
         </div>
       </div>
-    </div>
+    </PmCard>
   );
 }
 
@@ -123,6 +129,7 @@ function FreshnessBar({ playerName, previousVisit, pulse }: { playerName: string
         Welcome back, <span className="font-bold" style={{ color: "#fff" }}>{playerName}</span>
         {previousVisit && <> — last visit {timeAgo(previousVisit)}</>}
       </div>
+      <SeasonBadge />
       {newCount > 0 && (
         <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.1em", color: "#34e0c9", background: "rgba(52,224,201,0.1)", border: "1px solid rgba(52,224,201,0.3)", padding: "0.25rem 0.6rem", borderRadius: 999 }}>
           {newCount} new since then
@@ -165,112 +172,113 @@ function StateBand({ leaderboard, summary, currentPlayer, form }: {
   const person   = viewer ?? leader;
   const heading  = viewer ? "YOUR STANDING" : "SEASON LEADER";
 
-  const sparkline = useMemo(() => {
-    if (!form || form.length === 0) return null;
-    const w = 76, h = 28, step = form.length > 1 ? w / (form.length - 1) : 0;
-    const pts = form.map((won, i) => {
-      // Simple W/L step trace rather than a real cumulative value — this is
-      // "form", not a score history, so each point just alternates a fixed
-      // high/low y based on the result.
-      const y = won ? 4 : 22;
-      return `${(i * step).toFixed(1)},${y}`;
-    });
-    const last = pts[pts.length - 1].split(",");
-    return { points: pts.join(" "), lastX: last[0], lastY: last[1] };
-  }, [form]);
 
   return (
     <div className="relative overflow-hidden fade-in-up" style={{
-      borderRadius: "1rem",
-      background: "linear-gradient(rgba(2,2,8,0.6) 0%, rgba(2,2,8,0.9) 100%), url('https://i.postimg.cc/Bbf9fbrp/pdc1.jpg')",
-      backgroundSize: "cover", backgroundPosition: "center top",
-      border: "1px solid rgba(255,255,255,0.08)",
-      boxShadow: person ? `0 0 60px ${tierGlow}18` : undefined,
+      borderRadius: 24,
+      border: `1px solid ${tierGlow}44`,
+      background: `linear-gradient(160deg, ${tierGlow}2e 0%, #14102a 42%, #06060b 100%)`,
+      boxShadow: `0 20px 50px rgba(0,0,0,.55), 0 0 50px ${tierGlow}14`,
     }}>
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: `radial-gradient(ellipse 130% 55% at 50% 120%, ${tierGlow}30, transparent 60%)` }} />
+      <Glow x="85%" y="12%" color={tierGlow} size={460} opacity={0.32} />
+      <Glow x="5%" y="70%" color="#a855f7" size={420} opacity={0.3} />
+      <Glow x="80%" y="110%" color="#ff005c" size={360} opacity={0.16} />
+      <DartboardBackdrop size={520} opacity={0.07} style={{ right: -190, top: -80, transform: "rotate(8deg)" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.05, background: "repeating-linear-gradient(115deg,#fff 0 1px,transparent 1px 12px)" }} />
 
-      <div className="relative z-10 flex items-center justify-between flex-wrap gap-2" style={{ padding: "1.25rem 1.5rem 0" }}>
+      <div className="relative flex items-center justify-between flex-wrap gap-2" style={{ padding: "1.1rem 1.25rem 0", zIndex: 1 }}>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="live-dot" style={{ width: 6, height: 6 }} />
-          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.22em", color: "rgba(255,0,92,0.9)", fontWeight: 900 }}>{heading}</span>
-          <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "0.7rem" }}>·</span>
-          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.18em", color: "rgba(255,255,255,0.35)", fontWeight: 700 }}>
-            {summary?.currentSeasonName ?? "SEASON"}
-          </span>
+          <span className="pm-lab" style={{ color: "#ffd24a" }}>{heading}</span>
+          <span className="pm-lab">· {summary?.currentSeasonName ?? "Season"}</span>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {atRisk.length > 0 && (
-            <span className="flex items-center gap-1.5 font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.06em", color: "#ff8fb4", background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.28)", padding: "0.3rem 0.65rem", borderRadius: 999 }}>
-              <AlertTriangle className="w-3 h-3" /> {atRisk.length} in the danger zone
-            </span>
-          )}
-          <Link href="/leaderboard" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "rgba(255,0,92,0.65)", letterSpacing: "0.14em", fontWeight: 900 }}>
-            FULL TABLE →
-          </Link>
-        </div>
+        <Link href="/leaderboard" className="pm-chip" style={{ color: "#ffd24a", borderColor: "rgba(255,210,74,.45)" }}>Full table →</Link>
       </div>
 
-      <div className="relative z-10" style={{ padding: "0.5rem 1.5rem 1.25rem" }}>
+      <div className="relative" style={{ padding: "0.9rem 1.25rem 1.25rem", zIndex: 1 }}>
         {person ? (
-          <div className="grid gap-4" style={{ gridTemplateColumns: chase ? "1.5fr 1fr" : "1fr" }}>
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                {viewer && <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.4rem", color: "rgba(255,255,255,0.3)" }}>#{myIndex + 1}</span>}
-                <h1 className="font-black uppercase leading-none truncate"
-                  style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(1.8rem, 5vw, 2.8rem)", letterSpacing: "0.05em", color: "#fff", textShadow: `0 2px 40px ${tierGlow}66` }}>
+          <div className="flex flex-col gap-3.5">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="relative shrink-0" style={{ width: 82, height: 82 }}>
+                <div className="absolute pointer-events-none" style={{ inset: -7, borderRadius: "50%", background: `conic-gradient(from 0deg, transparent, ${tierGlow}99, transparent 30%, #c4b5fd99, transparent 65%)`, filter: "blur(6px)" }} />
+                <div className="relative w-full h-full rounded-full" style={{ padding: 4, background: `conic-gradient(from 200deg, ${tierGlow}, #c4b5fd, ${tierGlow}, #ffffff, ${tierGlow})` }}>
+                  <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: "radial-gradient(circle at 35% 30%, #2f2850, #0f0d18)" }}>
+                    <span className="pm-chrome" style={{ fontFamily: "Oswald, sans-serif", fontSize: 36, fontWeight: 700 }}>{person.playerName.slice(0, 1).toUpperCase()}</span>
+                  </div>
+                </div>
+                <div className="absolute flex items-center justify-center" style={{ right: -6, bottom: -2, width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(180deg,#ffe58a,#d99a00)", color: "#1a1200", fontFamily: "Oswald, sans-serif", fontSize: 13, border: "2px solid #0c0a12", boxShadow: "0 0 12px rgba(255,210,74,.6)" }}>
+                  #{viewer ? myIndex + 1 : 1}
+                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                {(person as any).title && <div className="pm-metal" style={{ fontFamily: "Oswald, sans-serif", fontStyle: "italic", fontSize: 16 }}>“{(person as any).title}”</div>}
+                <h1 className="pm-chrome uppercase leading-none truncate"
+                  style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2.2rem, 10vw, 3.6rem)", letterSpacing: "0.02em", filter: "drop-shadow(0 4px 10px rgba(0,0,0,.6))" }}>
                   {person.playerName}
                 </h1>
-              </div>
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <TierBadge tier={person.tier} />
-                {(person as any).title && <span style={{ color: "rgba(255,210,74,0.7)", fontStyle: "italic", fontSize: "0.8rem" }}>"{(person as any).title}"</span>}
-                {(person as any).currentStreak >= 2 && (
-                  <span className="flex items-center gap-1 font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", color: "#ff005c" }}>
-                    <Flame className="w-3 h-3" /> {(person as any).currentStreak}-game win streak
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-4 mt-3 flex-wrap" style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: "0.65rem" }}>
-                <MiniStat label="Points" value={person.points} accent="#ff005c" />
-                <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
-                <MiniStat label="ELO" value={person.elo ?? 0} accent="#0066ff" />
-                <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
-                <MiniStat label="W–L" value={`${person.wins}–${person.losses}`} />
-                {viewer && sparkline && (
-                  <>
-                    <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
-                    <div className="flex items-center gap-2">
-                      <svg width="60" height="26" viewBox="0 0 76 26" style={{ overflow: "visible" }}>
-                        <polyline points={sparkline.points} fill="none" stroke="#00e5a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        <circle cx={sparkline.lastX} cy={sparkline.lastY} r="3" fill="#00e5a0" style={{ filter: "drop-shadow(0 0 4px #00e5a0)" }} />
-                      </svg>
-                      <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.44rem", color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em" }}>LAST {form!.length}</span>
-                    </div>
-                  </>
-                )}
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap"><TierBadge tier={person.tier} /></div>
               </div>
             </div>
 
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { label: "Points", value: person.points, color: "#ff5c93", bg: "linear-gradient(180deg,#2a0f1d,#12080f)" },
+                { label: "ELO", value: person.elo ?? 0, color: "#7fb4ff", bg: "linear-gradient(180deg,#0e1830,#080b14)" },
+                { label: "W–L", value: `${person.wins}–${person.losses}`, color: "#e4e0f0", bg: "linear-gradient(180deg,#1b1828,#0c0a12)" },
+              ] as const).map(p => (
+                <div key={p.label} style={{ padding: 1, borderRadius: 16, background: `linear-gradient(140deg, ${p.color}, ${p.color}26 50%, ${p.color})` }}>
+                  <div style={{ borderRadius: 15, padding: "10px 12px", background: p.bg }}>
+                    <span className="pm-lab">{p.label}</span>
+                    <div className="pm-num tabular-nums" style={{ fontSize: 30, color: p.color, textShadow: `0 0 16px ${p.color}80`, marginTop: 3 }}>{p.value}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {viewer && form && form.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {form.map((won, i) => (
+                    <span key={i} className="w-6 h-6 rounded-md flex items-center justify-center" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem",
+                      background: won ? "linear-gradient(180deg, rgba(74,222,128,.35), rgba(74,222,128,.08))" : "linear-gradient(180deg, rgba(255,107,107,.35), rgba(255,107,107,.08))",
+                      border: `1px solid ${won ? "rgba(74,222,128,.6)" : "rgba(255,107,107,.6)"}`, color: won ? "#b9ffd0" : "#ffc2c2" }}>{won ? "W" : "L"}</span>
+                  ))}
+                </div>
+                <span className="pm-lab" style={{ fontSize: 9 }}>Last {form.length}</span>
+              </div>
+            )}
+
+            <div className="flex gap-2 flex-wrap">
+              {(person as any).currentStreak >= 2 && (
+                <span className="flex items-center gap-2 px-3 py-2 rounded-2xl" style={{ background: "linear-gradient(90deg, rgba(255,92,147,.3), rgba(255,92,147,.05))", border: "1px solid rgba(255,92,147,.5)", color: "#ffd0df", fontFamily: "Oswald, sans-serif", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <Flame className="w-4 h-4" style={{ color: "#ff7aa6" }} />{(person as any).currentStreak}-win streak
+                </span>
+              )}
+              {atRisk.length > 0 && (
+                <span className="flex items-center gap-2 px-3 py-2 rounded-2xl" style={{ background: "linear-gradient(90deg, rgba(255,107,107,.2), rgba(255,107,107,.04))", border: "1px solid rgba(255,107,107,.45)", color: "#ffc2c2", fontFamily: "Oswald, sans-serif", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <AlertTriangle className="w-4 h-4" /> {atRisk.length} in the danger zone
+                </span>
+              )}
+            </div>
+
             {chase && (
-              <div className="flex flex-col justify-center gap-1.5" style={{ borderLeft: "1px dashed rgba(255,255,255,0.14)", paddingLeft: "1.4rem" }}>
-                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", fontWeight: 900, letterSpacing: "0.16em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase" }}>{chase.label}</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", color: "#ffd24a" }}>{chase.name}</span>
-                  <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.7rem" }}>·</span>
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", color: "#ffd24a" }}>{chase.points} pts</span>
+              <div style={{ padding: 1, borderRadius: 16, background: "linear-gradient(140deg, #ffd24a, rgba(255,210,74,.12) 50%, #ffd24a)" }}>
+                <div className="flex items-center justify-between gap-3" style={{ borderRadius: 15, padding: "12px 14px", background: "linear-gradient(180deg,#221a0a,#0f0b05)" }}>
+                  <div className="min-w-0">
+                    <span className="pm-lab" style={{ color: "#ffd24a" }}>{chase.label}</span>
+                    <div className="truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: 18, color: "#fff", marginTop: 2 }}>{chase.name} <span style={{ color: "#a9a4bd", fontSize: 13 }}>· {chase.points} pts</span></div>
+                    <Link href="/h2h" style={{ fontFamily: "Oswald, sans-serif", fontSize: 11, color: "#ffd24a", letterSpacing: "0.1em", textTransform: "uppercase" }}>Compare head to head →</Link>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="pm-num pm-metal" style={{ fontSize: 34 }}>{chase.gap}</div>
+                    <div style={{ fontSize: 11, color: "#a9a4bd" }}>{chase.iAmAhead ? "point lead" : "points back"}</div>
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="font-black" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.6rem", color: "#ff005c", textShadow: "0 0 16px rgba(255,0,92,0.4)" }}>{chase.gap}</span>
-                  <span style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.35)" }}>{chase.iAmAhead ? "point lead" : "points back"}</span>
-                </div>
-                <Link href="/h2h" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.56rem", color: "rgba(255,0,92,0.75)", letterSpacing: "0.06em", fontWeight: 900 }}>
-                  ⚔ Compare head-to-head →
-                </Link>
               </div>
             )}
           </div>
         ) : (
-          <div style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "1rem", padding: "2rem 0" }}>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif", fontSize: "1rem", padding: "2rem 0" }}>
             No matches played yet — start the season!
           </div>
         )}
@@ -291,20 +299,20 @@ function QuickActions({ liveScorerEnabled }: { liveScorerEnabled: boolean }) {
     <div className="flex items-center gap-2.5 flex-wrap">
       <Link href="/submit">
         <span className="flex items-center gap-2 cursor-pointer transition-all hover:-translate-y-0.5"
-          style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "#1a0f00", background: "linear-gradient(120deg, #ffd24a, #ff8a5c)", padding: "0.65rem 1.2rem", borderRadius: "0.7rem", boxShadow: "0 4px 18px rgba(255,150,60,0.3)" }}>
+          style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "#1a1200", background: "linear-gradient(180deg, #ffe58a, #e0a800)", padding: "0.75rem 1.3rem", borderRadius: 999, boxShadow: "0 0 18px rgba(255,210,74,.45), inset 0 1px 0 rgba(255,255,255,.5)" }}>
           <Plus className="w-4 h-4" /> Submit a Match
         </span>
       </Link>
       <Link href="/practice">
         <span className="flex items-center gap-2 cursor-pointer transition-all hover:-translate-y-0.5"
-          style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.14)", padding: "0.65rem 1.2rem", borderRadius: "0.7rem" }}>
+          style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "#e4e0f0", background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02))", border: "1px solid rgba(255,255,255,0.18)", padding: "0.75rem 1.3rem", borderRadius: 999, boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)" }}>
           <Dumbbell className="w-4 h-4" /> Practice
         </span>
       </Link>
       {liveScorerEnabled && (
         <Link href="/play">
           <span className="flex items-center gap-2 cursor-pointer transition-all hover:-translate-y-0.5"
-            style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.14)", padding: "0.65rem 1.2rem", borderRadius: "0.7rem" }}>
+            style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "#e4e0f0", background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02))", border: "1px solid rgba(255,255,255,0.18)", padding: "0.75rem 1.3rem", borderRadius: 999, boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)" }}>
             <Swords className="w-4 h-4" /> Match Scorer
           </span>
         </Link>
@@ -521,9 +529,7 @@ function ForYouZone({ currentPlayer, myStreak }: { currentPlayer: { playerId: nu
 
       {railCards.length > 0 && (
         <div>
-          <div className="font-black uppercase mb-2.5" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.9rem", letterSpacing: "0.02em" }}>
-            {nudge ? "Also For You" : "For You"}
-          </div>
+          <Chapter title={nudge ? "Also for you" : "For you"} accent="#c4b5fd" />
           <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(railCards.length, 4)}, minmax(200px, 1fr))`, overflowX: "auto" }}>
             {railCards}
           </div>
@@ -559,8 +565,13 @@ function PulseSection({ pulse, loading, previousVisit, currentPlayerId }: {
 }) {
   const [tab, setTab] = useState<"all" | PulseItem["category"]>("all");
   const [reacted, setReacted] = useState<Set<string>>(new Set());
+  // Short by default: the first few, then "Show more" adds a page at a time.
+  const PULSE_PAGE = 5;
+  const [shown, setShown] = useState(PULSE_PAGE);
 
-  const items = (pulse ?? []).filter(p => tab === "all" || p.category === tab);
+  const allItems = (pulse ?? []).filter(p => tab === "all" || p.category === tab);
+  const items = allItems.slice(0, shown);
+  const hiddenCount = allItems.length - items.length;
   const previousVisitMs = previousVisit ? new Date(previousVisit).getTime() : null;
   let dividerPlaced = false;
 
@@ -578,21 +589,21 @@ function PulseSection({ pulse, loading, previousVisit, currentPlayerId }: {
   }
 
   return (
-    <div className="section-card">
+    <div>
+    <Chapter title="League pulse" accent="#ff5c93" aside={<span className="pm-chip" style={{ color: "#ffc2d6", borderColor: "rgba(255,92,147,.45)" }}><span className="live-dot" /> Live</span>} />
+    <div className="section-card" style={{ ["--pm-acc" as string]: "#ff5c93" } as React.CSSProperties}>
       <div className="flex items-center justify-between mb-3.5 flex-wrap gap-2.5">
-        <div className="flex items-center gap-2 font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.9rem", letterSpacing: "0.02em" }}>
-          <span className="live-dot" /> League Pulse
-        </div>
         <div className="flex gap-1.5 flex-wrap">
           {PULSE_TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
+            <button key={t.key} onClick={() => { setTab(t.key); setShown(PULSE_PAGE); }}
               className="font-black uppercase transition-all"
               style={{
                 fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.06em", padding: "0.32rem 0.7rem", borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.1)",
-                color: tab === t.key ? "#020204" : "rgba(255,255,255,0.4)",
-                background: tab === t.key ? "#fff" : "rgba(255,255,255,0.02)",
-                borderColor: tab === t.key ? "#fff" : "rgba(255,255,255,0.1)",
+                color: tab === t.key ? "#1a1200" : "#cfcade",
+                background: tab === t.key ? "linear-gradient(180deg,#ffe58a,#e0a800)" : "rgba(255,255,255,0.05)",
+                borderColor: tab === t.key ? "#ffd24a" : "rgba(255,255,255,0.12)",
+                boxShadow: tab === t.key ? "0 0 12px rgba(255,210,74,.4)" : undefined,
               }}>
               {t.label}
             </button>
@@ -641,6 +652,19 @@ function PulseSection({ pulse, loading, previousVisit, currentPlayerId }: {
           );
         })}
       </div>
+      {!loading && (hiddenCount > 0 || shown > PULSE_PAGE) && (
+        <div className="flex justify-center gap-2 mt-3">
+          {hiddenCount > 0 && (
+            <button onClick={() => setShown(n => n + 10)} className="pulse-more">
+              Show more <span>+{Math.min(10, hiddenCount)}{hiddenCount > 10 ? ` of ${hiddenCount}` : ""}</span>
+            </button>
+          )}
+          {shown > PULSE_PAGE && (
+            <button onClick={() => setShown(PULSE_PAGE)} className="pulse-more ghost">Show less</button>
+          )}
+        </div>
+      )}
+    </div>
     </div>
   );
 }
@@ -690,26 +714,26 @@ function ExploreAndReference({ settings }: { settings: any }) {
   ];
 
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-black uppercase mr-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.16em", color: "rgba(255,255,255,0.4)" }}>⚔ Explore</span>
+    <div>
+      <Chapter title="Explore" accent="#3ee0b4" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
         {modes.filter(m => m.show).map(m => (
           <Link key={m.key} href={m.href}>
-            <span className="flex items-center gap-1.5 cursor-pointer transition-all hover:-translate-y-0.5"
-              style={{ fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.62rem", textTransform: "uppercase", letterSpacing: "0.02em", padding: "0.35rem 0.7rem", borderRadius: 999, color: m.accent, background: `${m.accent}14`, border: `1px solid ${m.accent}40` }}>
-              {m.icon} {m.label}
-            </span>
+            <div className="flex items-center gap-2.5 cursor-pointer transition-all hover:-translate-y-0.5"
+              style={{ padding: "12px 13px", borderRadius: 16, border: `1px solid ${m.accent}55`,
+                background: `radial-gradient(120% 90% at 100% 0%, ${m.accent}33, transparent 60%), linear-gradient(180deg, #17141f, #0d0b13)`,
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 10px 24px rgba(0,0,0,.35)" }}>
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${m.accent}26`, color: m.accent, boxShadow: `0 0 12px ${m.accent}44` }}>{m.icon}</span>
+              <span className="uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: 12.5, letterSpacing: "0.06em", color: "#fff", lineHeight: 1.15 }}>{m.label}</span>
+            </div>
           </Link>
         ))}
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-black uppercase mr-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.16em", color: "rgba(255,255,255,0.3)" }}>📖 Reference</span>
+      <div className="flex items-center gap-2 flex-wrap mt-3">
+        <span className="pm-lab mr-1">Reference</span>
         {reference.map(r => (
           <Link key={r.label} href={r.href}>
-            <span className="flex items-center gap-1.5 cursor-pointer transition-all hover:-translate-y-0.5"
-              style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "0.6rem", textTransform: "uppercase", padding: "0.32rem 0.65rem", borderRadius: 999, color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.12)" }}>
-              {r.icon} {r.label}
-            </span>
+            <span className="pm-chip cursor-pointer" style={{ minHeight: 32 }}>{r.icon} {r.label}</span>
           </Link>
         ))}
       </div>
@@ -720,7 +744,6 @@ function ExploreAndReference({ settings }: { settings: any }) {
 // ── MAIN HUB PAGE ──────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">("leaderboard");
   const currentPlayer = useCurrentPlayer();
   const { data: appSettings } = useSettings();
 
@@ -738,16 +761,21 @@ export default function Dashboard() {
   const myStreak = (myEntry as any)?.currentStreak ?? 0;
 
   return (
-    <div className="space-y-4">
-      <div className="pdc-divider" />
+    <div className="pm-page space-y-4">
 
       {currentPlayer && <FreshnessBar playerName={currentPlayer.playerName} previousVisit={visit?.previousVisit ?? null} pulse={pulse} />}
+
+      <RecordBanner />
+
+      <StateBand leaderboard={leaderboard} summary={summary} currentPlayer={currentPlayer} form={formData?.results ?? null} />
+
+      <LeagueTargetCard />
+
+      <GafferCard />
 
       <QuickActions liveScorerEnabled={appSettings?.live_scorer_enabled ?? false} />
 
       <MatchSpotlight />
-
-      <StateBand leaderboard={leaderboard} summary={summary} currentPlayer={currentPlayer} form={formData?.results ?? null} />
 
       <ForYouZone currentPlayer={currentPlayer} myStreak={myStreak} />
 
@@ -757,90 +785,62 @@ export default function Dashboard() {
 
       <Flashback />
 
-      {/* ── LEADERBOARD + RECENT (kept, reference tables) ── */}
-      <div className="lg:hidden flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
-        {(["leaderboard", "recent"] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
-            style={{
-              fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em",
-              background: activeTab === tab ? "rgba(255,0,92,0.12)" : "rgba(255,255,255,0.02)",
-              color: activeTab === tab ? "#ff005c" : "rgba(255,255,255,0.35)",
-              borderBottom: activeTab === tab ? "2px solid #ff005c" : "2px solid transparent",
-            }}>
-            {tab === "leaderboard" ? <><Trophy className="w-3.5 h-3.5" /> Standings</> : <><Swords className="w-3.5 h-3.5" /> Matches</>}
-          </button>
-        ))}
-      </div>
+      <DailyDrill />
+      <MonthlyLeagueReports compact />
 
+      {/* ── LEADERBOARD + RECENT ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className={`section-card ${activeTab !== "leaderboard" ? "hidden lg:block" : ""}`}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-black uppercase flex items-center gap-2 text-sm" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-              <Trophy className="w-3.5 h-3.5" style={{ color: "#ffd24a", filter: "drop-shadow(0 0 5px rgba(255,210,74,0.7))" }} /> Leaderboard
-            </h2>
-            <Link href="/leaderboard" className="text-xs font-bold hover:text-white transition-colors uppercase tracking-widest" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>View All →</Link>
-          </div>
-          <div className="space-y-2">
+        <div className="min-w-0">
+          <Chapter title="Standings" accent="#ffd24a" aside={<Link href="/leaderboard" className="pm-chip" style={{ color: "#ffd24a", borderColor: "rgba(255,210,74,.45)" }}>View all →</Link>} />
+          <PmCard accent="#ffd24a">
             {top5.map((entry, i) => {
-              const pColor  = posColors[i] ?? "rgba(255,255,255,0.4)";
-              const isFirst = i === 0;
+              const medal = i === 0 ? "linear-gradient(180deg,#ffe58a,#d99a00)" : i === 1 ? "linear-gradient(180deg,#ffffff,#9aa6bd)" : i === 2 ? "linear-gradient(180deg,#f0b27a,#9c5a2a)" : "linear-gradient(180deg,#3a3550,#1d1a2b)";
               return (
                 <Link key={entry.playerId} href={`/players/${entry.playerId}`}>
-                  <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 cursor-pointer ${isFirst ? "lb-rank-1" : i === 1 ? "lb-rank-2" : i === 2 ? "lb-rank-3" : "lb-card-row"}`}>
-                    <span className="font-black w-6 text-center leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.3rem", color: pColor, textShadow: isFirst ? `0 0 14px ${pColor}` : undefined }}>{entry.position}</span>
+                  <div className="pm-row cursor-pointer transition-colors hover:bg-white/[0.03]" style={{ background: i === 0 ? "linear-gradient(90deg, rgba(255,210,74,.1), transparent 55%)" : undefined }}>
+                    <div className="shrink-0 flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: "50%", background: medal, color: i < 3 ? "#141018" : "#e4e0f0", fontFamily: "Oswald, sans-serif", fontSize: 15, boxShadow: i < 3 ? "0 0 12px rgba(255,255,255,.15)" : undefined }}>{entry.position}</div>
                     <RankChange change={entry.positionChange} />
                     <div className="flex-1 min-w-0">
-                      <div className={`font-black text-sm uppercase truncate ${isFirst ? "shimmer-gold" : ""}`}
-                        style={!isFirst ? { color: "rgba(255,255,255,0.9)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" } : { fontFamily: "Oswald, sans-serif" }}>
-                        {entry.playerName}
-                      </div>
-                      {(entry as any).title && <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.22)", fontStyle: "italic" }}>{(entry as any).title}</div>}
+                      <div className={`uppercase truncate ${i === 0 ? "pm-metal" : ""}`} style={{ fontFamily: "Oswald, sans-serif", fontSize: 16, letterSpacing: "0.04em", color: i === 0 ? undefined : "#fff" }}>{entry.playerName}</div>
+                      {(entry as any).title && <div className="truncate" style={{ fontSize: 12, color: "#a9a4bd", fontStyle: "italic" }}>{(entry as any).title}</div>}
                     </div>
                     <TierBadge tier={entry.tier} />
-                    <span className="font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.2rem", color: isFirst ? "#ffd24a" : "#ff005c", minWidth: "2.8rem", textAlign: "right" }}>
-                      {entry.points}<span className="text-xs font-normal ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span>
-                    </span>
+                    <span className="pm-num tabular-nums shrink-0" style={{ fontSize: 20, color: i === 0 ? "#ffd24a" : "#ff7aa6", minWidth: "2.6rem", textAlign: "right", textShadow: `0 0 10px ${i === 0 ? "rgba(255,210,74,.5)" : "rgba(255,92,147,.4)"}` }}>{entry.points}</span>
                   </div>
                 </Link>
               );
             })}
-            {top5.length === 0 && <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data yet</div>}
-          </div>
+            {top5.length === 0 && <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>No data yet</div>}
+          </PmCard>
         </div>
 
-        <div className={`section-card ${activeTab !== "recent" ? "hidden lg:block" : ""}`}>
-          <h2 className="font-black uppercase flex items-center gap-2 text-sm mb-4" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-            <Swords className="w-3.5 h-3.5" style={{ color: "#ff005c" }} /> Recent Matches
-          </h2>
-          <div className="space-y-2">
+        <div className="min-w-0">
+          <Chapter title="Recent matches" accent="#4ade80" />
+          <PmCard accent="#4ade80">
             {recent?.slice(0, 6).map((m: any, i: number) => (
-              <div key={m.matchId} className="flex items-center justify-between px-3 py-2.5 rounded-xl fade-in-up"
-                style={{ animationDelay: `${i * 50}ms`, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                <div className="min-w-0">
-                  <div className="text-sm font-bold flex items-center gap-1.5 flex-wrap">
+              <div key={m.matchId} className="pm-row relative fade-in-up" style={{ animationDelay: `${i * 50}ms`, background: "linear-gradient(90deg, rgba(74,222,128,.07), transparent 45%)" }}>
+                <i className="absolute left-0 rounded" style={{ top: 10, bottom: 10, width: 3, background: "#4ade80", boxShadow: "0 0 10px #4ade80" }} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap" style={{ fontFamily: "Oswald, sans-serif", fontSize: 15 }}>
                     {m.isTeamMatch ? (
-                      <span className="font-black uppercase" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{m.winnerName}</span>
+                      <span className="uppercase" style={{ color: "#4ade80" }}>{m.winnerName}</span>
                     ) : (
-                      <Link href={`/players/${m.winnerId}`} className="hover:underline font-black uppercase" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>{m.winnerName}</Link>
+                      <Link href={`/players/${m.winnerId}`} className="hover:underline uppercase" style={{ color: "#4ade80" }}>{m.winnerName}</Link>
                     )}
-                    <span style={{ color: "rgba(255,255,255,0.22)", fontSize: "0.7rem" }}>def.</span>
-                    <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.8rem" }}>{m.loserName}</span>
-                    {m.isTeamMatch && <span className="text-xs font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.05em" }}>TEAM</span>}
+                    <span style={{ color: "#8b86a0", fontSize: 12, fontFamily: "Inter, sans-serif" }}>beat</span>
+                    <span className="uppercase" style={{ color: "#e4e0f0" }}>{m.loserName}</span>
+                    {m.isTeamMatch && <span className="pm-chip" style={{ minHeight: 18, padding: "0 6px", fontSize: 9, color: "#7ff5d3", borderColor: "rgba(62,224,180,.4)" }}>Team</span>}
                   </div>
-                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>{format(new Date(m.playedAt), "MMM d, h:mm a")}</div>
-                  {m.gameType && <div className="text-xs mt-0.5 italic truncate" style={{ color: "rgba(255,255,255,0.18)", maxWidth: "13rem" }}>{m.gameType}</div>}
+                  <div className="truncate" style={{ fontSize: 12, color: "#a9a4bd", marginTop: 2 }}>{m.gameType ? `${m.gameType} · ` : ""}{format(new Date(m.playedAt), "d MMM, h:mm a")}</div>
                 </div>
-                <div className="text-right shrink-0 ml-3">
-                  <div className="text-xs font-black" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>
-                    +{m.pointsAwarded ?? 0}<span className="font-normal ml-0.5" style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.2)" }}>pts</span>
-                  </div>
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontSize: "0.65rem" }}>{m.eloChange ? `ELO ${m.eloChange > 0 ? "+" : ""}${m.eloChange}` : ""}</div>
+                <div className="text-right shrink-0">
+                  <div className="pm-num" style={{ fontSize: 17, color: "#4ade80" }}>+{m.pointsAwarded ?? 0} pts</div>
+                  <div style={{ fontSize: 11, color: "#9cc6ff", marginTop: 2 }}>{m.eloChange ? `${m.eloChange > 0 ? "+" : ""}${m.eloChange} ELO` : ""}</div>
                 </div>
               </div>
             ))}
-            {(!recent || recent.length === 0) && <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No matches yet</div>}
-          </div>
+            {(!recent || recent.length === 0) && <div className="py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>No matches yet</div>}
+          </PmCard>
         </div>
       </div>
     </div>

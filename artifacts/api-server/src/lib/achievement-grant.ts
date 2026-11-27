@@ -36,7 +36,26 @@ async function definitionByKey(key: string) {
   return definitions.get(key);
 }
 
+/**
+ * Once the new achievements (v2) are switched on, these original badges become the Classics: everything already
+ * earned stays on show, but nothing new is granted or paid, so no one is rewarded twice for the same thing.
+ * Career mode and Card Clash have their own systems and carry on as before. Checked at most every 30 seconds.
+ */
+let frozen: { value: boolean; at: number } | null = null;
+export async function classicsFrozen(): Promise<boolean> {
+  if (frozen && Date.now() - frozen.at < 30_000) return frozen.value;
+  let value = false;
+  try {
+    const { isEnabled } = await import("./achievements-v2/live.ts");
+    value = await isEnabled();
+  } catch { value = false; }
+  frozen = { value, at: Date.now() };
+  return value;
+}
+export function resetClassicsFrozenCache(): void { frozen = null; }
+
 export async function grantIfNotHas(playerId: number, key: string, seasonId = 0): Promise<boolean> {
+  if (await classicsFrozen()) return false;
   const ach = await definitionByKey(key);
   if (!ach) return false;
 

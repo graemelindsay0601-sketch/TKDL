@@ -24,7 +24,8 @@
 // two-shot conversation reads. Deliberately not a third state, not a full
 // history: showing more than one prior line would start to look like the
 // rejected chat-bubble stack again.
-import { PRESENTERS, type PresenterId } from "./presenters/presenter-config";
+import { cleanLine } from "./theme";
+import { PRESENTERS, presenterPortraitSrc, type PresenterId } from "./presenters/presenter-config";
 import type { DialogueTurn } from "./types";
 
 export type LowerThirdProps = {
@@ -50,50 +51,37 @@ export function LowerThird({ turn, previousTurn }: LowerThirdProps) {
     // BroadcastPlayer.tsx mounts this in) refuses to shrink below, however
     // narrow the actual viewport is. `min-width: 0` at each nesting level
     // removes that floor so `width: 100%`/`truncate` can do their real job.
-    <div className="flex flex-col items-stretch" style={{ maxWidth: 720, width: "100%", minWidth: 0 }}>
+    <div className="flex flex-col items-stretch" style={{ maxWidth: 760, width: "100%", minWidth: 0 }}>
       {previousTurn && (
-        <div
-          className="self-start flex items-baseline gap-2 px-4 py-1.5 mb-1"
-          style={{
-            opacity: 0.65,
-            background: "linear-gradient(90deg, rgba(6,4,14,0.9) 0%, rgba(6,4,14,0.6) 80%, transparent 100%)",
-            borderLeft: `3px solid ${PRESENTERS[previousTurn.speaker as PresenterId].accent}`,
-            maxWidth: "90%",
-            minWidth: 0,
-            clipPath: "polygon(0 0, 100% 0, 96% 100%, 0 100%)"
-          }}
-        >
-          <span className="font-bold uppercase shrink-0" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.06em", color: PRESENTERS[previousTurn.speaker as PresenterId].accent }}>
-            {PRESENTERS[previousTurn.speaker as PresenterId].name}
-          </span>
-          <span className="truncate font-medium" style={{ fontFamily: "Inter, sans-serif", fontSize: "0.85rem", lineHeight: 1.3, color: "rgba(255,255,255,0.7)", minWidth: 0 }}>
-            {previousTurn.text}
+        <div className="self-start flex items-baseline gap-2 mb-1.5" style={{ opacity: 0.7, maxWidth: "90%", minWidth: 0, padding: "4px 12px", borderRadius: 999, background: "rgba(10,8,18,.78)", border: "1px solid rgba(255,255,255,.08)", marginLeft: 70 }}>
+          <span className="pm-lab shrink-0" style={{ color: PRESENTERS[previousTurn.speaker as PresenterId].accent }}>{PRESENTERS[previousTurn.speaker as PresenterId].name}</span>
+          <span className="truncate" style={{ fontFamily: "Inter, sans-serif", fontSize: "0.82rem", lineHeight: 1.3, color: "rgba(255,255,255,0.72)", minWidth: 0 }}>
+            {cleanLine(previousTurn.text)}
           </span>
         </div>
       )}
-
-      <div className="self-start flex items-baseline gap-2 px-4 py-1.5" style={{ background: presenter.accent, clipPath: "polygon(0 0, 100% 0, 94% 100%, 0 100%)", paddingRight: 32 }}>
-        <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", letterSpacing: "0.08em", color: "#fff" }}>
-          {presenter.name}
-        </span>
-        <span className="uppercase font-bold" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.15em", color: "rgba(255,255,255,0.9)" }}>
-          {presenter.role}
-        </span>
-      </div>
-      <div
-        className="px-5 py-3.5 relative overflow-hidden"
-        style={{
-          background: "linear-gradient(90deg, rgba(12,8,22,0.98) 0%, rgba(6,4,14,0.92) 100%)",
-          borderLeft: `4px solid ${presenter.accent}`,
-          boxShadow: `0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)`
-        }}
-      >
-        {/* subtle highlight at the top left of the dark box to make it feel physical */}
-        <div className="absolute top-0 left-0 w-32 h-[1px]" style={{ background: `linear-gradient(90deg, ${presenter.accent}, transparent)` }} />
-        
-        <span className="font-medium" style={{ fontFamily: "Inter, sans-serif", fontSize: "1.05rem", lineHeight: 1.45, color: "rgba(255,255,255,0.98)", textShadow: "0 2px 4px rgba(0,0,0,0.5)" }}>
-          {turn.text}
-        </span>
+      <div className="flex items-end gap-3 min-w-0">
+        {/* The speaker in the app's glowing ring, beside their line. */}
+        <div className="relative shrink-0 lt-ring" style={{ width: 62, height: 62 }}>
+          <div className="absolute pointer-events-none" style={{ inset: -6, borderRadius: "50%", background: "conic-gradient(from 0deg, transparent, rgba(255,210,74,.6), transparent 30%, #c4b5fd99, transparent 65%)", filter: "blur(6px)" }} />
+          <div className="relative w-full h-full rounded-full" style={{ padding: 3, background: "conic-gradient(from 200deg, #ffd24a, #c4b5fd, #ffd24a, #ffffff, #ffd24a)" }}>
+            <div className="w-full h-full rounded-full overflow-hidden" style={{ background: "radial-gradient(circle at 50% 30%, #2f2850, #0f0d18)" }}>
+              {/* Framed on the face: zoomed in and anchored near the top of the portrait. */}
+              <div style={{ width: "100%", height: "100%", backgroundImage: `url(${presenterPortraitSrc(speaker, "speaking")})`, backgroundSize: "200%", backgroundPosition: "48% 24%", backgroundRepeat: "no-repeat" }} />
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 min-w-0" style={{ padding: 1, borderRadius: 16, background: "linear-gradient(140deg, #ffd24a, rgba(255,210,74,.12) 50%, #ffd24a)", boxShadow: "0 14px 36px rgba(0,0,0,.6)" }}>
+          <div style={{ borderRadius: 15, padding: "10px 16px 12px", background: "linear-gradient(180deg, rgba(34,26,10,.97), rgba(15,11,5,.97))" }}>
+            <div className="flex items-center gap-2">
+              <span className="pm-lab" style={{ color: "#ffd24a" }}>{presenter.name}</span>
+              <span className="pm-lab">· {presenter.role}</span>
+            </div>
+            <div style={{ fontFamily: "Inter, sans-serif", fontSize: "1.05rem", lineHeight: 1.4, color: "#f3efe4", marginTop: 3 }}>
+              {cleanLine(turn.text)}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

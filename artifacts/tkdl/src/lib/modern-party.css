@@ -1,0 +1,95 @@
+/* Party-game additions to the X01 scorer frame (modern-x01.css). */
+.mp-root .mx-card { padding: 9px 12px 8px; }
+.mp-score { display: flex; align-items: baseline; gap: 4px; font-size: clamp(44px, 14vw, 68px); white-space: nowrap; overflow: hidden; }
+.mp-score small { font-size: .38em; letter-spacing: .02em; opacity: .75; }
+.mp-card.is-out { opacity: .5; filter: grayscale(.5); }
+.mp-card .mx-route { margin-top: 2px; }
+
+.mp-panel { flex: none; border-radius: 16px; background: rgba(22,20,32,.92); border: 1px solid rgba(255,255,255,.1); padding: 8px 10px; max-height: 24vh; overflow: auto; }
+.mp-panel:empty { display: none; }
+.mp-note { min-height: 20px; }
+.mp-note.gold { color: #ffd24a; }
+
+.mx-mult.mp-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mx-mult .m4 { border: 1px solid rgba(192,132,252,.45); background: rgba(192,132,252,.08); color: #d4b0ff; }
+.mx-mult .m4.on { background: rgba(192,132,252,.3); border-color: #c084fc; color: #fff; box-shadow: 0 0 16px rgba(192,132,252,.35); }
+
+.mp-root .mx-grid button.hi { border-color: #ffd24a; background: linear-gradient(180deg, rgba(255,210,74,.3), #1d1708); box-shadow: 0 0 16px rgba(255,210,74,.3), inset 0 1px 0 rgba(255,255,255,.1); }
+.mp-root .mx-grid button.hi span { background: linear-gradient(180deg, #fff6cf 0%, #ffd24a 44%, #b67f00 54%, #ffe28a 80%, #fff1b8 100%); -webkit-background-clip: text; background-clip: text; }
+.mp-root .mx-row4 .bull25.hi { border-color: #ffd24a; box-shadow: 0 0 14px rgba(255,210,74,.3); }
+.mp-root .mx-grid button:disabled:not(.hi) { opacity: .25; }
+
+.mp-custom { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+/* Target chips */
+.mp-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
+.mp-chips span { min-width: 30px; height: 28px; padding: 0 7px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-family: Oswald, sans-serif; font-size: 13px; font-weight: 600; color: #8e8aa0; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+.mp-chips span.done { color: #6fe0a0; border-color: rgba(60,200,120,.4); background: rgba(60,200,120,.08); }
+.mp-chips span.on { color: #1a1200; border-color: #ffd24a; background: linear-gradient(180deg,#ffe58a,#e0a800); box-shadow: 0 0 12px rgba(255,210,74,.35); }
+
+/* How to play sheet */
+.mp-rules p { margin: 0; font-size: 14px; line-height: 1.5; color: #d8d4e6; text-align: center; }
+.mx-grid.mp-pick { flex: none; grid-template-rows: repeat(4, 56px); }
+.mp-custom .mx-note { text-transform: none; font-family: Inter, sans-serif; font-size: 13px; letter-spacing: 0; margin-bottom: 8px; color: #a9a6b8; }
+.mp-hl { display: grid; grid-template-columns: 1fr 1fr; text-align: center; }
+.mp-hl small { display: block; font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: #8e8aa0; }
+.mp-hl b { font-family: Oswald, sans-serif; font-weight: 700; font-size: 38px; line-height: 1.05; }
+.mp-hl .lo { color: #5fb8ff; } .mp-hl .hi { color: #ff7aa8; }
+.mp-big { text-align: center; }
+.mp-big small { display: block; font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: #8e8aa0; }
+.mp-big b { font-family: Oswald, sans-serif; font-weight: 700; font-size: 44px; line-height: 1.05; background: linear-gradient(180deg, #fff6cf 0%, #ffd24a 44%, #b67f00 54%, #ffe28a 80%, #fff1b8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mp-balls { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.mp-balls i { width: 12px; height: 12px; border-radius: 50%; }
+/* 501-style cards */
+.mp-badge { flex: none; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #ffd24a; }
+.mp-card .mx-last { min-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Cricket-style target pad: fixed-height buttons like Cricket; the game panel takes the spare room */
+.mp-root.has-tpad .mp-panel { flex: 1 1 auto; max-height: none; display: flex; align-items: center; justify-content: center; }
+.mp-root.has-tpad .mp-spacer { flex: 1 1 auto; }
+.mp-tpad { flex: none; grid-template-columns: repeat(4, 1fr); }
+.mp-tpad button { height: clamp(56px, 9vh, 78px); }
+.mp-tpad button span { font-size: 28px; }
+.mp-tpad.n1 > button:first-child { grid-column: span 4; }
+.mp-tpad.n1 > button:first-child span { font-size: 40px; }
+.mp-tpad.n2 > button:nth-child(-n+2) { grid-column: span 2; }
+.mp-tpad.n3 > button:nth-child(-n+3) { grid-column: span 1; }
+.mp-tpad.n3 > button:nth-child(3) { grid-column: span 2; }
+.mp-tpad button.hi { border-color: #ffd24a; box-shadow: 0 0 18px rgba(255,210,74,.28); }
+.mp-tpad .next { grid-column: span 2 !important; }
+.mp-next { flex: none; height: 50px; border-radius: 14px; border: 0; background: linear-gradient(180deg,#ffe58a,#e0a800); color: #1a1200; font-family: Oswald, sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .14em; text-transform: uppercase; box-shadow: 0 0 22px rgba(255,210,74,.3); }
+.mp-next:disabled { opacity: .45; }
+.mp-root .mx-grid { grid-template-rows: repeat(4, minmax(36px, 1fr)); }
+@media (max-height: 700px) { .mp-next { height: 42px; } }
+/* With a target pad the game panel becomes the centre board, like Cricket's marks board */
+.mp-root.has-tpad .mp-panel { border-radius: 18px; border: 1px solid rgba(255,210,74,.28); background: radial-gradient(120% 80% at 0% 0%, rgba(255,210,74,.1), transparent 55%), linear-gradient(180deg, rgba(23,20,31,.95), rgba(12,10,18,.96)); padding: 10px; }
+.mp-root.has-tpad .mp-chips { gap: 7px; }
+.mp-root.has-tpad .mp-chips span { min-width: 42px; height: 40px; border-radius: 12px; font-size: 18px; }
+@media (max-height: 760px) { .mp-root.has-tpad .mp-chips span { min-width: 34px; height: 32px; font-size: 15px; } }
+.mp-legs { display: flex; flex-direction: column; gap: 12px; text-align: center; padding-top: 6px; }
+.mp-legs > b { font-family: Oswald, sans-serif; font-weight: 700; font-size: 64px; line-height: 1; background: linear-gradient(180deg, #fff6cf 0%, #ffd24a 44%, #b67f00 54%, #ffe28a 80%, #fff1b8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mp-legs input { width: 100%; accent-color: #ffd24a; }
+.mp-ttt { display: grid; grid-template-columns: repeat(3, 56px); gap: 6px; }
+.mp-ttt span { height: 56px; border-radius: 12px; display: grid; place-items: center; font-family: Oswald, sans-serif; font-weight: 700; font-size: 26px; color: #6d6a7c; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); }
+.mp-ttt span.x { color: #ff7aa8; border-color: rgba(255,0,92,.55); background: rgba(255,0,92,.1); }
+.mp-ttt span.o { color: #6fe0a0; border-color: rgba(60,200,120,.5); background: rgba(60,200,120,.08); }
+.mp-winners { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.mp-winners button { height: 140px; border-radius: 18px; border: 1px solid rgba(255,210,74,.45); background: linear-gradient(180deg,#2a2638,#17151f); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.mp-winners span { font-family: Oswald, sans-serif; font-weight: 700; font-size: 24px; text-transform: uppercase; background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mp-winners small { font-size: 11px; color: #a9a6b8; }
+
+.mc-mult.mp-four { grid-template-columns: repeat(4, 1fr); }
+.mp-panel > * { width: 100%; }
+.mp-root:not(.has-tpad) .mp-panel { max-height: 17vh; }
+.mp-winners button.on { border-color: #ff005c; box-shadow: 0 0 22px rgba(255,0,92,.3); }
+
+/* 3+ players */
+.mp-list { flex: none; display: flex; flex-direction: column; gap: 6px; max-height: 34vh; overflow: auto; }
+.mp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; padding: 8px 12px; border-radius: 14px; background: rgba(22,20,32,.92); border: 1px solid rgba(255,255,255,.1); }
+.mp-row .mx-name { font-size: 16px; }
+.mp-row .mp-badge { grid-column: 2; }
+.mp-row-line { grid-column: 1 / 3; grid-row: 2; font-size: 11px; color: #a9a6b8; }
+.mp-row-line b { font-family: Oswald, sans-serif; color: #fff; font-size: 13px; }
+.mp-row-score { grid-column: 3; grid-row: 1 / 3; font-size: 34px !important; display: flex; align-items: baseline; gap: 3px; }
+.mp-row-score small { font-size: .4em; opacity: .75; }
+.mp-row.is-on { background: linear-gradient(165deg, rgba(255,0,92,.24), rgba(22,18,32,.96) 58%); border-color: rgba(255,0,92,.75); box-shadow: 0 0 20px rgba(255,0,92,.25); }
+.mp-row.is-out { opacity: .4; filter: grayscale(.6); }

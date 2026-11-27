@@ -41,8 +41,10 @@ import { LiveTicker } from "./LiveTicker";
 import { LiveInsertOverlay } from "./LiveInsertOverlay";
 import { LowerThird } from "./LowerThird";
 import { ProgrammeStrip } from "./ProgrammeStrip";
-import { LEAGUE_LABEL, SCENE_LABEL } from "./theme";
+import { LEAGUE_ACCENT, LEAGUE_LABEL, SCENE_LABEL } from "./theme";
+import { DartboardBackdrop, Glow } from "@/components/premium/Premium";
 import type { CurrentEdition, LiveOverlayItem, LiveTickerItem, Segment } from "./types";
+import "./live-premium.css";
 
 // How often the playback clock re-derives the current position. Dialogue
 // turns hold for several real seconds each (`holdSeconds`, DialogueTurn's
@@ -50,6 +52,21 @@ import type { CurrentEdition, LiveOverlayItem, LiveTickerItem, Segment } from ".
 // instant, while staying cheap enough to leave running on a kiosk screen
 // for hours.
 const CLOCK_TICK_MS = 500;
+
+const TAKEOVER_SCENES: ReadonlySet<string> = new Set(["analysis", "interview", "fan_verdict", "season_launch", "player_focus", "power_rankings"]);
+
+/** The app's hero-card ground, filling the screen during a takeover. */
+function TakeoverBackdrop({ on, accent }: { on: boolean; accent: string }) {
+  return (
+    <div className={`lv-takeover-bg ${on ? "is-on" : ""}`} aria-hidden="true" style={{ background: `linear-gradient(160deg, ${accent}2e 0%, #14102a 42%, #06060b 100%)` }}>
+      <Glow x="85%" y="12%" color={accent} size={620} opacity={0.3} />
+      <Glow x="5%" y="80%" color="#a855f7" size={560} opacity={0.28} />
+      <Glow x="80%" y="110%" color="#ff005c" size={460} opacity={0.16} />
+      <DartboardBackdrop size={760} opacity={0.07} style={{ right: -240, top: -160, transform: "rotate(8deg)" }} />
+      <div className="absolute inset-0" style={{ opacity: 0.05, background: "repeating-linear-gradient(115deg,#fff 0 1px,transparent 1px 12px)" }} />
+    </div>
+  );
+}
 
 // How often to ask for a fresh Edition while nothing's playable at all (see
 // the "nothing playable" effect below) — generous enough not to hammer the
@@ -297,10 +314,18 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
 
   const isTransition = position?.kind === "transition";
   const sceneAnimationClass = isTransition ? "scene-exit" : "scene-enter";
+  // Full-screen takeover: the big stories, and the scenes whose content
+  // needs the whole frame, step away from the desk. The presenters leave,
+  // the studio dims behind a premium backdrop and the speaker stays in the
+  // caption ring. Champion/Breaking keep their own dedicated sets.
+  const takeover = !!segment && segment.scene !== "champion" && segment.scene !== "breaking" && (
+    TAKEOVER_SCENES.has(segment.scene) || ((segment.importance === "major" || segment.importance === "featured") && !!segment.graphic)
+  );
 
   return (
-    <div className="fixed inset-0 flex flex-col select-none" style={{ width: "100vw", height: "100dvh", maxHeight: "100dvh", overflow: "hidden", background: "#06040e", fontFamily: "Oswald, sans-serif" }}>
+    <div className={`fixed inset-0 flex flex-col select-none ${takeover ? "lv-takeover" : ""}`} style={{ width: "100vw", height: "100dvh", maxHeight: "100dvh", overflow: "hidden", background: "#06040e", fontFamily: "Oswald, sans-serif" }}>
       <StudioBackdrop variant={backdropVariant} />
+      <TakeoverBackdrop on={takeover} accent={segment?.leagueType ? LEAGUE_ACCENT[segment.leagueType] : "#ffd24a"} />
       <PresenterOverlay
         variant={backdropVariant}
         activeSpeaker={activeTurn ? (activeTurn.speaker as "A" | "B") : null}
@@ -343,6 +368,8 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
       <div data-broadcast-region="ticker" className="relative shrink-0" style={{ zIndex: 2 }}>
         <LiveTicker items={tickerItems} namesByKey={namesByKey} />
       </div>
+
+      {isTransition && <div className="lv-stinger" aria-hidden="true"><span className="lv-stinger__bar" /><span className="lv-stinger__mark"><span className="pm-chrome">TKDL</span><b>LIVE</b></span></div>}
 
       {activeOverlay && (
         <LiveInsertOverlay overlay={activeOverlay} namesBySubjectKey={namesBySubjectKey} onDismiss={dismissOverlay} />

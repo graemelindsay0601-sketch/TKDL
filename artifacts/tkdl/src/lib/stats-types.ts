@@ -5,6 +5,8 @@ export type DartThrow = {
   mult: number;  // 1=single, 2=double, 3=treble
   val: number;   // scored value
   phase: "scoring" | "checkout";  // scoring=score>170, checkout=score≤170
+  /** Made up from a typed visit total (Visit total scorer): counts for visit stats, not per-segment stats. */
+  typed?: true;
 };
 
 export type PracticeStats = {

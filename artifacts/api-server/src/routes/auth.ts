@@ -1,5 +1,7 @@
 import { Router } from "express";
+import { syncPlayerNames } from "../lib/player-rename";
 import { eq, sql } from "drizzle-orm";
+import { passwordVariants } from "../lib/password-variants";
 import { db, usersTable, playersTable } from "@workspace/db";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -8,6 +10,9 @@ import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
 
+/** Shortest password allowed. Kept short on purpose: players type it on a phone at the board. */
+export const MIN_PASSWORD = 4;
+
 const LoginBody = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
@@ -15,8 +20,35 @@ const LoginBody = z.object({
 
 const ChangePasswordBody = z.object({
   currentPassword: z.string().min(1),
-  newPassword:     z.string().min(8),
+  newPassword:     z.string().trim().min(MIN_PASSWORD),
 });
+
+/**
+ * Usernames are made from the player's name ("Ronald Augustine" -> ronald_augustine),
+ * so accept what people actually type: any case, spaces instead of underscores,
+ * or their name as it appears in the league.
+ */
+export function normaliseUsername(input: string): string {
+  return input.toLowerCase().trim().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+}
+async function findLoginUser(input: string) {
+  const raw = input.toLowerCase().trim();
+  for (const candidate of [...new Set([raw, normaliseUsername(input)])]) {
+    if (!candidate) continue;
+    const [u] = await db.select().from(usersTable).where(eq(usersTable.username, candidate));
+    if (u) return u;
+  }
+  // Their player name, when exactly one account belongs to a player of that name.
+  const rows = await db.execute(sql`SELECT u.id FROM users u JOIN players p ON p.id = u.player_id WHERE lower(trim(p.name)) = ${raw}`);
+  if (rows.rows.length !== 1) return undefined;
+  const [u] = await db.select().from(usersTable).where(eq(usersTable.id, Number((rows.rows[0] as { id: number }).id)));
+  return u;
+}
+
+async function passwordMatches(pw: string, hash: string): Promise<boolean> {
+  for (const v of passwordVariants(pw)) if (await bcrypt.compare(v, hash)) return true;
+  return false;
+}
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -24,10 +56,10 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: "Username and password required" }); return; }
 
   const { username, password } = parsed.data;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username.toLowerCase().trim()));
+  const user = await findLoginUser(username);
   if (!user) { res.status(401).json({ error: "Invalid username or password" }); return; }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
+  const valid = await passwordMatches(password, user.passwordHash);
   if (!valid) { res.status(401).json({ error: "Invalid username or password" }); return; }
 
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, user.playerId));
@@ -65,6 +97,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   if (!user) { res.status(401).json({ error: "Session invalid" }); return; }
 
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, user.playerId));
+  const scorerStyle = await readScorerStyle(user.id);
 
   res.json({
     id:          user.id,
@@ -73,7 +106,31 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     playerId:    user.playerId,
     playerName:  player?.name ?? user.username,
     lastLoginAt: user.lastLoginAt,
+    scorerStyle,
   });
+});
+
+// ── Scorer style (which X01 scorer layout this player uses) ─────────────────
+export const SCORER_STYLES = ["total", "perdart", "classic"] as const;
+type ScorerStyle = (typeof SCORER_STYLES)[number];
+async function readScorerStyle(userId: number): Promise<ScorerStyle | null> {
+  try {
+    const r = await db.execute(sql`SELECT scorer_style FROM users WHERE id = ${userId}`);
+    const v = (r.rows[0] as { scorer_style?: string | null } | undefined)?.scorer_style ?? null;
+    return (SCORER_STYLES as readonly string[]).includes(v ?? "") ? (v as ScorerStyle) : null;
+  } catch {
+    return null; // column not there yet (boot migration pending): behave as "not chosen"
+  }
+}
+
+// ── PATCH /api/auth/scorer-style ─────────────────────────────────────────────
+router.patch("/auth/scorer-style", async (req, res): Promise<void> => {
+  const userId = (req.session as any).userId;
+  if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const style = (req.body ?? {}).style;
+  if (!(SCORER_STYLES as readonly string[]).includes(style)) { res.status(400).json({ error: "style must be one of total, perdart, classic" }); return; }
+  await db.execute(sql`UPDATE users SET scorer_style = ${style} WHERE id = ${userId}`);
+  res.json({ scorerStyle: style });
 });
 
 // ── PATCH /api/auth/password ──────────────────────────────────────────────────
@@ -87,10 +144,10 @@ router.patch("/auth/password", async (req, res): Promise<void> => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(401).json({ error: "Session invalid" }); return; }
 
-  const valid = await bcrypt.compare(parsed.data.currentPassword, user.passwordHash);
+  const valid = await passwordMatches(parsed.data.currentPassword, user.passwordHash);
   if (!valid) { res.status(400).json({ error: "Current password is incorrect" }); return; }
 
-  const hash = await bcrypt.hash(parsed.data.newPassword, 12);
+  const hash = await bcrypt.hash(parsed.data.newPassword.trim(), 12);
   await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.id, user.id));
 
   req.log.info({ userId: user.id }, "Password changed");
@@ -117,13 +174,13 @@ router.get("/admin/users", requireAdminSession, async (req, res): Promise<void> 
 // ── POST /api/admin/users ─────────────────────────────────────────────────────
 const CreateUserBody = z.object({
   playerId: z.number().int().positive(),
-  password: z.string().min(8),
+  password: z.string().trim().min(MIN_PASSWORD),
   isAdmin:  z.boolean().optional().default(false),
 });
 
 const OnboardPlayerBody = z.object({
   name:             z.string().trim().min(1).max(80),
-  password:         z.string().min(8),
+  password:         z.string().trim().min(MIN_PASSWORD),
   isAdmin:          z.boolean().optional().default(false),
   isActive:         z.boolean().optional().default(true),
   practiceEnabled:  z.boolean().optional().default(true),
@@ -173,7 +230,7 @@ router.post("/admin/onboard-player", requireAdminSession, async (req, res): Prom
       const baseUsername = player.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "") || `player_${player.id}`;
       const usernameRows = await tx.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, baseUsername));
       const username = usernameRows.length > 0 ? `${baseUsername}_${player.id}` : baseUsername;
-      const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+      const passwordHash = await bcrypt.hash(parsed.data.password.trim(), 12);
       const [user] = await tx.insert(usersTable).values({
         username,
         passwordHash,
@@ -216,7 +273,7 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
   const existingUsername = await db.select().from(usersTable).where(eq(usersTable.username, username));
   const finalUsername = existingUsername.length > 0 ? `${username}_${parsed.data.playerId}` : username;
 
-  const hash = await bcrypt.hash(parsed.data.password, 12);
+  const hash = await bcrypt.hash(parsed.data.password.trim(), 12);
   const [user] = await db.insert(usersTable).values({
     username:     finalUsername,
     passwordHash: hash,
@@ -238,7 +295,7 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
 });
 
 // ── POST /api/admin/users/:id/reset-password ──────────────────────────────────
-const ResetPasswordBody = z.object({ password: z.string().min(8) });
+const ResetPasswordBody = z.object({ password: z.string().trim().min(MIN_PASSWORD) });
 
 router.post("/admin/users/:id/reset-password", requireAdminSession, async (req, res): Promise<void> => {
   const userId = Number(req.params.id);
@@ -250,11 +307,44 @@ router.post("/admin/users/:id/reset-password", requireAdminSession, async (req, 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-  const hash = await bcrypt.hash(parsed.data.password, 12);
+  const hash = await bcrypt.hash(parsed.data.password.trim(), 12);
   await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.id, userId));
 
   logger.info({ userId }, "Password reset by admin");
   res.json({ ok: true, username: user.username });
+});
+
+// ── POST /api/admin/users/:id/rename ─────────────────────────────────────────
+// Renames the player and gives the account the matching username
+// ("Ronnie" -> ronnie), so what they're called is what they sign in with.
+const RenameBody = z.object({ name: z.string().trim().min(1).max(80) });
+
+router.post("/admin/users/:id/rename", requireAdminSession, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!Number.isInteger(userId) || userId <= 0) { res.status(400).json({ error: "Invalid id" }); return; }
+  const parsed = RenameBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Name required" }); return; }
+  const name = parsed.data.name.replace(/\s+/g, " ");
+  const username = normaliseUsername(name);
+  if (!username) { res.status(400).json({ error: "Name needs at least one letter or number" }); return; }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (!user.playerId) { res.status(400).json({ error: "This account isn't linked to a player" }); return; }
+
+  const nameClash = await db.execute(sql`SELECT id FROM players WHERE lower(trim(name)) = lower(${name}) AND id <> ${user.playerId} LIMIT 1`);
+  if (nameClash.rows.length) { res.status(409).json({ error: `Another player is already called ${name}` }); return; }
+  const [userClash] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
+  if (userClash && userClash.id !== userId) { res.status(409).json({ error: `The username ${username} is already taken` }); return; }
+
+  const before = await db.execute(sql`SELECT name FROM players WHERE id = ${user.playerId}`);
+  await db.transaction(async tx => {
+    await tx.execute(sql`UPDATE players SET name = ${name} WHERE id = ${user.playerId}`);
+    await tx.update(usersTable).set({ username }).where(eq(usersTable.id, userId));
+    await syncPlayerNames(tx, user.playerId!);
+  });
+  logger.info({ userId, playerId: user.playerId, from: (before.rows[0] as { name?: string } | undefined)?.name, to: name, username }, "Player renamed by admin");
+  res.json({ ok: true, username, playerName: name });
 });
 
 export default router;

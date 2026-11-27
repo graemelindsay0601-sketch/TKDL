@@ -31,3 +31,17 @@ export function decideSinglesChampion<P extends { id: number; points: number }>(
     ? { kind: "tied", tied, points: topPoints }
     : { kind: "champion", player: tied[0] };
 }
+
+/**
+ * The final Singles table at season end: only players who played at least one
+ * match that season (win or lose). Someone who never played isn't given a
+ * league position, can't be champion and earns no finishing-position
+ * achievements. Ordered by points, then Elo.
+ */
+export function finalStandingsOrder<P extends { id?: number; points: number; elo: number; seasonWins: number; seasonLosses: number; seasonGamesPlayed?: number | null }>(players: P[], playedInSeason?: Set<number>): P[] {
+  // Played = the running counters say so, OR there is a match row for them
+  // this season (so a counter that drifted can never cost someone their place).
+  return players
+    .filter(p => p.seasonWins + p.seasonLosses > 0 || (p.seasonGamesPlayed ?? 0) > 0 || (p.id !== undefined && !!playedInSeason?.has(p.id)))
+    .sort((a, b) => b.points - a.points || b.elo - a.elo);
+}

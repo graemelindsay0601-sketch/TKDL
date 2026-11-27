@@ -201,8 +201,27 @@ export function interpolateTemplate(template: string, facts: TemplateFacts): str
   return template.replace(PLACEHOLDER_PATTERN, (_match, key: string) => {
     const value = facts[key];
     if (value === undefined || value === null) throw new MissingFactError(key, template);
-    return String(value);
+    return spokenFactValue(value);
   });
+}
+
+/** Internal metric ids that can reach a spoken line, and how a presenter says them. */
+export const METRIC_SPOKEN_LABEL: Readonly<Record<string, string>> = {
+  scoringRate30: "scoring rate",
+  checkoutRate: "checkout rate",
+};
+
+/**
+ * How a fact reads aloud: fractional numbers are rounded (2.9333333333333336
+ * -> "2.93", never the raw float) and internal metric ids become words.
+ * Whole numbers and ordinary strings pass through unchanged.
+ */
+export function spokenFactValue(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value)) {
+    return String(Number(value.toFixed(value >= 10 ? 1 : 2)));
+  }
+  const s = String(value);
+  return METRIC_SPOKEN_LABEL[s] ?? s;
 }
 
 /** Every placeholder key a template references — used to pre-filter candidate phrases against a story's actual fact set before ever attempting (and risking a throw on) interpolation. */

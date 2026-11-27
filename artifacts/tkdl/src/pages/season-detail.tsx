@@ -193,7 +193,7 @@ export default function SeasonDetail() {
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6 justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+              <h1 className="pm-title text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
                 {season.name}
               </h1>
               {season.isActive && (
@@ -271,7 +271,10 @@ export default function SeasonDetail() {
         const stats = [
           { icon: <Flame className="w-4 h-4" />, color: "#ff005c", label: "Season Dominator", value: mostWins?.playerName ?? "—", sub: `${mostWins?.wins ?? 0}W–${mostWins?.losses ?? 0}L · ${winPct}% win rate` },
           { icon: <Zap className="w-4 h-4" />,   color: "#0066ff", label: "Peak Elo",          value: `${highestElo?.elo ?? 0}`,    sub: highestElo?.playerName ?? "—" },
-          { icon: <Crown className="w-4 h-4" />, color: "#ffd24a", label: "Points Leader",     value: `${mostPoints?.points ?? 0}`, sub: mostPoints?.playerName ?? "—" },
+          sorted.every(e => !e.points)
+            // Round robin season (before the points system): no points to lead.
+            ? { icon: <Crown className="w-4 h-4" />, color: "#ffd24a", label: "Best Win Rate", value: (() => { const b = [...sorted].filter(e => (e.wins ?? 0) + (e.losses ?? 0) > 0).sort((a, b2) => (b2.wins ?? 0) / Math.max((b2.wins ?? 0) + (b2.losses ?? 0), 1) - (a.wins ?? 0) / Math.max((a.wins ?? 0) + (a.losses ?? 0), 1))[0]; return b ? `${Math.round(((b.wins ?? 0) / Math.max((b.wins ?? 0) + (b.losses ?? 0), 1)) * 100)}%` : "—"; })(), sub: [...sorted].filter(e => (e.wins ?? 0) + (e.losses ?? 0) > 0).sort((a, b2) => (b2.wins ?? 0) / Math.max((b2.wins ?? 0) + (b2.losses ?? 0), 1) - (a.wins ?? 0) / Math.max((a.wins ?? 0) + (a.losses ?? 0), 1))[0]?.playerName ?? "—" }
+            : { icon: <Crown className="w-4 h-4" />, color: "#ffd24a", label: "Points Leader",     value: `${mostPoints?.points ?? 0}`, sub: mostPoints?.playerName ?? "—" },
           { icon: <BarChart3 className="w-4 h-4" />, color: "#4ade80", label: "Total Matches",  value: totalMatches,                  sub: `${sorted.length} players` },
         ];
 
@@ -470,11 +473,12 @@ export default function SeasonDetail() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className="flex-1 py-2 px-4 rounded-lg text-sm font-bold uppercase tracking-wider transition-all"
+            className="flex-1 py-2 px-2 rounded-full text-xs sm:text-sm uppercase whitespace-nowrap transition-all"
             style={{
               fontFamily: "Oswald, sans-serif",
-              background: activeTab === tab ? "#ff005c" : "transparent",
-              color: activeTab === tab ? "#fff" : "rgba(255,255,255,0.6)",
+              background: activeTab === tab ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "transparent",
+              color: activeTab === tab ? "#1a1200" : "#cfcade",
+              boxShadow: activeTab === tab ? "0 0 14px rgba(255,210,74,.4)" : undefined,
               letterSpacing: "0.08em",
             }}
           >
@@ -494,23 +498,22 @@ export default function SeasonDetail() {
           </div>
 
           <div
-            className="grid text-xs uppercase font-bold px-4 py-2 border-b"
-            style={{ gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem", borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
+            className="grid sd-grid text-xs uppercase font-bold px-4 py-2 border-b"
+            style={{ borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
           >
             <div className="text-center">#</div>
             <div>Player</div>
-            <div className="text-center">Tier</div>
+            <div className="text-center sd-tier justify-center">Tier</div>
             <div className="text-center">Record</div>
             <div className="text-right">Elo</div>
-            <div className="text-right">Points</div>
+            <div className="text-right">{!season.isActive && standings?.every(e => !e.points) ? "Win %" : "Points"}</div>
           </div>
 
           {standings?.map((entry, idx) => (
             <div
               key={entry.playerId}
-              className="grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
+              className="grid sd-grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
               style={{
-                gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem",
                 borderColor: "rgba(255,255,255,0.05)",
                 background: idx === 0 ? "rgba(255,210,74,0.04)" : undefined,
               }}
@@ -532,7 +535,7 @@ export default function SeasonDetail() {
                 )}
               </div>
 
-              <div className="flex justify-center">
+              <div className="sd-tier justify-center">
                 <TierBadge tier={entry.tier} />
               </div>
 
@@ -547,10 +550,16 @@ export default function SeasonDetail() {
               </div>
 
               <div className="text-right">
+                {!season.isActive && standings?.every(e => !e.points) ? (
+                  <span className="font-bold text-lg" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#ffd24a" : "rgba(255,255,255,0.75)" }}>
+                    {(entry.wins ?? 0) + (entry.losses ?? 0) > 0 ? Math.round(((entry.wins ?? 0) / ((entry.wins ?? 0) + (entry.losses ?? 0))) * 100) : 0}%
+                  </span>
+                ) : (<>
                 <span className="font-bold text-lg" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#ffd24a" : "#ff005c" }}>
                   {entry.points}
                 </span>
                 <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span>
+                </>)}
               </div>
             </div>
           ))}
@@ -660,12 +669,12 @@ export default function SeasonDetail() {
               ) : (
                 <>
                   <div
-                    className="grid text-xs uppercase font-bold px-4 py-2 border-b"
-                    style={{ gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem", borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
+                    className="grid sd-grid text-xs uppercase font-bold px-4 py-2 border-b"
+                    style={{ borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
                   >
                     <div className="text-center">#</div>
                     <div>Team</div>
-                    <div className="text-center">Tier</div>
+                    <div className="text-center sd-tier justify-center">Tier</div>
                     <div className="text-center">Record</div>
                     <div className="text-right">Elo</div>
                     <div className="text-right">Points</div>
@@ -673,9 +682,8 @@ export default function SeasonDetail() {
                   {doublesTeams.map((team: any, idx: number) => (
                     <div
                       key={team.id}
-                      className="grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
+                      className="grid sd-grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
                       style={{
-                        gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem",
                         borderColor: "rgba(255,255,255,0.05)",
                         background: idx === 0 && !team.isEliminated ? "rgba(0,102,255,0.05)" : undefined,
                         opacity: team.isEliminated ? 0.5 : 1,
@@ -697,7 +705,7 @@ export default function SeasonDetail() {
                           ))}
                         </div>
                       </div>
-                      <div className="flex justify-center">
+                      <div className="sd-tier justify-center">
                         <TierBadge tier={team.tier} />
                       </div>
                       <div className="text-center text-sm font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>

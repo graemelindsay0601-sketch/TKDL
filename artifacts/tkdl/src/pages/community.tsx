@@ -1,8 +1,9 @@
+import { PageHero } from "@/components/premium/Premium";
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactElement } from "react";
 import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Image as ImageIcon, Send, X, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown, Pin, Search, Eye, Bookmark } from "lucide-react";
+import { MessageSquare, Image as ImageIcon, Send, X, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown, Pin, Search, Eye, Bookmark, SmilePlus } from "lucide-react";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, postAccentStyle, taglineStyleCSS } from "@/lib/cosmetics";
 // Canonical tier→color map (see tier-badge.tsx) — this file's own local
 // copy had quietly drifted on Silver (#9ca3af vs the real #c0c8d8) until a
@@ -297,6 +298,8 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
     if (r.ok) { setReactors(await r.json()); setShowReactors(true); }
   };
 
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const togglePin = async () => {
     setPinning(true);
     try {
@@ -384,8 +387,14 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   return (
     <div id={`post-${post.id}`} className="rounded-2xl overflow-hidden scroll-mt-4"
       style={{
-        background: isPending ? "rgba(255,200,0,0.04)" : "rgba(255,255,255,0.03)",
-        border: `1px solid ${isPending ? "rgba(255,200,0,0.2)" : post.pinned ? "rgba(255,210,74,0.35)" : "rgba(255,255,255,0.07)"}`,
+        // Premium card (same as the rest of the app): tinted gradient edge,
+        // soft top-left glow; gold edge when pinned, amber while pending.
+        borderRadius: 20,
+        border: "1px solid transparent",
+        background: isPending
+          ? "linear-gradient(160deg, rgba(255,200,0,.12), rgba(18,16,26,.96) 60%) padding-box, linear-gradient(140deg, rgba(255,200,0,.6), rgba(255,200,0,.15)) border-box"
+          : `radial-gradient(120% 80% at 0% 0%, ${post.pinned ? "rgba(255,210,74,.14)" : "rgba(168,85,247,.12)"}, transparent 55%) padding-box, linear-gradient(180deg, #17141f, #0c0a12) padding-box, linear-gradient(140deg, ${post.pinned ? "rgba(255,210,74,.8)" : "rgba(255,255,255,.22)"} 0%, rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 65%, ${post.pinned ? "rgba(255,210,74,.45)" : "rgba(168,85,247,.35)"} 100%) border-box`,
+        boxShadow: `0 14px 34px rgba(0,0,0,.45)${post.pinned ? ", 0 0 26px rgba(255,210,74,.14)" : ""}`,
         ...postAccent,
       }}>
 
@@ -487,7 +496,7 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
             </div>
           </div>
         ) : post.content ? (
-          <p className="text-sm mb-3 leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
+          <p className="mb-3 leading-relaxed" style={{ color: "#ece9f5", fontSize: 15 }}>
             {renderPostContent(post.content, post.mentions)}
           </p>
         ) : null}
@@ -549,47 +558,51 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
         {/* Reaction bar */}
         {!isPending && (
           <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-            {EMOJIS.map(emoji => {
-              const count  = post.reactions[emoji] ?? 0;
-              const active = post.myReactions.includes(emoji);
+            {/* Only reactions someone has used show here; the React button
+                opens all ten (five emoji, five stickers) — the full set
+                used to sit on every post as three rows of buttons. */}
+            {[...EMOJIS, ...STICKERS].filter(r => (post.reactions[r] ?? 0) > 0 || post.myReactions.includes(r)).map(r => {
+              const count = post.reactions[r] ?? 0;
+              const active = post.myReactions.includes(r);
+              const sticker = (STICKERS as readonly string[]).includes(r);
               return (
-                <button key={emoji} onClick={() => user ? onReact(post.id, emoji) : void 0}
+                <button key={r} onClick={() => user ? onReact(post.id, r) : void 0}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all duration-150 select-none"
                   style={{
-                    background: active ? "rgba(255,0,92,0.15)" : "rgba(255,255,255,0.04)",
-                    border: `1px solid ${active ? "rgba(255,0,92,0.35)" : "rgba(255,255,255,0.08)"}`,
-                    color: active ? "#ff005c" : count > 0 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)",
+                    fontFamily: sticker ? "Oswald, sans-serif" : undefined, letterSpacing: sticker ? ".06em" : undefined,
+                    background: active ? (sticker ? "rgba(255,210,74,0.16)" : "rgba(255,0,92,0.15)") : "rgba(255,255,255,0.05)",
+                    border: `1px solid ${active ? (sticker ? "rgba(255,210,74,0.55)" : "rgba(255,0,92,0.4)") : "rgba(255,255,255,0.12)"}`,
+                    color: active ? (sticker ? "#ffd24a" : "#ff8fb3") : "rgba(255,255,255,0.75)",
                     cursor: user ? "pointer" : "default",
                   }}>
-                  <span>{emoji}</span>
+                  <span>{r}</span>
                   {count > 0 && <span className="font-bold" style={{ fontFamily: "Oswald, sans-serif" }}>{count}</span>}
                 </button>
               );
             })}
-
-            {/* Sticker reactions — same toggle mechanics as the plain emoji
-                pills above (same onReact/myReactions), styled distinctly
-                (mono type, gold-tinted) so they read as a separate,
-                collectible-feeling row rather than more of the same five
-                emoji. */}
-            {STICKERS.map(sticker => {
-              const count  = post.reactions[sticker] ?? 0;
-              const active = post.myReactions.includes(sticker);
-              return (
-                <button key={sticker} onClick={() => user ? onReact(post.id, sticker) : void 0}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all duration-150 select-none"
-                  style={{
-                    fontFamily: "Share Tech Mono, monospace",
-                    background: active ? "rgba(255,210,74,0.15)" : "rgba(255,210,74,0.04)",
-                    border: `1px solid ${active ? "rgba(255,210,74,0.5)" : "rgba(255,210,74,0.18)"}`,
-                    color: active ? "#ffd24a" : count > 0 ? "rgba(255,210,74,0.7)" : "rgba(255,210,74,0.35)",
-                    cursor: user ? "pointer" : "default",
-                  }}>
-                  <span>{sticker}</span>
-                  {count > 0 && <span className="font-bold">{count}</span>}
-                </button>
-              );
-            })}
+            {user && (
+              <button type="button" onClick={() => setPickerOpen(o => !o)} aria-expanded={pickerOpen}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs select-none"
+                style={{ fontFamily: "Oswald, sans-serif", letterSpacing: ".1em", textTransform: "uppercase", color: pickerOpen ? "#1a1200" : "#ffd24a", background: pickerOpen ? "linear-gradient(180deg,#ffe58a,#e0a800)" : "rgba(255,210,74,0.08)", border: "1px solid rgba(255,210,74,0.45)" }}>
+                <SmilePlus className="w-3.5 h-3.5" />React
+              </button>
+            )}
+            {pickerOpen && (
+              <div className="w-full mt-1 p-2 rounded-2xl grid grid-cols-5 gap-1.5" style={{ background: "rgba(10,8,18,.9)", border: "1px solid rgba(255,210,74,.25)" }}>
+                {[...EMOJIS, ...STICKERS].map(r => {
+                  const active = post.myReactions.includes(r);
+                  const sticker = (STICKERS as readonly string[]).includes(r);
+                  return (
+                    <button key={r} type="button" onClick={() => { onReact(post.id, r); setPickerOpen(false); }}
+                      className="rounded-xl py-2 text-center select-none"
+                      style={{ fontSize: sticker ? 10 : 18, fontFamily: sticker ? "Oswald, sans-serif" : undefined, letterSpacing: sticker ? ".04em" : undefined, lineHeight: 1.15,
+                        color: sticker ? "#ffd24a" : undefined, background: active ? "rgba(255,210,74,0.16)" : "rgba(255,255,255,0.04)", border: `1px solid ${active ? "rgba(255,210,74,0.5)" : "rgba(255,255,255,0.08)"}` }}>
+                      {r}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* RSVP — "I'm in", pinned posts only (an admin has to have
                 deliberately flagged this as a real announcement/signup
@@ -1224,7 +1237,7 @@ export default function CommunityPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
+    <div className="max-w-xl mx-auto px-4 py-6 space-y-4 pm-page">
 
       {/* Admin preview banner */}
       {communityEnabled === false && user?.isAdmin && (
@@ -1236,12 +1249,21 @@ export default function CommunityPage() {
       )}
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>OFF THE OCHE</h1>
-        <p className="text-xs italic mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-          Whatever's on your mind — on or off the oche.
-        </p>
-      </div>
+      <PageHero kicker="The clubhouse" icon={<MessageSquare className="w-3.5 h-3.5" />} title="Off the Oche" accent="#ff005c" accent2="#0066ff"
+        sub="Whatever's on your mind — on or off the oche.">
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[
+            { v: posts.length, l: "Posts", c: "#ff7aa6" },
+            { v: activeMembers.length, l: "Posting", c: "#9cc6ff" },
+            { v: posts.filter(p => p.photo_content_type).length, l: "Photos", c: "#ffd24a" },
+          ].map(t => (
+            <div key={t.l} className="rounded-2xl px-1 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)" }}>
+              <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 24, color: t.c, textShadow: `0 0 14px ${t.c}77` }}>{t.v}</div>
+              <div className="pm-lab justify-center mt-1" style={{ fontSize: 8.5, letterSpacing: ".12em" }}>{t.l}</div>
+            </div>
+          ))}
+        </div>
+      </PageHero>
 
       {/* This day last year — a dismissible throwback, shown only when one
           actually exists (see GET /community/throwback's fuzzy ±3 day
@@ -1415,8 +1437,7 @@ export default function CommunityPage() {
       {user ? (
         showCreate ? (
           <form onSubmit={handleCreatePost}
-            className="rounded-2xl p-4 space-y-3"
-            style={{ background: "rgba(255,0,92,0.04)", border: "1px solid rgba(255,0,92,0.18)" }}>
+            className="pm-card p-4 space-y-3" style={{ ["--pm-acc" as any]: "#ff005c" }}>
             <textarea value={createText} onChange={e => setCreateText(e.target.value)}
               placeholder="What's happening in the darts room…"
               rows={3} maxLength={1000}
@@ -1479,14 +1500,14 @@ export default function CommunityPage() {
           </form>
         ) : (
           <button onClick={() => setShowCreate(true)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-colors hover:bg-white/[0.02]"
-            style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.15)" }}>
-            <span className="flex-1 text-sm italic" style={{ color: "rgba(255,255,255,0.3)" }}>
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-colors"
+            style={{ background: "linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02))", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)" }}>
+            <span className="flex-1 text-sm italic" style={{ color: "#a9a4bd" }}>
               Chalk something up…
             </span>
             <ImageIcon className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
-            <span className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold"
-              style={{ background: "rgba(255,0,92,0.18)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+            <span className="shrink-0 px-4 py-1.5 rounded-full text-xs"
+              style={{ background: "linear-gradient(180deg, #ffe58a, #e0a800)", border: "1px solid #ffd24a", color: "#1a1200", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", boxShadow: "0 0 12px rgba(255,210,74,.35)" }}>
               POST
             </span>
           </button>
@@ -1595,8 +1616,8 @@ export default function CommunityPage() {
 
       {/* Tabs + sort — filters/reorders the feed already loaded above */}
       {!loading && posts.length > 0 && !searchQuery.trim() && (
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap">
             {([
               ["all", "All", null],
               ["photos", "Photos", "📸"],
@@ -1604,14 +1625,15 @@ export default function CommunityPage() {
               ["saved", "Saved", "🔖"],
             ] as const).filter(([key]) => key !== "saved" || !!user).map(([key, label, icon]) => (
               <button key={key} onClick={() => { setTab(key); setExpandedPhotoId(null); }}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] whitespace-nowrap transition-all"
                 style={{
-                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase",
-                  background: tab === key ? "rgba(255,0,92,0.22)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${tab === key ? "rgba(255,0,92,0.45)" : "rgba(255,255,255,0.08)"}`,
-                  color: tab === key ? "#ff6b9c" : "rgba(255,255,255,0.4)",
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", textTransform: "uppercase",
+                  background: tab === key ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${tab === key ? "#ffd24a" : "rgba(255,255,255,0.12)"}`,
+                  color: tab === key ? "#1a1200" : "#cfcade",
+                  boxShadow: tab === key ? "0 0 12px rgba(255,210,74,.35)" : undefined,
                 }}>
-                {icon && <span>{icon}</span>}{label}
+                {icon && <span className="hidden sm:inline">{icon}</span>}{label}
               </button>
             ))}
           </div>

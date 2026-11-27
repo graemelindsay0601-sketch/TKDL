@@ -270,3 +270,16 @@
     box-shadow: none;
   }
 }
+
+/* ── Premium pass: glow-edged score cards (the thrower's lit in their colour), richer visit strip ── */
+.x01-player-grid > .pdc-card {
+  border: 1px solid transparent !important;
+  border-radius: 16px !important;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.06), rgba(18,16,28,.96) 45%, rgba(9,8,14,.98)) padding-box,
+    linear-gradient(160deg, rgba(255,255,255,.22), rgba(255,255,255,.05) 50%, rgba(255,255,255,.12)) border-box !important;
+  box-shadow: 0 14px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07) !important;
+}
+.x01-visit-card .pdc-card { border-radius: 16px !important; }
+.x01-event-header { border-radius: 16px; }
+.x01-keypad-dock { border-radius: 20px 20px 0 0 !important; border-color: rgba(255,210,74,.22) !important; box-shadow: 0 -10px 34px rgba(0,0,0,.35), 0 -1px 0 rgba(255,210,74,.15), inset 0 1px rgba(255,255,255,.05) !important; }

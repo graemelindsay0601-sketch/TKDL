@@ -13,6 +13,9 @@ import { drawDoublesTeams } from "../lib/doublesDraw";
 import { logger } from "../lib/logger";
 import { logAdminAction, getRecentAdminActions } from "../lib/adminAudit";
 import { invalidateProgressCache } from "./players";
+import { checkSinglesSeasonTables, tidySinglesSeasonTables, restoreRemovedStandings } from "../lib/tidy-season-standings";
+import { grantIfNotHas } from "../lib/achievement-grant";
+import { scheduleSync as scheduleAchievementsV2Sync } from "../lib/achievements-v2/live";
 
 const router = Router();
 
@@ -723,6 +726,26 @@ router.post("/admin/seasons/:id/doubles/draw", async (req, res): Promise<void> =
     newTeams:result.teams.length,
   });
   res.status(201).json({ teams: result.teams });
+});
+
+// ── Past season tables (Singles) ────────────────────────────────────────────
+// Check what each finished season's final table says against its match rows;
+// tidy takes off players with a 0-0 row and no matches that season (backed up,
+// restorable). Nothing changes until an admin presses Tidy.
+router.get("/admin/season-tables/check", async (_req, res): Promise<void> => {
+  res.json({ seasons: await checkSinglesSeasonTables(db as never) });
+});
+router.post("/admin/season-tables/tidy", async (req, res): Promise<void> => {
+  const r = await tidySinglesSeasonTables(db as never);
+  for (const m of r.moved) if (m.to <= 3) await grantIfNotHas(m.playerId, "UNBREAKABLE").catch(err => logger.error({ err, m }, "UNBREAKABLE grant failed"));
+  if (r.removed.length || r.moved.length) scheduleAchievementsV2Sync();
+  await logAdminAction(req, "season_tables.tidy", "seasons", null, { removed: r.removed.length, moved: r.moved.length });
+  res.json(r);
+});
+router.post("/admin/season-tables/restore", async (req, res): Promise<void> => {
+  const restored = await restoreRemovedStandings(db as never);
+  await logAdminAction(req, "season_tables.restore", "seasons", null, { restored });
+  res.json({ restored });
 });
 
 export default router;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { Flame, Swords, User, Users, Bot, Trophy, Skull, Crown, Square, Infinity as InfinityIcon, BookOpen, CalendarDays } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
 import { useListPlayers } from "@workspace/api-client-react";
@@ -264,6 +265,7 @@ export default function BoardCursePage() {
             ? `The ${screen.visitLimit}-visit limit expired${screen.decisiveCurse ? ` under ${screen.decisiveCurse}` : ""}.`
             : screen.streak === 0 ? "No completed leg was banked." : isNewBest ? "New personal best!" : `Personal best: ${screen.bestStreak} legs`}</p>
           <div className={`bc-save-state ${saveState}`}>{saveState === "saving" ? "Saving run…" : saveState === "saved" ? "Run saved · records and rewards updated" : saveState === "error" ? "Run shown, but it could not be saved" : "Arcade run"}</div>
+          {playerId && <div style={{ margin: "14px 0", textAlign: "left" }}><NearlyThere players={[{ id: playerId }]} areas={["MODES"]} /></div>}
           <div className="bc-result-actions">
             <button className="bc-btn-ghost" onClick={() => setScreen({ kind: "setup" })}>Back to setup</button>
             <button className="bc-btn-primary" onClick={handleStart}>Run it back</button>
@@ -395,6 +397,7 @@ export default function BoardCursePage() {
             </>
           )}
           <div className={`bc-save-state ${saveState}`}>{saveState === "saving" ? "Saving match…" : saveState === "saved" ? "Match saved · records and rewards updated" : saveState === "error" ? "Match shown, but it could not be saved" : "Arcade match"}</div>
+          {playerId && <div style={{ margin: "14px 0", textAlign: "left" }}><NearlyThere players={[{ id: playerId }]} areas={["MODES"]} /></div>}
           <div className="bc-result-actions">
             <button className="bc-btn-ghost" onClick={() => setScreen({ kind: "setup" })}>Back to setup</button>
             <button className="bc-btn-primary" onClick={handleStart}>Run it back</button>
