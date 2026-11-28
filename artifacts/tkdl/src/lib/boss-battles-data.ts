@@ -16,9 +16,10 @@
 
 import type { CCEffect } from "./card-effect-engine";
 import type { BotLevel } from "./bot-engine";
-import { BOSS_ROSTER, WORLDS, type BossMode, type WorldId } from "./darts-rules.ts";
+import { BOSS_ROSTER, WORLDS, PERKS, type BossMode, type WorldId, type PerkId } from "./darts-rules.ts";
 
-export { WORLDS };
+export { WORLDS, PERKS };
+export type { PerkId };
 export type { BossMode, WorldId };
 
 export interface BossMove {
@@ -395,3 +396,13 @@ export function getBossById(id: string): Boss | undefined {
 export const worldOf = (id: WorldId) => WORLDS.find(w => w.id === id)!;
 
 export const pickLine = (lines: string[]) => lines[Math.floor(Math.random() * lines.length)];
+
+/** A perk's effect on your own darts (the ones the effects engine does; the rest are fight rules in BossBattleScorer). */
+export function perkEffects(perk: PerkId | null | undefined): CCEffect[] {
+  const e: Partial<CCEffect> | null = perk === "steady-hand" ? { missToMin: true }
+    : perk === "second-wind" ? { preventBustInCheckout: true }
+    : perk === "treble-hunter" ? { trebleMultiplier: 1.3, oneShotTrebleMultiplier: true }
+    : null;
+  const name = PERKS.find(p => p.id === perk)?.name ?? "";
+  return e ? [{ ...e, cardName: name, appliedBy: 0, affectsPlayer: 0, status: "active", legDuration: true } as CCEffect] : [];
+}

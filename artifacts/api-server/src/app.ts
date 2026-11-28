@@ -149,6 +149,7 @@ import { initializeOcheExtrasScheduler } from "./lib/oche-extras-db";
 import { initializeShadowCupScheduler } from "./lib/shadow-cup-db";
 import { initializeShadowLadderScheduler } from "./lib/shadow-ladder-db";
 import { initializeShadowLegendsScheduler } from "./lib/shadow-extras-db";
+import { ensureBossRewards } from "./lib/boss-rewards-db";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
@@ -1883,6 +1884,7 @@ async function initRuntime() {
   await runInitStep("initializeShadowCupScheduler", initializeShadowCupScheduler);
   await runInitStep("initializeShadowLadderScheduler", initializeShadowLadderScheduler);
   await runInitStep("initializeShadowLegendsScheduler", initializeShadowLegendsScheduler);
+  await runInitStep("ensureBossRewards", ensureBossRewards);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
   await runInitStep("initializeLeagueTargetScheduler", async () => {
     const { initializeLeagueTargetScheduler } = await import("./lib/league-target-db");

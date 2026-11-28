@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { Swords, Lock, Trophy, Skull, Clock, Users, Shield, Ghost, LockKeyhole, Zap, Sparkles, CheckCircle2, Heart, Gauge } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
-import { BOSSES, WORLDS, worldOf, pickLine, type Boss } from "@/lib/boss-battles-data";
+import { BOSSES, WORLDS, PERKS, worldOf, type Boss, type PerkId } from "@/lib/boss-battles-data";
 import { BossPortrait } from "@/components/boss/BossPortrait";
-import { bossUnlocked } from "@/lib/darts-rules";
+import { bossUnlocked, nemesisOf, unlockedPerks, REVENGE_COINS } from "@/lib/darts-rules";
+import { Link } from "wouter";
+import { BookOpen, Gift, Flame } from "lucide-react";
 import { BOT_LEVELS, type ShadowProfile } from "@/lib/bot-engine";
 import { possessedBossIndex } from "@/lib/darts-rules";
 import { BossBattleScorer, type BossFightResult } from "@/components/BossBattleScorer";
@@ -16,8 +18,8 @@ import "./boss-battle.css";
 type Screen =
   | { kind: "ladder" }
   | { kind: "entrance"; boss: Boss; ascension?: number }
-  | { kind: "fight"; boss: Boss; rush?: boolean; ascension?: number; possessed?: boolean }
-  | { kind: "result"; boss: Boss; won: boolean; elapsedSeconds?: number; cleanSweep: boolean; ascension?: number; exorcised?: boolean | null }
+  | { kind: "fight"; boss: Boss; rush?: boolean; ascension?: number; possessed?: boolean; perk?: PerkId | null }
+  | { kind: "result"; boss: Boss; won: boolean; elapsedSeconds?: number; cleanSweep: boolean; ascension?: number; exorcised?: boolean | null; loot?: { name: string; category: string }; revenge?: { coins: number } }
   | { kind: "rush-break"; boss: Boss; nextBoss: Boss; lives: number; wins: number }
   | { kind: "rush-result"; cleared: boolean; wins: number; elapsedSeconds: number; lives: number };
 
@@ -84,6 +86,9 @@ export default function BossBattlePage() {
   const [possession, setPossession] = useState<{ week: string; playerId: number; name: string; profile: any } | null>(null);
   // The Mirror throws your own darts, if your shadow is unlocked and has real dart-by-dart data.
   const [mirror, setMirror] = useState<ShadowProfile | undefined>(undefined);
+  // The perk you take into fights (remembered on this device).
+  const [perk, setPerkState] = useState<PerkId | null>(() => { try { return (localStorage.getItem("tkdl:boss-perk") as PerkId) || null; } catch { return null; } });
+  const setPerk = (p: PerkId | null) => { setPerkState(p); try { p ? localStorage.setItem("tkdl:boss-perk", p) : localStorage.removeItem("tkdl:boss-perk"); } catch { /* private mode */ } };
   useEffect(() => {
     setMirror(undefined);
     if (!playerId) return;
@@ -152,7 +157,8 @@ export default function BossBattlePage() {
   const startFight = (boss: Boss, ascension = 0, possessed = false) => {
     setSaveState("idle");
     setFightStartedAt(Date.now());
-    setScreen({ kind: "fight", boss, ascension, possessed });
+    const usable = perk && PERKS.find(x => x.id === perk)?.modes.includes(boss.gameMode) && unlockedPerks(defeated).some(x => x.id === perk) ? perk : null;
+    setScreen({ kind: "fight", boss, ascension, possessed, perk: usable });
   };
 
   const startRush = () => {
@@ -181,6 +187,7 @@ export default function BossBattlePage() {
     const elapsedSeconds = fightStartedAt ? Math.round((Date.now() - fightStartedAt) / 1000) : undefined;
     // Mastery medal 2: a 2-0 in 501 / Cricket, or a flawless win in the party-game fights.
     const cleanSweep = won && (/^2[–-]0 legs$/i.test(result.detail ?? "") || !!result.flawless);
+    let rewards: { loot?: { name: string; category: string }; revenge?: { coins: number } } = {};
     if (playerId) {
       setSaveState("saving");
       try {
@@ -192,6 +199,7 @@ export default function BossBattlePage() {
         if (!response.ok) throw new Error(data?.error ?? "Result could not be saved");
         setSaveState("saved");
         if (Array.isArray(data.achievements) && data.achievements.length) setRewardQueue(data.achievements);
+        rewards = { loot: data.loot, revenge: data.revenge };
         // Refetch rather than patch locally — attempts/wins/best time are
         // server-computed (upserts, min() on best time), so re-reading is
         // the only way to stay exactly in sync with what was actually saved.
@@ -222,7 +230,7 @@ export default function BossBattlePage() {
       exorcised = await fetch("/api/shadow-possession/exorcise", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ week: possession.week, boss: boss.name }) }).then(r => r.ok ? r.json() : null).then(j => !!j?.unlocked).catch(() => null);
     }
-    setScreen({ kind: "result", boss, won, elapsedSeconds, cleanSweep, ascension, exorcised });
+    setScreen({ kind: "result", boss, won, elapsedSeconds, cleanSweep, ascension, exorcised, ...rewards });
   };
 
   const sortedBosses = [...BOSSES].sort((a, b) => a.order - b.order);
@@ -236,6 +244,9 @@ export default function BossBattlePage() {
     doubleRates: p.doubleRates, pressureDoubleHitPct: p.pressureDoubleHitPct, thin: p.thin, eraLabel: p.eraLabel } as ShadowProfile);
   const possessedProfile = (): ShadowProfile | undefined => possession ? toShadow(possession.playerId, possession.name, possession.profile) : undefined;
   const masteryTotal = sortedBosses.reduce((sum, boss) => sum + masteryCount(boss, defeated, stats[boss.id]), 0);
+  const nemesis = nemesisOf(stats, defeated);
+  const nemesisBoss = nemesis ? BOSSES.find(b => b.id === nemesis.bossId) : null;
+  const myPerks = unlockedPerks(defeated);
 
   if (loading) {
     return <div className="bb-shell" style={{ textAlign: "center", paddingTop: "4rem", color: "rgba(255,255,255,0.3)" }}>Loading…</div>;
@@ -249,6 +260,7 @@ export default function BossBattlePage() {
         ascension={screen.ascension}
         possessedBy={screen.possessed && !screen.rush && screen.boss.id === possessedId ? possessedProfile() : undefined}
         mirrorOf={mirror}
+        perk={screen.perk ?? null}
         onMatchComplete={(r) => handleMatchComplete(screen.boss, r, screen.ascension ?? 0, !!screen.possessed)}
         onAbandon={() => {
           if (rush) void saveRush(false, rush.wins, Math.max(1, Math.round((Date.now() - rush.startedAt) / 1000)));
@@ -319,6 +331,24 @@ export default function BossBattlePage() {
               return <button key={level} disabled={!allowed} className={ascension === level ? "active" : ""} onClick={() => setScreen({ kind: "entrance", boss, ascension: level })}>{level === 0 ? "Standard" : `Ascension ${level}`}{level === 2 && !allowed ? " · 3 medals required" : ""}</button>;
             })}
           </div>}
+          {nemesis?.bossId === boss.id && (
+            <div className="bb-nemesis-note"><Flame /> <span><b>Your Nemesis.</b> It's beaten you {nemesis.losses} times. Beat it for a revenge bonus of {REVENGE_COINS} coins.</span></div>
+          )}
+          <div className="bb-perks">
+            <div className="bb-perks-head"><span>Perk</span><small>{myPerks.length ? "Take one into the fight" : "Beat certain bosses to unlock perks"}</small></div>
+            <div className="bb-perk-row">
+              <button className={`bb-perk ${!perk ? "on" : ""}`} onClick={() => setPerk(null)}><b>None</b></button>
+              {PERKS.map(pk => {
+                const have = myPerks.some(m => m.id === pk.id), fits = pk.modes.includes(boss.gameMode);
+                return (
+                  <button key={pk.id} disabled={!have || !fits} className={`bb-perk ${perk === pk.id && have && fits ? "on" : ""} ${!have ? "locked" : ""}`} onClick={() => setPerk(pk.id)}>
+                    <b>{have ? pk.name : "???"}</b>
+                    <small>{!have ? `Beat ${BOSSES.find(b => b.id === pk.from)?.name}` : !fits ? "Not in this game" : pk.description}</small>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {boss.id === "the-mirror" && <div className="bb-vs-hp"><b>{mirror ? "It throws your darts:" : "It borrows an elite thrower's darts"}</b> {mirror ? `your own shadow, ${Number(mirror.computedAvg).toFixed(0)} avg, with your habits.` : "until your shadow is unlocked with enough dart-by-dart data. Then it throws like you."}</div>}
           <div className="bb-vs-hp">
             <b>Health bar fight.</b> {boss.gameMode === "X01" ? "Your scoring knocks its health down; a leg it wins heals it. A 100+ visit stuns its curse for your next visit, and a 180 breaks it for the rest of the phase."
@@ -375,6 +405,10 @@ export default function BossBattlePage() {
                 <span className={cleanSweep ? "earned" : ""}><Sparkles /> {boss.gameMode === "X01" || boss.gameMode === "CRICKET" ? "2–0 sweep" : "Flawless"}</span>
                 <span className={elapsedSeconds !== undefined && elapsedSeconds <= boss.masterySeconds ? "earned" : ""}><Clock /> Under {formatSeconds(boss.masterySeconds)}</span>
               </div>
+              {screen.loot && (
+                <div className="bb-loot-card"><Gift /> <div><small>Loot · exclusive</small><strong>{screen.loot.name}</strong><span>{screen.loot.category === "LEADERBOARD_TAG" ? "Leaderboard tag" : screen.loot.category === "FRAME" ? "Profile frame" : screen.loot.category === "NAME_STYLE" ? "Name style" : "Profile banner"} · equip it in your Locker</span></div></div>
+              )}
+              {screen.revenge && <div className="bb-nemesis-note"><Flame /> <span><b>Revenge!</b> You beat your Nemesis. +{screen.revenge.coins} coins.</span></div>}
               {screen.exorcised != null && possession && (
                 <div className="bb-possessed-note"><Ghost /> <span><b>Shadow {possession.name} driven out.</b>{screen.exorcised ? " Unlocked: the Exorcist tag." : " You already have the Exorcist tag."}</span></div>
               )}
@@ -417,6 +451,8 @@ export default function BossBattlePage() {
             <button className={`bb-pill-btn ${showLeaderboard ? "active" : ""}`} onClick={toggleLeaderboard}>
               <Users className="w-3.5 h-3.5" /> Hall of Challengers
             </button>
+            <Link href="/boss-battle/bestiary" className="bb-pill-btn"><BookOpen className="w-3.5 h-3.5" /> Bestiary</Link>
+            {nemesisBoss && <span className="bb-pill-btn nemesis"><Flame className="w-3.5 h-3.5" /> Nemesis: {nemesisBoss.name}</span>}
             {defeatedCount === sortedBosses.length && <button className="bb-pill-btn rush" onClick={startRush}><Gauge className="w-3.5 h-3.5" /> Boss Rush</button>}
           </div>
         </div>
@@ -533,6 +569,7 @@ export default function BossBattlePage() {
                 <div className="bb-boss-body">
                   <div className="bb-boss-name">{boss.name}</div>
                   <div className="bb-boss-tag">{unlocked ? boss.tagline : "Beat the previous boss to unlock"}</div>
+                  {nemesis?.bossId === boss.id && <div className="bb-nemesis-tag"><Flame size={11} /> Your Nemesis · beaten you {nemesis.losses}×</div>}
                   {boss.id === possessedId && possession && <div className="bb-possessed-tag"><Ghost size={11} /> Possessed by Shadow {possession.name} this week</div>}
                   {unlocked && bossStats && bossStats.attempts > 0 && (
                     <div className="bb-boss-stats">

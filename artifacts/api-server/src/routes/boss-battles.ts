@@ -25,6 +25,7 @@ import { bossBattleRateLimit } from "../middleware/writeRateLimit";
 import { checkBossBattleAchievements } from "../lib/boss-battle-achievements";
 import { isRecentDuplicateSubmit } from "../lib/recentSubmitGuard";
 import { BOSS_ROSTER, TOTAL_BOSSES, rosterByOrder } from "../shared/darts-rules/boss-roster";
+import { afterBossWin, currentNemesis } from "../lib/boss-rewards-db";
 
 const router = Router();
 
@@ -134,6 +135,7 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
     }
 
     const bestSeconds = didWin ? sanitizeSeconds(elapsedSeconds) : null;
+    const nemesisBefore = didWin ? await currentNemesis(pid).catch(() => null) : null;
     const [previousProgress, previousStats] = await Promise.all([
       db.execute(sql`SELECT 1 FROM boss_battle_progress WHERE player_id=${pid} AND boss_id=${bossId} LIMIT 1`),
       db.execute(sql`SELECT best_seconds,clean_sweep,highest_ascension FROM boss_battle_stats WHERE player_id=${pid} AND boss_id=${bossId} LIMIT 1`),
@@ -199,7 +201,8 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
     // crashing the whole Node process (Node >=15 default behavior) after this
     // attempt has already committed and responded successfully.
     const achievements = await checkBossBattleAchievements(pid);
-    res.json({ success: true, saved: true, achievements });
+    const rewards = didWin ? await afterBossWin(pid, player.name, bossId, firstDefeat, nemesisBefore) : {};
+    res.json({ success: true, saved: true, achievements, ...rewards });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record boss battle attempt");
     res.status(500).json({ error: "Failed to record boss battle attempt" });

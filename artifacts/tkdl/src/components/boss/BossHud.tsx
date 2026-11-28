@@ -5,7 +5,7 @@ import { BossPortrait } from "./BossPortrait";
 import { worldOf, type Boss, type BossMove } from "@/lib/boss-battles-data";
 import "./boss.css";
 
-export type CurseState = "on" | "stunned" | "broken" | "none";
+export type CurseState = "on" | "stunned" | "broken" | "none" | "warded";
 
 export function BossHud({ boss, health, phase, move, curse, bubble, mood, possessedBy }: {
   boss: Boss; health: number; phase: 1 | 2 | 3; move: BossMove; curse: CurseState;
@@ -31,9 +31,9 @@ export function BossHud({ boss, health, phase, move, curse, bubble, mood, posses
           <b className="bh-pct">{pct}%</b>
         </div>
         <div className={`bh-move ${curse}`}>
-          {curse === "broken" ? <ShieldOff size={12} /> : curse === "stunned" ? <ZapOff size={12} /> : <Zap size={12} />}
+          {curse === "broken" || curse === "warded" ? <ShieldOff size={12} /> : curse === "stunned" ? <ZapOff size={12} /> : <Zap size={12} />}
           <span className="bh-mn">{move.name}</span>
-          <span className="bh-ms">{curse === "broken" ? "broken by your 180" : curse === "stunned" ? "stunned for this visit" : move.description}</span>
+          <span className="bh-ms">{curse === "broken" ? "broken" : curse === "stunned" ? "stunned for this visit" : curse === "warded" ? "Iron Will: can't touch you" : move.description}</span>
         </div>
       </div>
       {bubble && <div key={bubble.key} className="bh-bubble">{bubble.text}</div>}

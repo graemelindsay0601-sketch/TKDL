@@ -43,6 +43,8 @@ const KIND: Record<string, { icon: typeof Trophy; colour: string; tag: string }>
   bounty_claimed: { icon: Coins,      colour: "#ffd24a", tag: "Bounty" },
   shadow_cup:     { icon: Ghost,      colour: "#a78bfa", tag: "Shadow Cup" },
   legend_slain:   { icon: Crown,      colour: "#ffd24a", tag: "Legend slain" },
+  boss_world:     { icon: Swords,     colour: "#ff7a45", tag: "Boss Battle" },
+  boss_revenge:   { icon: Flame,      colour: "#ff2d55", tag: "Revenge" },
 };
 
 const ago = (iso: string) => {

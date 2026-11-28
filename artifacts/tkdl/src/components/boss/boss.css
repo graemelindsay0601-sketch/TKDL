@@ -40,9 +40,9 @@
 .bh-move svg{flex-shrink:0;color:var(--bw)}
 .bh-mn{font:700 11px Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#fff;white-space:nowrap}
 .bh-ms{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bh-move.stunned .bh-mn,.bh-move.broken .bh-mn{text-decoration:line-through;opacity:.6}
+.bh-move.stunned .bh-mn,.bh-move.broken .bh-mn,.bh-move.warded .bh-mn{text-decoration:line-through;opacity:.6}
 .bh-move.stunned svg,.bh-move.stunned .bh-ms{color:#7dd3fc}
-.bh-move.broken svg,.bh-move.broken .bh-ms{color:#4ade80}
+.bh-move.broken svg,.bh-move.broken .bh-ms,.bh-move.warded svg,.bh-move.warded .bh-ms{color:#4ade80}
 .bh-bubble{position:absolute;left:58px;top:calc(100% - 6px);z-index:5;max-width:72%;padding:6px 11px;border-radius:3px 12px 12px 12px;background:#fff;color:#111;
   font:600 12.5px/1.25 Oswald,sans-serif;letter-spacing:.02em;box-shadow:0 6px 18px rgba(0,0,0,.45);animation:bh-say 2.8s ease forwards;pointer-events:none}
 @keyframes bh-say{0%{opacity:0;transform:translateY(6px) scale(.9)}8%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0;transform:translateY(-4px)}}

@@ -1,0 +1,43 @@
+.bx-back{display:inline-flex;align-items:center;gap:6px;margin-bottom:10px;font:600 12px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.6)}
+.bx-hero{padding:18px 4px 10px}
+.bx-hero small{font:600 11px Oswald,sans-serif;letter-spacing:.28em;text-transform:uppercase;color:#ff5c8a}
+.bx-hero h1{margin:4px 0;font:700 40px/1 Oswald,sans-serif;letter-spacing:.03em;text-transform:uppercase;color:#fff}
+.bx-hero p{margin:0 0 10px;font-size:14px;color:rgba(255,255,255,.65)}
+.bx-count{font:500 13px Oswald,sans-serif;letter-spacing:.06em;color:rgba(255,255,255,.6)}
+.bx-count b{color:#ffd24a;font-size:16px}
+.bx-world{margin:18px 0}
+.bx-world h2{margin:0 4px 10px;font:700 22px Oswald,sans-serif;letter-spacing:.05em;text-transform:uppercase;color:#fff;text-shadow:0 0 18px color-mix(in srgb,var(--world) 60%,transparent);
+  border-bottom:1px solid color-mix(in srgb,var(--world) 35%,transparent);padding-bottom:6px}
+.bx-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (max-width:760px){.bx-grid{grid-template-columns:1fr}}
+.bx-card{display:block;width:100%;text-align:left;padding:12px;border-radius:16px;color:#fff;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--world) 14%,transparent),rgba(10,8,16,.85));border:1px solid color-mix(in srgb,var(--world) 30%,transparent);transition:border-color .2s}
+.bx-card.won{border-color:rgba(255,210,74,.45)}
+.bx-card.open{border-color:var(--world);box-shadow:0 0 22px color-mix(in srgb,var(--world) 25%,transparent)}
+.bx-card.unknown{opacity:.5;filter:saturate(.3)}
+.bx-top{display:flex;align-items:center;gap:12px}
+.bx-port{flex-shrink:0;width:64px;height:64px;display:grid;place-items:center;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--world) 25%,transparent),transparent 72%);color:rgba(255,255,255,.4)}
+.bx-id{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.bx-num{font:600 10px Oswald,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:color-mix(in srgb,var(--world) 75%,#fff)}
+.bx-id b{font:700 18px Oswald,sans-serif;letter-spacing:.03em;text-transform:uppercase}
+.bx-tag{font-size:12px;color:rgba(255,255,255,.55)}
+.bx-nem{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;margin-top:3px;padding:1px 7px;border-radius:999px;background:rgba(255,45,85,.22);color:#ffb3c1;font:600 9.5px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase}
+.bx-rec{text-align:center}
+.bx-rec b{display:block;font:700 18px Oswald,sans-serif}
+.bx-rec small{font:600 9px Oswald,sans-serif;letter-spacing:.14em;color:rgba(255,255,255,.45)}
+.bx-more{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);cursor:default}
+.bx-lore{margin:0 0 10px;font-size:13px;line-height:1.5;font-style:italic;color:rgba(255,255,255,.7)}
+.bx-moves{display:grid;gap:6px}
+.bx-moves div{padding:7px 10px;border-radius:10px;background:rgba(255,255,255,.04);border-left:3px solid var(--world)}
+.bx-moves div.enr{border-left-color:#ff2d55;background:rgba(255,45,85,.08)}
+.bx-moves span{display:block;font:600 9.5px Oswald,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.bx-moves b{display:flex;align-items:center;gap:4px;font:700 13px Oswald,sans-serif;letter-spacing:.04em;text-transform:uppercase}
+.bx-moves small{font-size:12px;color:rgba(255,255,255,.65)}
+.bx-stats{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 6px}
+.bx-stats span{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.06);font:600 11px Oswald,sans-serif;letter-spacing:.05em;color:rgba(255,255,255,.8)}
+.bx-loot{display:flex;gap:8px;align-items:flex-start;margin-top:6px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.15);font-size:12px;color:rgba(255,255,255,.6)}
+.bx-loot svg{flex-shrink:0;margin-top:1px;color:rgba(255,255,255,.4)}
+.bx-loot.have{border-style:solid;border-color:rgba(255,210,74,.5);background:rgba(255,210,74,.08);color:#fff}
+.bx-loot.have svg{color:#ffd24a}
+.bx-loot b{color:#fff}
+.bx-world-note{margin-top:8px;font:500 10.5px Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.35)}

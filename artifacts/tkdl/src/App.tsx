@@ -28,6 +28,7 @@ const Rules = lazyWithRetry(() => import("@/pages/rules"), "rules");
 const Play = lazyWithRetry(() => import("@/pages/play"), "play");
 const CardClash = lazyWithRetry(() => import("@/pages/card-clash"), "card-clash");
 const BossBattle = lazyWithRetry(() => import("@/pages/boss-battle"), "boss-battle");
+const BossBestiary = lazyWithRetry(() => import("@/pages/boss-bestiary"), "boss-bestiary");
 const BoardCurse = lazyWithRetry(() => import("@/pages/board-curse"), "board-curse");
 const Practice = lazyWithRetry(() => import("@/pages/practice"), "practice");
 const ShadowBot = lazyWithRetry(() => import("@/pages/shadow-bot"), "shadow-bot");
@@ -166,6 +167,9 @@ function AppRoutes() {
             <Route path="/card-clash">
               {/* Benched (lib/card-clash-bench.ts): the Card Clash page and its art are never loaded. */}
               <RoutePage>{CARD_CLASH_BENCHED ? <CardClashBenched /> : <CardClash />}</RoutePage>
+            </Route>
+            <Route path="/boss-battle/bestiary">
+              <RoutePage><BossBestiary /></RoutePage>
             </Route>
             <Route path="/boss-battle">
               <RoutePage><BossBattle /></RoutePage>
