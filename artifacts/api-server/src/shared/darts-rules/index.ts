@@ -12,3 +12,4 @@ export * from "./drills.ts";
 export * from "./shadow.ts";
 export * from "./boss-roster.ts";
 export * from "./boss-events.ts";
+export * from "./board-curse-codex.ts";

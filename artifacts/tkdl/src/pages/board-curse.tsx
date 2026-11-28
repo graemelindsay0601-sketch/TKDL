@@ -8,6 +8,8 @@ import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
 import { getCurseCompendium, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
 import { AchievementRewardModal, type AchievementRewardData } from "@/components/AchievementRewardModal";
 import { dailyVisitLimit, endlessVisitLimit } from "@/lib/board-curse-survival";
+import { CurseRun, logCodex } from "@/components/board-curse/CurseRun";
+import { CurseCodex } from "@/components/board-curse/CurseCodex";
 import "./board-curse.css";
 
 type RosterPlayer = { id: number; name: string; status: string; isActive: boolean };
@@ -22,7 +24,9 @@ type Screen =
   | { kind: "result"; gameMode: CurseGameMode; format: Format; p1Name: string; p2Name: string; result: BoardCurseResult }
   | { kind: "endless-result"; streak: number; bestStreak: number | null; failed: boolean; visitLimit: number; decisiveCurse?: string }
   | { kind: "leaderboard"; gameMode: CurseGameMode }
-  | { kind: "compendium"; gameMode: CurseGameMode };
+  | { kind: "compendium"; gameMode: CurseGameMode }
+  | { kind: "curse-run" }
+  | { kind: "codex" };
 
 const TIER_LABEL: Record<CurseTier, string> = { 1: "Mild — early visits", 2: "Medium — mid-leg", 3: "Severe — late leg" };
 // Escalating severity ramp (amber → flame orange → red) — distinct from
@@ -152,6 +156,11 @@ export default function BoardCursePage() {
   };
 
   const handleMatchComplete = async (s: Extract<Screen, { kind: "fight" }>, result: BoardCurseResult) => {
+    // Curse Codex: curses that hit you in a game you won.
+    const wonIt = s.format === "solo" ? !result.endedByVisitLimit : result.winnerIdx === 0;
+    if (wonIt) void logCodex(playerId, s.gameMode, result.cursesFaced).then(c => {
+      if (c?.rewards.length) setRewardQueue(q => [...q, ...c.rewards.map(r => ({ key: r.id, name: r.name, icon: "🔥", description: "Exclusive Board Curse unlock, now in your cosmetics.", rarity: "Epic" }))]);
+    });
     if (s.daily) {
       if (playerId) {
         setSaveState("saving");
@@ -251,6 +260,9 @@ export default function BoardCursePage() {
       />
     );
   }
+
+  if (screen.kind === "curse-run") return <CurseRun playerId={playerId} playerName={playerName} onExit={() => setScreen({ kind: "setup" })} />;
+  if (screen.kind === "codex") return <CurseCodex playerId={playerId} onBack={() => setScreen({ kind: "setup" })} />;
 
   if (screen.kind === "endless-result") {
     const isNewBest = screen.bestStreak === null || screen.streak >= screen.bestStreak;
@@ -417,6 +429,8 @@ export default function BoardCursePage() {
           <h1><Flame />Board <span>Curse</span></h1>
           <p>The board fights back. Random curses corrupt the leg, change the rules and grow more severe with every visit.</p>
           <div className="bc-hero-actions">
+            <button className="bc-pill-btn bc-run-btn" onClick={() => setScreen({ kind: "curse-run" })}><Flame className="w-3.5 h-3.5" />Curse Run<b>NEW</b></button>
+            <button className="bc-pill-btn" onClick={() => setScreen({ kind: "codex" })}><BookOpen className="w-3.5 h-3.5" style={{ color: "#ff8a00" }} />Curse Codex</button>
             <button className="bc-pill-btn" onClick={openLeaderboard}><Crown className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />Survivors</button>
             <button className="bc-pill-btn" onClick={() => setScreen({ kind: "compendium", gameMode })}><BookOpen className="w-3.5 h-3.5" />Curse Archive</button>
           </div>

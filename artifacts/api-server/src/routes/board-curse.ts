@@ -8,6 +8,8 @@
  * - GET  /api/board-curse/record/:playerId/:format        - win/loss record vs Bot or vs Local
  * - POST /api/board-curse/record                          - report a vs Bot/vs Local result
  * - GET  /api/board-curse/leaderboard/:gameType            - top Solo bests and Endless streaks, across everyone
+ * - POST /api/board-curse/run, GET /api/board-curse/run/leaderboard - Curse Run results and boards
+ * - POST /api/board-curse/codex, GET /api/board-curse/codex/:playerId - the Curse Codex
  */
 
 import { BOSS_ROSTER } from "../shared/darts-rules/boss-roster";
@@ -19,6 +21,7 @@ import { bossBattleRateLimit } from "../middleware/writeRateLimit";
 import { checkBoardCurseAchievements } from "../lib/board-curse-achievements";
 import { isRecentDuplicateSubmit } from "../lib/recentSubmitGuard";
 import { requireAdminSession } from "../middleware/requireAdminSession";
+import { addToCodex, codexFor, recordRun, runBoards, validRun } from "../lib/board-curse-run-db";
 
 const router = Router();
 
@@ -309,6 +312,56 @@ router.get("/board-curse/leaderboard/:gameType", async (req: Request, res: Respo
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to load board curse leaderboard");
     res.status(500).json({ error: "Failed to load board curse leaderboard" });
+  }
+});
+
+router.post("/board-curse/run", bossBattleRateLimit, async (req: Request, res: Response) => {
+  try {
+    const run = validRun(req.body);
+    if (!run) { res.status(400).json({ error: "Invalid Curse Run result" }); return; }
+    if (isRecentDuplicateSubmit(`curse-run:${run.playerId}:${run.score}:${run.legs}`)) { res.json({ success: true, duplicate: true }); return; }
+    const out = await recordRun(run);
+    if (!out) { res.status(400).json({ error: "Player not found" }); return; }
+    res.json({ success: true, ...out });
+  } catch (err) {
+    (req as any).log?.error({ err }, "Failed to save Curse Run");
+    res.status(500).json({ error: "Failed to save Curse Run" });
+  }
+});
+
+router.get("/board-curse/run/leaderboard", async (req: Request, res: Response) => {
+  try {
+    const pid = parseInt(String(req.query.playerId ?? ""), 10);
+    res.json(await runBoards(Number.isFinite(pid) ? pid : undefined));
+  } catch (err) {
+    (req as any).log?.error({ err }, "Failed to load Curse Run boards");
+    res.status(500).json({ error: "Failed to load Curse Run boards" });
+  }
+});
+
+router.get("/board-curse/codex/:playerId", async (req: Request, res: Response) => {
+  try {
+    const pid = parseInt(paramStr(req.params.playerId), 10);
+    if (!Number.isFinite(pid)) { res.status(400).json({ error: "Invalid player" }); return; }
+    res.json(await codexFor(pid));
+  } catch (err) {
+    (req as any).log?.error({ err }, "Failed to load Curse Codex");
+    res.status(500).json({ error: "Failed to load Curse Codex" });
+  }
+});
+
+router.post("/board-curse/codex", bossBattleRateLimit, async (req: Request, res: Response) => {
+  try {
+    const pid = parseInt(req.body?.playerId, 10);
+    const gameType = req.body?.gameType;
+    const ids = Array.isArray(req.body?.curseIds) ? req.body.curseIds.filter((x: unknown) => typeof x === "string").slice(0, 60) : null;
+    if (!Number.isFinite(pid) || !isValidGameType(gameType) || !ids) { res.status(400).json({ error: "Invalid Codex entry" }); return; }
+    const player = await db.execute(sql`SELECT 1 FROM players WHERE id = ${pid}`);
+    if (!player.rows[0]) { res.status(400).json({ error: "Player not found" }); return; }
+    res.json({ success: true, ...(await addToCodex(pid, gameType, ids)) });
+  } catch (err) {
+    (req as any).log?.error({ err }, "Failed to update Curse Codex");
+    res.status(500).json({ error: "Failed to update Curse Codex" });
   }
 });
 

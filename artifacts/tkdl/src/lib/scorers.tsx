@@ -331,7 +331,7 @@ function CCEffectsHUD({ effects, names, lastActivation }: {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const live = effects.filter(e => e.status === "active" || e.status === "pending" || e.status === "deferred_next_turn" || e.status === "deferred_next_leg");
+  const live = effects.filter(e => !e.hudHidden).filter(e => e.status === "active" || e.status === "pending" || e.status === "deferred_next_turn" || e.status === "deferred_next_leg");
   const viewingCard = viewing ? ALL_CARDS.find(c => c.name === viewing.cardName) : null;
 
   return (
@@ -678,7 +678,7 @@ export type LiveScoreState = { mode: "x01" | "cricket"; scores: [number, number]
 
 /** Segments that score 0 for this player under the live effects (Boss Battle / Board Curse): shown struck through on the new pad. */
 function deadKeysFor(effects: CCEffect[], player: number): number[] {
-  const live = effects.filter(e => e.status === "active" && e.affectsPlayer === player);
+  const live = effects.filter(e => !e.hudHidden).filter(e => e.status === "active" && e.affectsPlayer === player);
   const out = new Set<number>();
   for (const e of live) {
     for (const n of e.segmentBlock ?? []) out.add(n);

@@ -1,0 +1,69 @@
+/* Curse Run + Curse Codex (Board Curse). Sits on top of pages/board-curse.css. */
+.cr-shell{max-width:620px}
+.cr-lobby-head{padding:8px 2px 16px}
+.cr-lobby-head h1{font:900 2.1rem/1 Oswald,sans-serif;margin:8px 0 10px;display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.02em}
+.cr-lobby-head h1 svg{width:28px;height:28px;color:#ff6a00}
+.cr-lobby-head h1 span{color:#ff6a00}
+.cr-lobby-head p{font:500 .84rem/1.5 Inter,system-ui,sans-serif;color:rgba(255,255,255,.62);margin:0}
+.cr-modes{display:grid;gap:10px;margin:6px 0 12px}
+.cr-mode{display:flex;align-items:center;gap:12px;text-align:left;padding:15px 16px;border-radius:14px;cursor:pointer;color:#fff;border:1px solid rgba(255,138,0,.28);background:linear-gradient(135deg,rgba(255,138,0,.10),rgba(139,0,0,.12))}
+.cr-mode.daily{border-color:rgba(255,210,74,.45);background:linear-gradient(135deg,rgba(255,210,74,.14),rgba(255,106,0,.10))}
+.cr-mode svg{flex:none;color:#ffb400}
+.cr-mode strong{display:block;font:800 1rem Oswald,sans-serif;text-transform:uppercase;letter-spacing:.04em}
+.cr-mode small{display:block;font:500 .74rem/1.35 Inter,system-ui,sans-serif;color:rgba(255,255,255,.58);margin-top:2px}
+.cr-boards{display:grid;gap:12px;margin-top:14px}
+.cr-board{padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03)}
+.bc-lb-row.me .bc-lb-name{color:#ffb400}
+
+.cr-hud{margin-bottom:8px;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,138,0,.3);background:linear-gradient(135deg,rgba(255,138,0,.12),rgba(60,0,0,.25))}
+.cr-hud-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cr-hud-top span{font:800 .78rem Oswald,sans-serif;color:#ff8a00;display:flex;align-items:center;gap:5px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.cr-hud-top b{font:900 1.05rem Oswald,sans-serif;color:#fff}
+.cr-hud-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.cr-chip{font:700 .56rem Oswald,sans-serif;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.7)}
+.cr-chip.mult{background:#ff6a00;color:#1a0700}
+.cr-chip.pact{background:rgba(179,136,255,.2);color:#d1b8ff;border:1px solid rgba(179,136,255,.4)}
+.cr-chip.bless{background:rgba(74,222,128,.14);color:#86efac;border:1px solid rgba(74,222,128,.35)}
+
+.cr-cleared{text-align:center;padding:22px 10px 10px}
+.cr-cleared small{font:700 .68rem Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.cr-cleared h1{font:900 3rem/1 Oswald,sans-serif;color:#ffb400;margin:8px 0 4px;text-shadow:0 0 28px rgba(255,138,0,.45)}
+.cr-cleared p{font:600 .8rem Oswald,sans-serif;color:rgba(255,255,255,.7);margin:0}
+.cr-codex-note{display:inline-flex;align-items:center;gap:5px;margin-top:10px;padding:4px 10px;border-radius:999px;font:700 .62rem Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#ffd24a;background:rgba(255,210,74,.12)}
+.cr-pick-title{font:800 .7rem Oswald,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55);margin:18px 2px 10px;text-align:center}
+.cr-cards{display:grid;gap:10px}
+.cr-card{text-align:left;padding:14px 16px;border-radius:14px;cursor:pointer;color:#fff;transition:transform .15s}
+.cr-card:active{transform:scale(.98)}
+.cr-card.bless{border:1px solid rgba(74,222,128,.42);background:linear-gradient(135deg,rgba(74,222,128,.13),rgba(20,40,30,.4))}
+.cr-card.pact{border:1px solid rgba(179,136,255,.5);background:linear-gradient(135deg,rgba(124,58,237,.22),rgba(40,0,20,.5));box-shadow:0 0 22px rgba(124,58,237,.18)}
+.cr-card-kind{font:700 .58rem Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#86efac}
+.cr-card.pact .cr-card-kind{color:#c4a5ff}
+.cr-card strong{display:block;font:900 1.2rem Oswald,sans-serif;margin:3px 0 2px}
+.cr-card p{font:500 .78rem/1.4 Inter,system-ui,sans-serif;color:rgba(255,255,255,.7);margin:0}
+.cr-bank{width:100%;margin-top:14px}
+.cr-flag{display:inline-flex;align-items:center;gap:5px;margin:12px 4px 0;padding:5px 11px;border-radius:999px;font:700 .64rem Oswald,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:#fff;background:rgba(255,255,255,.1)}
+.cr-flag.gold{color:#1a1200;background:#ffd24a}
+.cr-flag.dim{color:rgba(255,255,255,.55);background:rgba(255,255,255,.05)}
+.cr-rewards{margin-top:12px;display:grid;gap:5px}
+.cr-rewards div{display:flex;align-items:center;justify-content:center;gap:5px;font:600 .78rem Oswald,sans-serif;color:#ffd24a}
+
+.cx-total{padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);font:600 .8rem Oswald,sans-serif;color:rgba(255,255,255,.7)}
+.cx-total b{font-size:1.2rem;color:#fff}
+.cx-bar{height:6px;border-radius:99px;background:rgba(255,255,255,.08);margin-top:8px;overflow:hidden}
+.cx-bar i{display:block;height:100%;background:linear-gradient(90deg,#ff6a00,#ffd24a)}
+.cx-rewards{display:grid;gap:8px;margin-top:10px}
+.cx-reward{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025);color:rgba(255,255,255,.55)}
+.cx-reward div{flex:1;min-width:0}
+.cx-reward strong{display:block;font:800 .82rem Oswald,sans-serif;color:#fff;letter-spacing:.03em}
+.cx-reward small{font:500 .66rem Inter,system-ui,sans-serif}
+.cx-reward span{font:800 .7rem Oswald,sans-serif;white-space:nowrap}
+.cx-reward.won{border-color:rgba(255,210,74,.45);background:rgba(255,210,74,.08);color:#ffd24a}
+.cx-tier{margin-bottom:14px}
+.cx-tier-head{font:800 .66rem Oswald,sans-serif;letter-spacing:.14em;text-transform:uppercase;margin:0 2px 7px}
+.cx-tier.t1 .cx-tier-head{color:#fbbf24}.cx-tier.t2 .cx-tier-head{color:#ff8a00}.cx-tier.t3 .cx-tier-head{color:#ef4444}
+.cx-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.cx-curse{padding:9px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);opacity:.55}
+.cx-curse.ok{opacity:1;border-color:rgba(255,138,0,.4);background:rgba(255,138,0,.08)}
+.cx-curse-name{display:flex;align-items:center;gap:5px;font:800 .78rem Oswald,sans-serif;color:#fff}
+.cx-curse.ok .cx-curse-name svg{color:#4ade80}
+.cx-curse-desc{font:500 .64rem/1.35 Inter,system-ui,sans-serif;color:rgba(255,255,255,.55);margin-top:3px}
