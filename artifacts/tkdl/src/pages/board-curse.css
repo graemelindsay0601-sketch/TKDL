@@ -240,3 +240,7 @@
 .bc-panel-heading h2, .bc-panel-heading strong { text-transform: uppercase; letter-spacing: .06em; }
 .bc-hero h1 { white-space: normal !important; overflow-wrap: normal; word-break: keep-all; font-size: clamp(2.3rem, 10.5vw, 5.7rem) !important; }
 .bc-hero, .bc-hero-copy { min-width: 0; }
+.bc-pill-btn.bc-run-btn{border-color:rgba(255,138,0,.6);background:linear-gradient(135deg,rgba(255,138,0,.28),rgba(139,0,0,.3));color:#fff}
+.bc-pill-btn.bc-run-btn svg{color:#ffb400}
+.bc-pill-btn.bc-run-btn b{font:800 .5rem Oswald,sans-serif;letter-spacing:.1em;padding:1px 5px;border-radius:99px;background:#ffd24a;color:#1a1200}
+.bc-hero-actions{flex-wrap:wrap}

@@ -48,6 +48,7 @@ const KIND: Record<string, { icon: typeof Trophy; colour: string; tag: string }>
   boss_daily:     { icon: Swords,     colour: "#ff7a45", tag: "Daily Boss" },
   boss_weekly:    { icon: Swords,     colour: "#a78bfa", tag: "Weekly Boss" },
   boss_raid:      { icon: Crown,      colour: "#ff2d55", tag: "League Raid" },
+  curse_record:   { icon: Crown,      colour: "#ff6a00", tag: "Board Curse" },
 };
 
 const ago = (iso: string) => {

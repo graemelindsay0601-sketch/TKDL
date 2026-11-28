@@ -81,6 +81,7 @@ export interface CCEffect {
   deferPenaltyToNextLeg?: boolean;  // Dark Cloud, Total Annihilation: apply penalty on opponent's next leg
   
   // Duration flags for expiration
+  hudHidden?: boolean;              // Board Curse: a no-op marker, never shown as a live pill
   legDuration?: boolean;            // Don't expire at turn end, only at leg end (e.g., Big Game Player bonus)
   finalLegOnly?: boolean;           // Only activate in final leg of match (Match Pressure)
 
