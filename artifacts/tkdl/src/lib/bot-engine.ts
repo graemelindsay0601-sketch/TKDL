@@ -3,7 +3,7 @@
  * Named personas are original fictional characters with distinct skill profiles.
  */
 import type { Dart } from "./dartboard";
-import { planBotX01Visit } from "./darts-rules";
+import { planBotX01Visit } from "./darts-rules.ts";
 
 export type BotLevel = "beginner" | "amateur" | "club" | "county" | "pro" | "elite";
 
@@ -21,6 +21,16 @@ export type ShadowProfile = {
   doubleHitPct: number;     // real double checkout hit rate from practice data (0–1)
   computedAvg: number;      // 3-dart average computed from all practice sessions
   totalDarts: number;       // total darts profiled (practice + estimated league)
+  // ── v2 (built from every logged dart, practice + league) ──
+  /** Scoring outcomes to replay, seg 0 = miss. Sampled in proportion to n. */
+  scoringDist?: { seg: number; mult: number; n: number }[];
+  /** Real hit rate per double, keyed by segment. */
+  doubleRates?: Record<string, number>;
+  /** League finishing rate: used when the opponent is waiting on a finish. */
+  pressureDoubleHitPct?: number | null;
+  /** True when there isn't enough dart-by-dart data: play at computedAvg instead. */
+  thin?: boolean;
+  eraLabel?: string;
 };
 
 /** Raw stats that drive every visit function. */
@@ -502,6 +512,12 @@ function checkoutDarts(remaining: number): [Dart, Dart, Dart] | null {
 
 // ── Shadow bot helpers ─────────────────────────────────────────────────────────
 function shadowScoringDart(p: ShadowProfile): Dart {
+  const total = p.scoringDist?.reduce((n, d) => n + d.n, 0) ?? 0;
+  if (p.scoringDist && total >= 60) {
+    // Replay a real dart: pick one of the player's own scoring outcomes, weighted by how often it happened.
+    let r = Math.random() * total;
+    for (const d of p.scoringDist) { r -= d.n; if (r < 0) return d.seg === 0 ? BOT_MISS : makeDart(d.seg, d.mult as 1 | 2 | 3); }
+  }
   const r = Math.random();
   if (r < p.treblePct) return makeDart(p.primarySeg, 3);
   if (r < p.treblePct + p.singlePct) return makeDart(p.primarySeg, 1);
@@ -509,13 +525,14 @@ function shadowScoringDart(p: ShadowProfile): Dart {
   return makeDart(Math.random() < 0.5 ? l : ri, 1);
 }
 
-function shadowDoubleDart(seg: number, p: ShadowProfile): Dart {
-  if (Math.random() < p.doubleHitPct) return makeDart(seg, 2);
+function shadowDoubleDart(seg: number, p: ShadowProfile, pressure = false): Dart {
+  const rate = pressure && p.pressureDoubleHitPct != null ? p.pressureDoubleHitPct : (p.doubleRates?.[String(seg)] ?? p.doubleHitPct);
+  if (Math.random() < rate) return makeDart(seg, 2);
   return Math.random() < 0.75 ? makeDart(seg, 1) : BOT_MISS;
 }
 
 /** Simulate a 3-dart visit using real player targeting data. */
-export function botShadowX01Visit(remaining: number, doubleOut: boolean, p: ShadowProfile): [Dart, Dart, Dart] {
+export function botShadowX01Visit(remaining: number, doubleOut: boolean, p: ShadowProfile, pressure = false): [Dart, Dart, Dart] {
   const minLeft = doubleOut ? 2 : 0;
 
   if (remaining <= 170) {
@@ -529,7 +546,7 @@ export function botShadowX01Visit(remaining: number, doubleOut: boolean, p: Shad
         if (d.value === 0) {
           chosen = BOT_MISS;
         } else if (d.multiplier === 2) {
-          chosen = shadowDoubleDart(d.segment, p);
+          chosen = shadowDoubleDart(d.segment, p, pressure);
         } else if (d.multiplier === 3) {
           const isSame = d.segment === p.primarySeg;
           const tp = isSame ? p.treblePct : Math.min(p.treblePct, 0.35);
@@ -574,9 +591,11 @@ export function botX01Visit(
   remaining: number,
   doubleOut: boolean,
   cfg: BotConfig,
-  options: { opened?: boolean; rng?: () => number } = {},
+  options: { opened?: boolean; rng?: () => number; pressure?: boolean } = {},
 ): [Dart, Dart, Dart] {
-  if (cfg.shadowProfile && options.opened !== false) return botShadowX01Visit(remaining, doubleOut, cfg.shadowProfile);
+  // A shadow without enough dart-by-dart data plays at the player's average with the standard planner.
+  if (cfg.shadowProfile?.thin) return planBotX01Visit(remaining, { ...cfg, avg: cfg.shadowProfile.computedAvg || cfg.avg }, { doubleOut, opened: options.opened, rng: options.rng }) as [Dart, Dart, Dart];
+  if (cfg.shadowProfile && options.opened !== false) return botShadowX01Visit(remaining, doubleOut, cfg.shadowProfile, !!options.pressure);
   return planBotX01Visit(remaining, cfg, { doubleOut, opened: options.opened, rng: options.rng }) as [Dart, Dart, Dart];
 }
 
