@@ -4,13 +4,14 @@ import { WantedChip } from "@/components/community/WantedChip";
 import { HonoursCabinet } from "@/components/profile/HonoursCabinet";
 import { ClubhouseDoor } from "@/components/clubhouse/ClubhouseDoor";
 import { DartMap } from "@/components/profile/DartMap";
+import { PlayerCard } from "@/components/profile/PlayerCard";
 import { AchievementsShelf } from "@/components/achievements-v2/AchievementsShelf";
 import { useAchievementsV2Status } from "@/components/achievements-v2/api";
 import { useGetPlayerStats, getGetPlayerStatsQueryKey } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
-import { useState, useEffect, useMemo, type CSSProperties } from "react";
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2, Pin, Layers, Users, Ghost, Calendar, Swords } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
@@ -18,7 +19,7 @@ import {
   BigStat, StatPanel, ModeTile, TIER_GLOW, CollapsibleSection, ScorecardView, RARITY_COLORS,
 } from "./helpers";
 import { CategoryStatsEnhanced } from "@/components/stats";
-import { Chapter, PmCard, JumpBar, Glow, DartboardBackdrop, Ring, Bar, Dots, Tile } from "@/components/premium/Premium";
+import { Chapter, PmCard, Glow, DartboardBackdrop, Ring, Bar, Dots, Tile } from "@/components/premium/Premium";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, taglineStyleCSS, playerCardFinish } from "@/lib/cosmetics";
 import { TrophyCase } from "@/components/TrophyCase";
 import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
@@ -79,11 +80,17 @@ function ActivityHeatmap({ days }: { days: { date: string; count: number }[] }) 
   );
 }
 
-const JUMP_ITEMS = [
-  { id: "pm-modes", label: "Modes" }, { id: "pm-season", label: "Season" }, { id: "pm-career", label: "Career" },
-  { id: "pm-matches", label: "Matches" }, { id: "pm-h2h", label: "Head to head" }, { id: "pm-practice", label: "Practice" },
-  { id: "pm-bot", label: "Bot" }, { id: "pm-stats", label: "Stats" }, { id: "pm-history", label: "History" }, { id: "pm-trophies", label: "Trophies" },
+// Profile 2.0: the page is split into tabs instead of one very long scroll.
+type ProfileTab = "overview" | "stats" | "matches" | "modes" | "trophies" | "history";
+const PROFILE_TABS: { id: ProfileTab; label: string }[] = [
+  { id: "overview", label: "Overview" }, { id: "stats", label: "Stats" }, { id: "matches", label: "Matches" },
+  { id: "modes", label: "Modes" }, { id: "trophies", label: "Trophies" }, { id: "history", label: "History" },
 ];
+const tabFromUrl = (): ProfileTab => {
+  if (typeof window === "undefined") return "overview";
+  const t = new URLSearchParams(window.location.search).get("tab");
+  return PROFILE_TABS.some(x => x.id === t) ? (t as ProfileTab) : "overview";
+};
 
 export default function PlayerDetail() {
   const params = useParams<{ id: string }>();
@@ -94,6 +101,26 @@ export default function PlayerDetail() {
     query: { staleTime: 5 * 60 * 1000, queryKey: getGetPlayerStatsQueryKey(playerId) },
   });
   const cosmeticsCatalog = useCosmeticsCatalog();
+  const [tab, setTab] = useState<ProfileTab>(tabFromUrl);
+  const pickTab = (t: ProfileTab) => {
+    setTab(t);
+    // Keep the tab in the address so a shared link or Back lands on the same tab.
+    const u = new URL(window.location.href);
+    if (t === "overview") u.searchParams.delete("tab"); else u.searchParams.set("tab", t);
+    window.history.replaceState(window.history.state, "", u.toString());
+    tabJumpRef.current = true;
+  };
+  // After a tab change renders, bring the top of the new tab into view (the bar is sticky, so
+  // measure the spot just above it). Done after render, or the old tab's height throws it off.
+  const tabJumpRef = useRef(false);
+  useEffect(() => {
+    if (!tabJumpRef.current) return;
+    tabJumpRef.current = false;
+    const mark = document.getElementById("pf-tabs-mark");
+    // Only scroll up (never yank someone down the page), and use scrollIntoView since the app may
+    // scroll an inner container rather than the window.
+    if (mark && mark.getBoundingClientRect().top < 0) mark.scrollIntoView({ block: "start" });
+  }, [tab]);
   // Featured Stat Spotlight — free profile customization, separate from the
   // coin-cosmetics catalog above (see lib/statSpotlight.ts).
   const spotlightValues = useSpotlightValues(playerId);
@@ -663,13 +690,25 @@ export default function PlayerDetail() {
         </div>
       </div>
 
-      <JumpBar items={JUMP_ITEMS} />
+      <div id="pf-tabs-mark" style={{ scrollMarginTop: 64 }} />
+      <nav className="pf-tabs" aria-label="Profile sections">
+        {PROFILE_TABS.map(t => (
+          <button key={t.id} type="button" className={tab === t.id ? "on" : ""} aria-pressed={tab === t.id} onClick={() => pickTab(t.id)}>{t.label}</button>
+        ))}
+      </nav>
 
+      {tab === "overview" && (<>
+      <PlayerCard playerId={player.id} tier={tier} elo={player.elo} title={identity.title ?? null}
+        avatarUrl={(player as any).avatarUpdatedAt ? `/api/players/${player.id}/avatar-image?v=${encodeURIComponent((player as any).avatarUpdatedAt)}` : null} />
       <DartsLocker playerId={player.id} setup={(player as any).dartsSetup ?? null} editable={isOwnProfile} />
 
       <ClubhouseDoor playerId={playerId} />
+      </>)}
+      {tab === "trophies" && (<>
       <HonoursCabinet playerId={playerId} />
 
+      </>)}
+      {tab === "modes" && (<>
       {/* ══ GAME MODES ══ */}
       {/* One tile per mode instead of a full-width card each — same colors
           the Hub uses for these modes (dashboard.tsx's GAME_MODES), so a
@@ -747,6 +786,8 @@ export default function PlayerDetail() {
         </div>
       )}
 
+      </>)}
+      {tab === "overview" && (<>
       {/* ══ ELO JOURNEY ══ */}
       {recentMatches && recentMatches.length >= 2 && (
         <div>
@@ -773,6 +814,8 @@ export default function PlayerDetail() {
         ]}
       />
 
+      </>)}
+      {tab === "stats" && (<>
       {/* ══ CAREER STATS ══ */}
       <StatPanel
         title="Career"
@@ -791,6 +834,8 @@ export default function PlayerDetail() {
         ]}
       />
 
+      </>)}
+      {tab === "history" && (<>
       {/* ══ CAREER JOURNEY ══ */}
       {careerJourney.length > 0 && (
         <CollapsibleSection
@@ -853,6 +898,8 @@ export default function PlayerDetail() {
         </CollapsibleSection>
       )}
 
+      </>)}
+      {tab === "stats" && (<>
       {/* ══ ACTIVITY HEATMAP ══ */}
       {activity && activity.totalMatches > 0 && (
         <CollapsibleSection
@@ -950,6 +997,8 @@ export default function PlayerDetail() {
         </div>
       )}
 
+      </>)}
+      {tab === "matches" && (<>
       {/* ══ RECENT MATCHES + H2H ══ */}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1109,6 +1158,8 @@ export default function PlayerDetail() {
         </div>
       </div>
 
+      </>)}
+      {tab === "modes" && (<>
       {/* ══ PRACTICE STATS ══ */}
       <div>
       <Chapter title="Practice" id="pm-practice" accent="#ff5c93" onClick={() => setOpenPractice(v => !v)}
@@ -1648,6 +1699,8 @@ export default function PlayerDetail() {
       </div>
       </div>
 
+      </>)}
+      {tab === "stats" && (<>
       {/* Stats Tab */}
       <div>
         <Chapter title="Performance" id="pm-stats" accent="#ffd24a" />
@@ -1733,6 +1786,8 @@ export default function PlayerDetail() {
         );
       })()}
 
+      </>)}
+      {tab === "history" && (<>
       {/* ══ SEASON HISTORY ══ */}
       {seasonHistory && seasonHistory.length > 0 && (
         <CollapsibleSection
@@ -1773,10 +1828,12 @@ export default function PlayerDetail() {
           })}
         </CollapsibleSection>
       )}
+      </>)}
       {recapSeasonId != null && (
         <SeasonRecapModal playerId={playerId} seasonId={recapSeasonId} playerName={player.name} onClose={() => setRecapSeasonId(null)} />
       )}
 
+      {tab === "trophies" && (<>
       {/* ══ ACHIEVEMENTS (new) — shows only once live, or for an admin preview ══ */}
       <div id="pm-trophies" style={{ scrollMarginTop: 64 }}><AchievementsShelf playerId={playerId} /></div>
 
@@ -1990,6 +2047,7 @@ export default function PlayerDetail() {
           </div>
         );
       })()}
+      </>)}
     </div>
 
     {/* ── Session Detail Modal ── */}
