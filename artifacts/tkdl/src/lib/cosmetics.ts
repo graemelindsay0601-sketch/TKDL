@@ -169,7 +169,7 @@ export function nameStyleCSS(cosmetic: CosmeticDefinition | undefined | null): C
 
 /** Earned-only unlocks from League Target (-lt-) and The Gaffer (-gf-). They get effects nothing in the Store has. */
 export function isExclusiveUnlock(cosmetic: CosmeticDefinition | undefined | null): boolean {
-  return !!cosmetic && /-(lt|gf|oo)-/.test(cosmetic.id);
+  return !!cosmetic && /-(lt|gf|oo|sh)-/.test(cosmetic.id);
 }
 
 // LEGENDARY gradients get a slow animated shimmer (index.css's
@@ -190,6 +190,7 @@ export function frameClassName(cosmetic: CosmeticDefinition | undefined | null):
 export function tagIcon(cosmetic: CosmeticDefinition | undefined | null): string {
   if (!isExclusiveUnlock(cosmetic)) return "";
   const id = cosmetic!.id;
+  if (id.includes("-sh-")) return "👻";
   if (id.includes("-oo-")) return id.includes("bounty") ? "💰" : id.includes("callout") ? "⚔️" : "⚡";
   return id.includes("-lt-") ? "🎯" : id === "tag-gf-the-gaffer" ? "👑" : "🛡️";
 }

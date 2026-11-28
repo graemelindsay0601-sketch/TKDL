@@ -5,6 +5,7 @@
  */
 
 import { Cpu, Ghost } from "lucide-react";
+import { useLocation } from "wouter";
 import {
   BOT_LEVELS, numLevelConfig, numLevelLabel, numLevelColor,
   type BotPersona, type ShadowProfile,
@@ -19,7 +20,7 @@ export type ShadowProfileData = ShadowProfile & {
   logDartsCount: number;
   era?: string;
   eras?: { era: string; label: string; darts: number; avg: number }[];
-  scouting?: { label: string; value: string; tone: "good" | "bad" | "neutral" }[];
+  scouting?: { label: string; value: string; tone: "good" | "bad" | "neutral"; drill?: { key: string; name: string; solo: boolean } }[];
   leagueDarts?: number;
 };
 export type ShadowProfileLocked = { locked: true; totalDarts: number; needed: number; playerName: string };
@@ -161,6 +162,7 @@ export function ShadowPlayerPicker({ players, profiles, selected, onSelect, era,
   onEra?: (era: string) => void;
 }) {
   const NEEDED = 250;
+  const [, navigate] = useLocation();
   return (
     <div className="space-y-2">
       {players.length === 0 && (
@@ -251,6 +253,7 @@ export function ShadowPlayerPicker({ players, profiles, selected, onSelect, era,
                       <div key={r.label} className="rounded-lg px-2 py-1.5" style={{ background: "rgba(255,255,255,.03)", border: `1px solid ${r.tone === "good" ? "rgba(34,197,94,.3)" : r.tone === "bad" ? "rgba(255,0,92,.3)" : "rgba(255,255,255,.08)"}` }}>
                         <div className="text-[0.55rem] uppercase tracking-widest" style={{ color: "rgba(255,255,255,.4)", fontFamily: "Oswald, sans-serif" }}>{r.label}</div>
                         <div className="text-xs" style={{ color: r.tone === "good" ? "#86efac" : r.tone === "bad" ? "#ff8fb3" : "rgba(255,255,255,.8)" }}>{r.value}</div>
+                        {r.drill && <span role="link" tabIndex={0} onClick={() => navigate(`/practice?game=${r.drill!.key}${r.drill!.solo ? "&solo=1" : ""}`)} className="block mt-0.5 text-[0.6rem] uppercase tracking-wider cursor-pointer" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Work on it: {r.drill.name} →</span>}
                       </div>
                     ))}
                   </div>

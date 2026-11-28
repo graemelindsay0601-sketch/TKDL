@@ -123,6 +123,14 @@ router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promis
     // double-count. The client still sees the same { ok: true } either way.
     if (!inserted) return;
 
+    // Fire-and-forget: tell a shadow's owner how it got on against this player.
+    const shadowId = Number((body.sessionData as any)?.shadowPlayerId ?? 0);
+    if (shadowId && body.player1Id) {
+      import("../lib/shadow-duels").then(m => m.afterShadowSession({ player1Id: body.player1Id!, shadowPlayerId: shadowId,
+        winnerIdx: body.winnerIdx ?? null, detail: body.detail ?? null, gameName: body.gameTypeName ?? null }))
+        .catch(err => req.log.error({ err }, "Shadow duel notify error"));
+    }
+
     // Fire-and-forget: a solo session may knock someone down today's daily drill board.
     if (body.player1Id && !body.player2Id) {
       import("../lib/daily-drill-db").then(m => m.notifyDrillOvertakes(body.player1Id!, Number((inserted as { id: number }).id)))

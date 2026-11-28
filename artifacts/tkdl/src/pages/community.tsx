@@ -384,7 +384,7 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   const [replyOpen, setReplyOpen] = useState(false);
   const MOMENT_TINT: Record<string, string> = { max: "255,0,92", big_finish: "34,197,94", upset: "168,85,247", record: "255,210,74", streak: "255,138,31",
     elimination: "239,68,68", target_hit: "25,195,200", gaffer: "255,210,74", callout_result: "255,0,92",
-    callout_streak: "255,92,147", motm: "255,210,74", bounty_on: "255,59,59", bounty_claimed: "255,210,74" };
+    callout_streak: "255,92,147", motm: "255,210,74", bounty_on: "255,59,59", bounty_claimed: "255,210,74", shadow_cup: "167,139,250" };
   const specialTint = post.post_type === "callout" ? "rgba(255,0,92,.18)" : post.post_type === "roundup" ? "rgba(25,195,200,.16)"
     : post.post_type === "highlight" ? `rgba(${MOMENT_TINT[post.auto_meta?.kind] ?? "255,210,74"},.2)` : null;
   // POST_ACCENT cosmetic — a personal border/background tint on the
