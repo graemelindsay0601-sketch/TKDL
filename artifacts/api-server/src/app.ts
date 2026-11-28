@@ -151,6 +151,7 @@ import { initializeShadowLadderScheduler } from "./lib/shadow-ladder-db";
 import { initializeShadowLegendsScheduler } from "./lib/shadow-extras-db";
 import { ensureBossRewards } from "./lib/boss-rewards-db";
 import { ensureCurseRun } from "./lib/board-curse-run-db";
+import { initializeCurseLeagueScheduler } from "./lib/board-curse-social-db";
 import { initializeBossEventsScheduler } from "./lib/boss-events-db";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
@@ -1889,6 +1890,7 @@ async function initRuntime() {
   await runInitStep("ensureBossRewards", ensureBossRewards);
   await runInitStep("ensureCurseRun", ensureCurseRun);
   await runInitStep("initializeBossEventsScheduler", initializeBossEventsScheduler);
+  await runInitStep("initializeCurseLeagueScheduler", initializeCurseLeagueScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
   await runInitStep("initializeLeagueTargetScheduler", async () => {
     const { initializeLeagueTargetScheduler } = await import("./lib/league-target-db");

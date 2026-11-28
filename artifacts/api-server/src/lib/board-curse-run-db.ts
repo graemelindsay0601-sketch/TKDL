@@ -24,7 +24,7 @@ export const ensureCurseRun = () => (ready ??= (async () => {
     beaten_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (player_id, game_type, curse_id))`);
 })().catch(e => { ready = null; throw e; }));
 
-async function grant(pid: number, id: string): Promise<boolean> {
+export async function grant(pid: number, id: string): Promise<boolean> {
   const g = await db.execute(sql`INSERT INTO player_cosmetics (player_id, cosmetic_id) SELECT ${pid}, ${id}
     WHERE NOT EXISTS (SELECT 1 FROM player_cosmetics WHERE player_id = ${pid} AND cosmetic_id = ${id}) RETURNING cosmetic_id`);
   if (!g.rows.length) return false;
@@ -32,7 +32,7 @@ async function grant(pid: number, id: string): Promise<boolean> {
   void createNotification({ playerId: pid, type: "achievement_unlocked", message: `Board Curse unlock: ${r?.name ?? id}.` });
   return true;
 }
-const rewardOut = (ids: string[]) => ids.map(id => { const r = CURSE_REWARDS.find(x => x.id === id)!; return { id, name: r.name, category: r.category }; });
+export const rewardOut = (ids: string[]) => ids.map(id => { const r = CURSE_REWARDS.find(x => x.id === id)!; return { id, name: r.name, category: r.category }; });
 
 export type RunInput = { playerId: number; daily: boolean; legs: number; score: number; pacts: number; maxPactsCleared: number; picks: string[] };
 export function validRun(b: any): RunInput | null {
