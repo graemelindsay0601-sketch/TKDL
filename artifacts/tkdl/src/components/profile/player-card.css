@@ -58,3 +58,20 @@
 .pf-tabs::-webkit-scrollbar{display:none}
 .pf-tabs button{flex:1 0 auto;padding:9px 7px;border-radius:11px;border:0;background:none;color:rgba(255,255,255,.5);font:700 .68rem Oswald,sans-serif;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:color .15s,background .15s}
 .pf-tabs button.on{color:#120d00;background:linear-gradient(180deg,#ffe58a,#ffd24a 55%,#d99a00);box-shadow:0 0 16px rgba(255,210,74,.35)}
+
+/* Game switcher, locked card, dots */
+.pc-games{display:flex;gap:4px;padding:4px;margin-bottom:14px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.pc-games button{display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;border:0;background:none;color:rgba(255,255,255,.55);font:700 .72rem Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.pc-games button em{font-style:normal;font-size:.62rem;padding:1px 5px;border-radius:99px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.75)}
+.pc-games button.on{background:linear-gradient(180deg,#ffe58a,#ffd24a 55%,#d99a00);color:#120d00;box-shadow:0 0 14px rgba(255,210,74,.3)}
+.pc-games button.on em{background:rgba(0,0,0,.18);color:#120d00}
+.pc-games button.locked{color:rgba(255,255,255,.35)}
+.pc-game{position:relative;z-index:3;text-align:center;margin-top:8px;font:800 .62rem Oswald,sans-serif;letter-spacing:.3em;text-transform:uppercase;color:var(--pc-acc)}
+.pc-game+.pc-name{margin-top:2px}
+.pc-card.is-locked{filter:saturate(.3)}
+.pc-card.is-locked .pc-photo{opacity:.55}
+.pc-card.is-locked .pc-band{background:rgba(255,255,255,.15);color:rgba(255,255,255,.75);box-shadow:none}
+.pc-lock{position:relative;z-index:3;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px;font:700 .66rem Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.75);text-align:center}
+.pc-dots{display:flex;gap:6px;margin-top:12px}
+.pc-dots i{width:6px;height:6px;border-radius:99px;background:rgba(255,255,255,.2);transition:all .2s}
+.pc-dots i.on{width:18px;background:#ffd24a}
