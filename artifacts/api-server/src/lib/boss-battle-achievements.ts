@@ -20,8 +20,8 @@ import { grantIfNotHas } from "./achievement-grant";
 
 export const BOSS_BATTLE_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   { key:"BOSS_FIRST_WIN",     name:"⚔️ First Blood",       description:"Defeat your first boss",                                   icon:"⚔️", rarity:"Common",    category:"Boss Battle", hidden:false, priority:20, criteriaType:"BOSS_DEFEATED_COUNT", criteriaValue:1,  engineType:"STAT_BASED", coinReward: 15 },
-  { key:"BOSS_HALFWAY",       name:"🛡️ Halfway Up the Ladder", description:"Defeat 3 bosses on the ladder",                          icon:"🛡️", rarity:"Rare",      category:"Boss Battle", hidden:false, priority:35, criteriaType:"BOSS_DEFEATED_COUNT", criteriaValue:3,  engineType:"STAT_BASED", coinReward: 35 },
-  { key:"BOSS_LADDER_CLEAR",  name:"👑 Ladder Conquered",   description:"Defeat every boss on the ladder",                          icon:"👑", rarity:"Epic",      category:"Boss Battle", hidden:false, priority:65, criteriaType:"BOSS_DEFEATED_COUNT", criteriaValue:6,  engineType:"STAT_BASED", coinReward: 75 },
+  { key:"BOSS_HALFWAY",       name:"🛡️ Halfway Up the Ladder", description:"Defeat 10 of the 20 bosses",                          icon:"🛡️", rarity:"Rare",      category:"Boss Battle", hidden:false, priority:35, criteriaType:"BOSS_DEFEATED_COUNT", criteriaValue:10,  engineType:"STAT_BASED", coinReward: 35 },
+  { key:"BOSS_LADDER_CLEAR",  name:"👑 Ladder Conquered",   description:"Defeat all 20 bosses, across all four worlds",                          icon:"👑", rarity:"Epic",      category:"Boss Battle", hidden:false, priority:65, criteriaType:"BOSS_DEFEATED_COUNT", criteriaValue:20,  engineType:"STAT_BASED", coinReward: 75 },
   { key:"BOSS_FIRST_TRY",     name:"🎯 Flawless Victory",   description:"Defeat a boss on your very first attempt",                icon:"🎯", rarity:"Rare",      category:"Boss Battle", hidden:false, priority:38, criteriaType:"BOSS_FIRST_TRY",      criteriaValue:1,  engineType:"STAT_BASED", coinReward: 35 },
   { key:"BOSS_NEVER_GAVE_UP", name:"💪 Never Gave Up",      description:"Defeat a boss after 5 or more attempts against it",       icon:"💪", rarity:"Rare",      category:"Boss Battle", hidden:false, priority:36, criteriaType:"BOSS_PERSISTENCE",    criteriaValue:5,  engineType:"STAT_BASED", coinReward: 35 },
   { key:"BOSS_GRINDER_25",    name:"🎲 Getting Reps In",    description:"Rack up 25 total boss fight attempts",                    icon:"🎲", rarity:"Common",    category:"Boss Battle", hidden:false, priority:22, criteriaType:"BOSS_TOTAL_ATTEMPTS", criteriaValue:25, engineType:"STAT_BASED", coinReward: 15 },
@@ -63,8 +63,8 @@ export async function checkBossBattleAchievements(playerId: number): Promise<Ach
     }, null);
 
     if (defeatedCount >= 1) await grant("BOSS_FIRST_WIN");
-    if (defeatedCount >= 3) await grant("BOSS_HALFWAY");
-    if (defeatedCount >= 6) await grant("BOSS_LADDER_CLEAR");
+    if (defeatedCount >= 10) await grant("BOSS_HALFWAY");
+    if (defeatedCount >= 20) await grant("BOSS_LADDER_CLEAR");
     if (hasFirstTry)        await grant("BOSS_FIRST_TRY");
     if (hasPersisted)       await grant("BOSS_NEVER_GAVE_UP");
     if (totalAttempts >= 25) await grant("BOSS_GRINDER_25");

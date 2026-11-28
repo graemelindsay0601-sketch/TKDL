@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { Swords, Lock, Trophy, Skull, Clock, Users, Shield, Ghost, LockKeyhole, Zap, Sparkles, CheckCircle2, Heart, Gauge } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
-import { BOSSES, type Boss } from "@/lib/boss-battles-data";
+import { BOSSES, WORLDS, worldOf, pickLine, type Boss } from "@/lib/boss-battles-data";
+import { BossPortrait } from "@/components/boss/BossPortrait";
+import { bossUnlocked } from "@/lib/darts-rules";
 import { BOT_LEVELS, type ShadowProfile } from "@/lib/bot-engine";
 import { possessedBossIndex } from "@/lib/darts-rules";
-import { BossBattleScorer } from "@/components/BossBattleScorer";
+import { BossBattleScorer, type BossFightResult } from "@/components/BossBattleScorer";
 import type { GameResult } from "@/components/game-scorer";
 import { useCosmeticsCatalog, glowRowStyle } from "@/lib/cosmetics";
 import { AchievementRewardModal, type AchievementRewardData } from "@/components/AchievementRewardModal";
@@ -37,23 +39,9 @@ function formatSeconds(s: number): string {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-// Each boss gets its own emblem — purely cosmetic, picked to match its
-// gimmick (Wall Block → Shield, Jinxed → Ghost, Cricket Prison → a cell
-// lock, Lockdown's single-number trap → a keyed lock, Annihilator → Zap,
-// the secret final boss → Skull). The *color* each boss uses isn't a new
-// palette — it's lifted straight from BOT_LEVELS (lib/bot-engine.ts) via
-// boss.botLevel, so the ladder's color progression already matches the
-// difficulty curve used everywhere else bots appear in the app.
-const BOSS_ICON: Record<string, typeof Shield> = {
-  "rookie-wall": Shield,
-  "old-jinx": Ghost,
-  "the-warden": Lock,
-  "lockdown": LockKeyhole,
-  "the-annihilator": Zap,
-  "the-reckoning": Skull,
-};
+const MODE_LABEL: Record<string, string> = { X01: "501", CRICKET: "Cricket", ATW: "Round the board", HALVEIT: "Halve-It", KILLER: "Killer" };
 const tierColor = (boss: Boss) => BOT_LEVELS[boss.botLevel]?.color ?? "#ff005c";
-const tierVar = (boss: Boss) => ({ "--tier": tierColor(boss) }) as React.CSSProperties;
+const tierVar = (boss: Boss) => ({ "--tier": tierColor(boss), "--world": worldOf(boss.world).colour, "--world-glow": worldOf(boss.world).glow }) as React.CSSProperties;
 
 function masteryCount(boss: Boss, defeated: Set<string>, stats?: BossStats): number {
   return Number(defeated.has(boss.id))
@@ -94,6 +82,14 @@ export default function BossBattlePage() {
   const [myGlowId, setMyGlowId] = useState<string | null>(null);
   // Possession: the latest Shadow Cup champion's shadow takes over one boss for the week.
   const [possession, setPossession] = useState<{ week: string; playerId: number; name: string; profile: any } | null>(null);
+  // The Mirror throws your own darts, if your shadow is unlocked and has real dart-by-dart data.
+  const [mirror, setMirror] = useState<ShadowProfile | undefined>(undefined);
+  useEffect(() => {
+    setMirror(undefined);
+    if (!playerId) return;
+    fetch(`/api/players/${playerId}/shadow-profile?era=current`).then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && !d.locked && !d.thin) setMirror(toShadow(playerId, d.playerName ?? "you", d)); }).catch(() => {});
+  }, [playerId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetch("/api/shadow-possession").then(r => r.ok ? r.json() : null).then(setPossession).catch(() => setPossession(null)); }, []);
   useEffect(() => {
     if (!playerId) { setMyGlowId(null); return; }
@@ -150,11 +146,8 @@ export default function BossBattlePage() {
     }
   };
 
-  const isUnlocked = (boss: Boss) => {
-    if (boss.order <= 1) return true;
-    const prev = BOSSES.find(b => b.order === boss.order - 1);
-    return prev ? defeated.has(prev.id) : true;
-  };
+  const isUnlocked = (boss: Boss) => bossUnlocked(boss.id, defeated);
+
 
   const startFight = (boss: Boss, ascension = 0, possessed = false) => {
     setSaveState("idle");
@@ -183,10 +176,11 @@ export default function BossBattlePage() {
     } catch { /* the individual boss results are still safely recorded */ }
   };
 
-  const handleMatchComplete = async (boss: Boss, result: GameResult, ascension = 0, possessed = false) => {
+  const handleMatchComplete = async (boss: Boss, result: BossFightResult, ascension = 0, possessed = false) => {
     const won = result.winnerIdx === 0;
     const elapsedSeconds = fightStartedAt ? Math.round((Date.now() - fightStartedAt) / 1000) : undefined;
-    const cleanSweep = won && /^2[–-]0 legs$/i.test(result.detail ?? "");
+    // Mastery medal 2: a 2-0 in 501 / Cricket, or a flawless win in the party-game fights.
+    const cleanSweep = won && (/^2[–-]0 legs$/i.test(result.detail ?? "") || !!result.flawless);
     if (playerId) {
       setSaveState("saving");
       try {
@@ -237,13 +231,10 @@ export default function BossBattlePage() {
   const possessable = sortedBosses.filter(b => b.gameMode === "X01" && isUnlocked(b));
   const possessedId = possession && possession.playerId !== playerId && possessable.length
     ? possessable[possessedBossIndex(possession.week, possessable.length)].id : null;
-  const possessedProfile = (): ShadowProfile | undefined => {
-    if (!possession) return undefined;
-    const p = possession.profile;
-    return { playerId: possession.playerId, playerName: possession.name, totalDarts: p.darts, primarySeg: p.primarySeg, treblePct: p.treblePct,
-      singlePct: p.singlePct, checkoutSegs: p.checkoutSegs, doubleHitPct: p.doubleHitPct, computedAvg: p.computedAvg, scoringDist: p.scoringDist,
-      doubleRates: p.doubleRates, pressureDoubleHitPct: p.pressureDoubleHitPct, thin: p.thin, eraLabel: p.eraLabel } as ShadowProfile;
-  };
+  const toShadow = (id: number, name: string, p: any): ShadowProfile => ({ playerId: id, playerName: name, totalDarts: p.darts ?? p.totalDarts, primarySeg: p.primarySeg, treblePct: p.treblePct,
+    singlePct: p.singlePct, checkoutSegs: p.checkoutSegs, doubleHitPct: p.doubleHitPct, computedAvg: p.computedAvg, scoringDist: p.scoringDist,
+    doubleRates: p.doubleRates, pressureDoubleHitPct: p.pressureDoubleHitPct, thin: p.thin, eraLabel: p.eraLabel } as ShadowProfile);
+  const possessedProfile = (): ShadowProfile | undefined => possession ? toShadow(possession.playerId, possession.name, possession.profile) : undefined;
   const masteryTotal = sortedBosses.reduce((sum, boss) => sum + masteryCount(boss, defeated, stats[boss.id]), 0);
 
   if (loading) {
@@ -257,6 +248,7 @@ export default function BossBattlePage() {
         playerName={playerName}
         ascension={screen.ascension}
         possessedBy={screen.possessed && !screen.rush && screen.boss.id === possessedId ? possessedProfile() : undefined}
+        mirrorOf={mirror}
         onMatchComplete={(r) => handleMatchComplete(screen.boss, r, screen.ascension ?? 0, !!screen.possessed)}
         onAbandon={() => {
           if (rush) void saveRush(false, rush.wins, Math.max(1, Math.round((Date.now() - rush.startedAt) / 1000)));
@@ -304,12 +296,11 @@ export default function BossBattlePage() {
     const boss = screen.boss;
     const ascension = screen.ascension ?? 0;
     const bossMastery = masteryCount(boss, defeated, stats[boss.id]);
-    const Icon = BOSS_ICON[boss.id] ?? Swords;
     return (
       <div className="bb-shell">
-        <div className="bb-vs" style={tierVar(boss)}>
-          <div className="bb-vs-emblem"><Icon /></div>
-          <div className="bb-vs-kicker">{ascension ? `Ascension ${ascension}` : `Boss ${boss.order} of ${sortedBosses.length}`}</div>
+        <div className="bb-vs world" style={tierVar(boss)}>
+          <div className="bb-vs-portrait"><BossPortrait spec={boss.portrait} size={150} mood="talk" id={`vs-${boss.id}`} /></div>
+          <div className="bb-vs-kicker">{worldOf(boss.world).name} · {ascension ? `Ascension ${ascension}` : `Boss ${boss.order} of ${sortedBosses.length}`}</div>
           <h1>{boss.name}</h1>
           <div className="bb-vs-tagline">"{boss.tagline}"</div>
           {boss.id === possessedId && possession && (
@@ -318,9 +309,9 @@ export default function BossBattlePage() {
             </div>
           )}
           <div className="bb-vs-meta">
-            <span>{boss.gameMode === "X01" ? "501, double out" : "Cricket"}</span>
+            <span>{boss.gameMode === "X01" ? "501, double out" : MODE_LABEL[boss.gameMode]}</span>
             <span><b>{BOT_LEVELS[boss.botLevel]?.label ?? boss.botLevel}</b> tier</span>
-            <span>Best of 3</span>
+            <span>{boss.gameMode === "X01" || boss.gameMode === "CRICKET" ? "Best of 3" : "One game"}</span>
           </div>
           {defeated.has(boss.id) && <div className="bb-ascension-picker">
             {[0, 1, 2].map(level => {
@@ -328,22 +319,29 @@ export default function BossBattlePage() {
               return <button key={level} disabled={!allowed} className={ascension === level ? "active" : ""} onClick={() => setScreen({ kind: "entrance", boss, ascension: level })}>{level === 0 ? "Standard" : `Ascension ${level}`}{level === 2 && !allowed ? " · 3 medals required" : ""}</button>;
             })}
           </div>}
+          {boss.id === "the-mirror" && <div className="bb-vs-hp"><b>{mirror ? "It throws your darts:" : "It borrows an elite thrower's darts"}</b> {mirror ? `your own shadow, ${Number(mirror.computedAvg).toFixed(0)} avg, with your habits.` : "until your shadow is unlocked with enough dart-by-dart data. Then it throws like you."}</div>}
+          <div className="bb-vs-hp">
+            <b>Health bar fight.</b> {boss.gameMode === "X01" ? "Your scoring knocks its health down; a leg it wins heals it. A 100+ visit stuns its curse for your next visit, and a 180 breaks it for the rest of the phase."
+              : boss.gameMode === "CRICKET" ? "Your marks knock its health down; a leg it wins heals it. 6 marks in a visit stuns its curse for your next visit, and 9 breaks it."
+              : "Your progress knocks its health down. No curses here: it just throws better as it gets angry."} It changes tactics at ⅔ and ⅓ health.
+          </div>
           <div className="bb-moves">
             {boss.moves.map((m, i) => (
               <div className="bb-move-card" key={m.name}>
-                <span className="bb-move-tag">Leg {i + 1}</span>
+                <span className="bb-move-tag">{i === 0 ? "Phase 1 · full health" : "Phase 2 · below ⅔"}</span>
                 <div className="bb-move-name"><Sparkles />{m.name}</div>
                 <div className="bb-move-desc">{m.description}</div>
               </div>
             ))}
             {boss.enrageMove && (
               <div className="bb-move-card enrage">
-                <span className="bb-move-tag">Decider — Leg 3</span>
+                <span className="bb-move-tag">Enraged · below ⅓</span>
                 <div className="bb-move-name"><Zap />{boss.enrageMove.name}</div>
                 <div className="bb-move-desc">{boss.enrageMove.description}</div>
               </div>
             )}
           </div>
+          <p className="bb-vs-lore">{boss.lore}</p>
           <div className="bb-vs-footnote">For bragging rights only — no Elo impact.</div>
           <div className="bb-vs-actions">
             <button className="bb-btn-ghost" onClick={() => setScreen({ kind: "ladder" })}>Back</button>
@@ -366,14 +364,15 @@ export default function BossBattlePage() {
       <div className="bb-shell">
         <div className="bb-result" style={{ "--glow": glow } as React.CSSProperties}>
           <div className="bb-result-glow" />
-          <div className="bb-result-icon">{won ? <Trophy /> : <Skull />}</div>
+          <div className="bb-result-portrait"><BossPortrait spec={boss.portrait} size={120} mood={won ? "beaten" : "talk"} id={`res-${boss.id}`} /></div>
+          <div className="bb-result-line">"{won ? boss.lines.defeated : boss.lines.victory}"</div>
           {won ? (
             <>
               <h1>{boss.name} {ascension ? `Ascension ${ascension} cleared!` : "defeated!"}</h1>
               <p>{ascension ? `Your highest cleared tier for this boss is now recorded.` : next ? `${next.name} is now unlocked.` : "That's the whole ladder beaten. Nice work."}</p>
               <div className="bb-mastery-result">
                 <span className="earned"><CheckCircle2 /> Clear</span>
-                <span className={cleanSweep ? "earned" : ""}><Sparkles /> 2–0 sweep</span>
+                <span className={cleanSweep ? "earned" : ""}><Sparkles /> {boss.gameMode === "X01" || boss.gameMode === "CRICKET" ? "2–0 sweep" : "Flawless"}</span>
                 <span className={elapsedSeconds !== undefined && elapsedSeconds <= boss.masterySeconds ? "earned" : ""}><Clock /> Under {formatSeconds(boss.masterySeconds)}</span>
               </div>
               {screen.exorcised != null && possession && (
@@ -413,7 +412,7 @@ export default function BossBattlePage() {
         <div className="bb-hero-copy">
           <div className="bb-kicker"><i />TKDL Arcade · Campaign Protocol</div>
           <h1>Boss <span>Battle</span></h1>
-          <p>Climb a six-fight gauntlet. Every opponent brings a different rule set, signature moves and a harder route to the crown.</p>
+          <p>Twenty bosses across four worlds: the Pub, the Shop Floor, the Arena and the Void. Knock their health down, survive their tactics, and reach The Reckoning.</p>
           <div className="bb-hero-actions">
             <button className={`bb-pill-btn ${showLeaderboard ? "active" : ""}`} onClick={toggleLeaderboard}>
               <Users className="w-3.5 h-3.5" /> Hall of Challengers
@@ -431,8 +430,8 @@ export default function BossBattlePage() {
           </div>
           <div className="bb-command-cells">
             <span><b>{defeatedCount}</b> Defeated</span>
-            <span><b>{Math.min(defeatedCount + 1, sortedBosses.length)}</b> Unlocked</span>
-            <span><b>{masteryTotal}/18</b> Mastery</span>
+            <span><b>{sortedBosses.filter(isUnlocked).length}</b> Unlocked</span>
+            <span><b>{masteryTotal}/{sortedBosses.length * 3}</b> Mastery</span>
           </div>
         </div>
       </div>
@@ -452,7 +451,7 @@ export default function BossBattlePage() {
             <span><Zap /> Arcade Rules</span>
             <p>Boss abilities change the match as you play. Wins unlock the next fight; losses never affect league Elo.</p>
           </div>
-          {defeatedCount === sortedBosses.length && <div className="bb-rush-card"><span><Gauge /> Boss Rush Unlocked</span><p>Beat all six in one run. You have two lives; a loss repeats the current boss.</p><button onClick={startRush}>Enter the gauntlet</button></div>}
+          {defeatedCount === sortedBosses.length && <div className="bb-rush-card"><span><Gauge /> Boss Rush Unlocked</span><p>Beat all twenty in one run. You have two lives; a loss repeats the current boss.</p><button onClick={startRush}>Enter the gauntlet</button></div>}
           {history.length > 0 && <div className="bb-history"><div className="bb-lb-title">Recent Battles</div>{history.slice(0,4).map(run => <div className="bb-history-row" key={run.id}><i className={run.outcome}/><span>{run.mode === "boss_rush" ? "Boss Rush" : run.bossId?.replaceAll("-", " ")}</span><b>{run.outcome === "win" ? "W" : "L"}</b></div>)}</div>}
 
       {showLeaderboard && (
@@ -504,12 +503,21 @@ export default function BossBattlePage() {
         <section className="bb-campaign-panel">
           <div className="bb-panel-heading"><span>Campaign Ladder</span><small>Choose Your Fight</small></div>
           <div className="bb-ladder">
-        {sortedBosses.map(boss => {
+        {WORLDS.map(w => {
+          const inWorld = sortedBosses.filter(b => b.world === w.id);
+          const beaten = inWorld.filter(b => defeated.has(b.id)).length;
+          const open = inWorld.some(isUnlocked);
+          return (
+          <div key={w.id} className={`bb-world ${open ? "" : "locked"}`} style={{ "--world": w.colour, "--world-glow": w.glow } as React.CSSProperties}>
+            <div className="bb-world-head">
+              <div><small>World {WORLDS.indexOf(w) + 1}</small><h3>{w.name}</h3><p>{open ? w.blurb : "Beat the last boss of the world before to get in."}</p></div>
+              <span className="bb-world-count">{beaten}/{inWorld.length}</span>
+            </div>
+        {inWorld.map(boss => {
           const unlocked = isUnlocked(boss);
           const won = defeated.has(boss.id);
           const bossStats = stats[boss.id];
           const mastery = masteryCount(boss, defeated, bossStats);
-          const Icon = BOSS_ICON[boss.id] ?? Swords;
           const isFinal = boss.order === sortedBosses.length;
           return (
             <button
@@ -521,7 +529,7 @@ export default function BossBattlePage() {
             >
               <span className={`bb-node ${won ? "won" : ""}`} />
               <div className={`bb-boss-card ${won ? "won" : ""} ${!unlocked ? "locked" : ""} ${isFinal ? "final" : ""} ${boss.id === possessedId ? "possessed" : ""}`}>
-                <div className="bb-boss-icon">{!unlocked ? <Lock size={16} style={{ color: "rgba(255,255,255,0.3)" }} /> : <Icon size={18} />}</div>
+                <div className="bb-boss-icon portrait">{!unlocked ? <Lock size={16} style={{ color: "rgba(255,255,255,0.3)" }} /> : <BossPortrait spec={boss.portrait} size={46} mood={won ? "idle" : "talk"} id={`lad-${boss.id}`} />}</div>
                 <div className="bb-boss-body">
                   <div className="bb-boss-name">{boss.name}</div>
                   <div className="bb-boss-tag">{unlocked ? boss.tagline : "Beat the previous boss to unlock"}</div>
@@ -542,10 +550,13 @@ export default function BossBattlePage() {
                 </div>
                 <div className="bb-boss-side">
                   <span className="bb-tier-chip">{BOT_LEVELS[boss.botLevel]?.label ?? boss.botLevel}</span>
-                  <span className="bb-mode-chip">{boss.gameMode === "X01" ? "501" : "Cricket"}</span>
+                  <span className="bb-mode-chip">{MODE_LABEL[boss.gameMode]}</span>
                 </div>
               </div>
             </button>
+          );
+        })}
+          </div>
           );
         })}
           </div>

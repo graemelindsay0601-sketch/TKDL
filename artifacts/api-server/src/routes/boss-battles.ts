@@ -24,31 +24,14 @@ import { paramStr } from "../lib/http";
 import { bossBattleRateLimit } from "../middleware/writeRateLimit";
 import { checkBossBattleAchievements } from "../lib/boss-battle-achievements";
 import { isRecentDuplicateSubmit } from "../lib/recentSubmitGuard";
+import { BOSS_ROSTER, TOTAL_BOSSES, rosterByOrder } from "../shared/darts-rules/boss-roster";
 
 const router = Router();
 
-// Keep this in sync with artifacts/tkdl/src/lib/boss-battles-data.ts — this
-// route never needs the moves/effects content, just enough to (a) reject an
-// unknown bossId outright and (b) enforce that the ladder is cleared in
-// order, order 1 first.
-const BOSS_ORDER: Record<string, number> = {
-  "rookie-wall":      1,
-  "old-jinx":         2,
-  "the-warden":       3,
-  "lockdown":         4,
-  "the-annihilator":  5,
-  "the-reckoning":    6,
-};
-const TOTAL_BOSSES = Object.keys(BOSS_ORDER).length;
-const MASTERY_SECONDS: Record<string, number> = {
-  "rookie-wall": 180,
-  "old-jinx": 210,
-  "the-warden": 240,
-  "lockdown": 270,
-  "the-annihilator": 300,
-  "the-reckoning": 360,
-};
-const bossIdForOrder = (order: number) => Object.keys(BOSS_ORDER).find(id => BOSS_ORDER[id] === order);
+// The roster (ids, order, mastery times) is shared with the app: shared/darts-rules/boss-roster.ts.
+const BOSS_ORDER: Record<string, number> = Object.fromEntries(BOSS_ROSTER.map(b => [b.id, b.order]));
+const MASTERY_SECONDS: Record<string, number> = Object.fromEntries(BOSS_ROSTER.map(b => [b.id, b.masterySeconds]));
+const bossIdForOrder = (order: number) => rosterByOrder(order)?.id;
 
 /** Clamp an untrusted client-reported fight duration to something sane, or
  *  null if it's missing/garbage — a bad timer value should never fail the
@@ -128,8 +111,10 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
     // any boss past order 1 unless the previous one is already beaten.
     if (didWin && order > 1) {
       const prevBossId = bossIdForOrder(order - 1);
+      // The previous boss beaten, or this one already beaten (the ladder grew from 6 to 20 bosses,
+      // so an old clear behind a new boss stays playable).
       const [prevDefeat] = (await db.execute(sql`
-        SELECT 1 FROM boss_battle_progress WHERE player_id = ${pid} AND boss_id = ${prevBossId} LIMIT 1
+        SELECT 1 FROM boss_battle_progress WHERE player_id = ${pid} AND boss_id IN (${prevBossId ?? ""}, ${bossId}) LIMIT 1
       `)).rows as any[];
       if (!prevDefeat) {
         res.status(400).json({ error: "Beat the previous boss on the ladder first" });

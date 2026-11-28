@@ -703,7 +703,7 @@ export default function PlayerDetail() {
                 const stat = bossBattle.stats?.[boss.id];
                 return total + Number(bossBattle.defeated?.includes(boss.id)) + Number(stat?.cleanSweep === true) + Number(stat?.bestSeconds != null && stat.bestSeconds <= boss.masterySeconds);
               }, 0);
-              return `${bossBattle.defeated?.length ?? 0}/6 bosses · ${medals}/18 mastery`;
+              return `${bossBattle.defeated?.length ?? 0}/${BOSSES.length} bosses · ${medals}/${BOSSES.length * 3} mastery`;
             })() : "Not started"}
           </ModeTile>
           <ModeTile href="/board-curse" icon={<Ghost className="w-3.5 h-3.5" />} accent="#8b5cf6" label="Board Curse">

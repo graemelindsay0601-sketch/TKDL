@@ -10,6 +10,7 @@
  * - GET  /api/board-curse/leaderboard/:gameType            - top Solo bests and Endless streaks, across everyone
  */
 
+import { BOSS_ROSTER } from "../shared/darts-rules/boss-roster";
 import { Router, Request, Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
@@ -251,7 +252,7 @@ router.get("/admin/arcade/balance", requireAdminSession, async (req: Request, re
       // Boss Battle already had trustworthy aggregate counters before the
       // run ledger existed, so the dashboard can show its full history on
       // day one rather than only attempts recorded after this deployment.
-      db.execute(sql`SELECT boss_id,SUM(attempts)::int attempts,SUM(wins)::int wins,ROUND(AVG(best_seconds) FILTER(WHERE best_seconds IS NOT NULL))::int avg_seconds FROM boss_battle_stats GROUP BY boss_id ORDER BY CASE boss_id WHEN 'rookie-wall' THEN 1 WHEN 'old-jinx' THEN 2 WHEN 'the-warden' THEN 3 WHEN 'lockdown' THEN 4 WHEN 'the-annihilator' THEN 5 ELSE 6 END`),
+      db.execute(sql`SELECT boss_id,SUM(attempts)::int attempts,SUM(wins)::int wins,ROUND(AVG(best_seconds) FILTER(WHERE best_seconds IS NOT NULL))::int avg_seconds FROM boss_battle_stats GROUP BY boss_id ORDER BY array_position(${sql.raw(`ARRAY[${BOSS_ROSTER.map(b => `'${b.id}'`).join(',')}]`)}::text[], boss_id)`),
       db.execute(sql`SELECT game_type,format,COUNT(*)::int runs,COUNT(*) FILTER(WHERE outcome='win')::int wins,ROUND(AVG(visits) FILTER(WHERE visits IS NOT NULL),1) avg_visits,MAX(streak)::int best_streak FROM arcade_runs WHERE mode='board_curse' GROUP BY game_type,format ORDER BY game_type,format`),
       db.execute(sql`SELECT format,SUM(wins+losses)::int runs,SUM(wins)::int wins FROM board_curse_records GROUP BY format ORDER BY format`),
       db.execute(sql`SELECT game_type,COUNT(*)::int players,MIN(best_visits)::int best_visits,MAX(best_streak)::int best_streak FROM board_curse_best GROUP BY game_type ORDER BY game_type`),
