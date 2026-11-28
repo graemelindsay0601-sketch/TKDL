@@ -45,6 +45,9 @@ const KIND: Record<string, { icon: typeof Trophy; colour: string; tag: string }>
   legend_slain:   { icon: Crown,      colour: "#ffd24a", tag: "Legend slain" },
   boss_world:     { icon: Swords,     colour: "#ff7a45", tag: "Boss Battle" },
   boss_revenge:   { icon: Flame,      colour: "#ff2d55", tag: "Revenge" },
+  boss_daily:     { icon: Swords,     colour: "#ff7a45", tag: "Daily Boss" },
+  boss_weekly:    { icon: Swords,     colour: "#a78bfa", tag: "Weekly Boss" },
+  boss_raid:      { icon: Crown,      colour: "#ff2d55", tag: "League Raid" },
 };
 
 const ago = (iso: string) => {

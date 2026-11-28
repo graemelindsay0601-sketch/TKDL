@@ -43,7 +43,7 @@ import { LowerThird } from "./LowerThird";
 import { ProgrammeStrip } from "./ProgrammeStrip";
 import { LEAGUE_ACCENT, LEAGUE_LABEL, SCENE_LABEL } from "./theme";
 import { DartboardBackdrop, Glow } from "@/components/premium/Premium";
-import type { CurrentEdition, LiveOverlayItem, LiveTickerItem, Segment } from "./types";
+import type { CurrentEdition, LiveOverlayItem, LiveTickerItem, LiveRaid, Segment } from "./types";
 import "./live-premium.css";
 
 // How often the playback clock re-derives the current position. Dialogue
@@ -126,6 +126,7 @@ export function BroadcastPlayer() {
       refetchEdition={edition.refetch}
       overlays={live.data?.overlays ?? []}
       tickerItems={live.data?.tickerItems ?? []}
+      raid={live.data?.raid ?? null}
       invalidSegmentIds={invalidSegmentIds}
       namesByKey={namesByKey}
       seenIds={seenIds}
@@ -139,6 +140,7 @@ type PlayerRuntimeProps = {
   refetchEdition: () => void;
   overlays: LiveOverlayItem[];
   tickerItems: LiveTickerItem[];
+  raid?: LiveRaid | null;
   invalidSegmentIds: ReadonlySet<string>;
   namesByKey: ReadonlyMap<string, string>;
   seenIds: ReadonlySet<number>;
@@ -179,7 +181,7 @@ export function BroadcastPlayerPreview({ edition, tickerItems = [], namesByKey =
   );
 }
 
-function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalidSegmentIds, namesByKey, seenIds, markSeen, previewActiveOverlay }: PlayerRuntimeProps) {
+function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, raid = null, invalidSegmentIds, namesByKey, seenIds, markSeen, previewActiveOverlay }: PlayerRuntimeProps) {
   // buildPlaylist (scene-timing.ts) owns the actual running order — see its
   // own header for why opening/headlines/body get stitched in that specific
   // sequence and why it's a pure, separately-tested function rather than
@@ -366,7 +368,7 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
       </LowerThirdDock>
 
       <div data-broadcast-region="ticker" className="relative shrink-0" style={{ zIndex: 2 }}>
-        <LiveTicker items={tickerItems} namesByKey={namesByKey} />
+        <LiveTicker items={tickerItems} namesByKey={namesByKey} raid={raid} />
       </div>
 
       {isTransition && <div className="lv-stinger" aria-hidden="true"><span className="lv-stinger__bar" /><span className="lv-stinger__mark"><span className="pm-chrome">TKDL</span><b>LIVE</b></span></div>}
