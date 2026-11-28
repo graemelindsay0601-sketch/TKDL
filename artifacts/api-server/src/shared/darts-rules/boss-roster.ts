@@ -83,13 +83,81 @@ export function bossHealth(s: FightState): number {
   }
 }
 
-/** Phase 1 → 2 at ⅔ health, 2 → 3 (enraged) at ⅓. Ascension makes it angrier sooner. */
-export function phaseFor(health: number, ascension = 0): 1 | 2 | 3 {
-  const t2 = ascension >= 2 ? 1.01 : 2 / 3, t3 = ascension >= 2 ? 2 / 3 : ascension === 1 ? 1 / 2 : 1 / 3;
+/** Phase 1 → 2 at ⅔ health, 2 → 3 (enraged) at ⅓. Ascension makes it angrier sooner;
+ *  the Cool Head perk holds it off (½ and ¼). */
+export function phaseFor(health: number, ascension = 0, coolHead = false): 1 | 2 | 3 {
+  let t2 = ascension >= 2 ? 1.01 : 2 / 3, t3 = ascension >= 2 ? 2 / 3 : ascension === 1 ? 1 / 2 : 1 / 3;
+  if (coolHead) { t2 = t2 > 1 ? t2 : 1 / 2; t3 = t3 >= 2 / 3 ? 1 / 2 : 1 / 4; }
   return health <= t3 ? 3 : health < t2 ? 2 : 1;
 }
 
-/** What a visit does to the boss's curse (501): 100+ stuns it for your next visit, a 180 breaks it for the phase. */
-export function visitImpact(score: number): "none" | "stun" | "break" {
-  return score >= 180 ? "break" : score >= 100 ? "stun" : "none";
+/** What a visit does to the boss's curse. 501: 100+ stuns it for your next visit, a 180 breaks it for
+ *  the phase. Cricket: 6 / 9 marks. Thick Skin stuns from 80 (5 marks); Shield Breaker breaks from 140 (8). */
+export function visitImpact(score: number, mode: "X01" | "CRICKET" = "X01", perk?: PerkId | null): "none" | "stun" | "break" {
+  const cricket = mode === "CRICKET";
+  const brk = perk === "shield-breaker" ? (cricket ? 8 : 140) : (cricket ? 9 : 180);
+  const stun = perk === "thick-skin" ? (cricket ? 5 : 80) : (cricket ? 6 : 100);
+  return score >= brk ? "break" : score >= stun ? "stun" : "none";
+}
+
+// ── Perks: beat certain bosses to unlock one; take one into each fight ─────────
+export type PerkId = "iron-will" | "steady-hand" | "second-wind" | "treble-hunter" | "cool-head" | "thick-skin" | "shield-breaker";
+export const PERKS: { id: PerkId; name: string; description: string; from: string; modes: BossMode[] }[] = [
+  { id: "iron-will", name: "Iron Will", description: "The boss's first curse can't touch you: phase 1 is curse-free.", from: "rookie-wall", modes: ["X01", "CRICKET"] },
+  { id: "steady-hand", name: "Steady Hand", description: "A dart that misses the board scores 5 instead of nothing.", from: "old-jinx", modes: ["X01"] },
+  { id: "second-wind", name: "Second Wind", description: "On 50 or less, a bust doesn't wipe your visit: the busting dart just scores 1.", from: "big-barry", modes: ["X01"] },
+  { id: "treble-hunter", name: "Treble Hunter", description: "Your first treble each visit is worth 30% more.", from: "the-warden", modes: ["X01"] },
+  { id: "cool-head", name: "Cool Head", description: "The boss stays calmer: it changes tactics at ½ health and enrages at ¼.", from: "the-clipboard", modes: ["X01", "CRICKET", "ATW", "HALVEIT", "KILLER"] },
+  { id: "thick-skin", name: "Thick Skin", description: "Stun its curse with an 80+ visit (Cricket: 5 marks) instead of 100.", from: "lockdown", modes: ["X01", "CRICKET"] },
+  { id: "shield-breaker", name: "Shield Breaker", description: "Break its curse with a 140+ visit (Cricket: 8 marks) instead of a 180.", from: "the-champion", modes: ["X01", "CRICKET"] },
+];
+export const perkById = (id: string | null | undefined) => PERKS.find(p => p.id === id);
+export const unlockedPerks = (defeated: Set<string> | string[]) => {
+  const d = defeated instanceof Set ? defeated : new Set(defeated);
+  return PERKS.filter(p => d.has(p.from));
+};
+
+// ── Loot: every boss drops its own exclusive unlock the first time you beat it ─
+export type BossLoot = { id: string; boss: string; category: "LEADERBOARD_TAG" | "FRAME" | "NAME_STYLE" | "BANNER"; name: string; rarity: string; color?: string; gradient?: string; glow?: string; sortOrder: number };
+const T = (boss: string, name: string, color: string, rarity = "RARE"): BossLoot => ({ id: `tag-bb-${boss}`, boss, category: "LEADERBOARD_TAG", name, rarity, color, sortOrder: 230 });
+const F = (boss: string, name: string, color: string, glow: string): BossLoot => ({ id: `frame-bb-${boss}`, boss, category: "FRAME", name, rarity: "EPIC", color, glow, sortOrder: 231 });
+const N = (boss: string, name: string, gradient: string, glow: string): BossLoot => ({ id: `name-bb-${boss}`, boss, category: "NAME_STYLE", name, rarity: "LEGENDARY", gradient, glow, sortOrder: 232 });
+const B = (boss: string, name: string, gradient: string, glow: string): BossLoot => ({ id: `banner-bb-${boss}`, boss, category: "BANNER", name, rarity: "LEGENDARY", gradient, glow, sortOrder: 233 });
+export const BOSS_LOOT: BossLoot[] = [
+  T("rookie-wall", "WALL BREAKER", "#d97706"),
+  F("old-jinx", "Jinxed", "#84cc16", "#bef264"),
+  T("quizmaster", "QUIZ CHAMPION", "#a78bfa"),
+  N("the-landlord", "Last Orders", "linear-gradient(90deg,#78350f,#f59e0b,#fde68a,#f59e0b,#78350f)", "#f59e0b"),
+  B("big-barry", "On the Door", "repeating-linear-gradient(135deg,rgba(245,158,11,.28) 0 14px,rgba(20,12,4,.94) 14px 34px)", "#f59e0b"),
+  F("the-warden", "Cell Block", "#0ea5e9", "#7dd3fc"),
+  T("night-manager", "EMPLOYEE OF THE MONTH", "#38bdf8"),
+  N("stock-taker", "Stocktake", "linear-gradient(90deg,#14532d,#22c55e,#bbf7d0,#22c55e,#14532d)", "#22c55e"),
+  T("the-clipboard", "DISCIPLINARY", "#e2e8f0"),
+  B("lockdown", "Lockdown", "repeating-linear-gradient(45deg,rgba(220,38,38,.4) 0 12px,rgba(10,6,6,.95) 12px 24px)", "#ef4444"),
+  T("the-annihilator", "ANNIHILATOR", "#ef4444", "EPIC"),
+  N("the-showman", "Showstopper", "linear-gradient(90deg,#831843,#ec4899,#fbcfe8,#ec4899,#831843)", "#ec4899"),
+  F("double-trouble", "Double Vision", "#22d3ee", "#f0abfc"),
+  T("the-gladiator", "GLADIATOR", "#b91c1c", "EPIC"),
+  B("the-champion", "Title Belt", "linear-gradient(100deg,rgba(66,32,6,.95),rgba(234,179,8,.45) 40%,rgba(255,247,214,.35) 50%,rgba(234,179,8,.45) 60%,rgba(66,32,6,.95))", "#eab308"),
+  F("the-hollow", "Hollow", "#6d28d9", "#e9d5ff"),
+  N("bermuda", "Lost at Sea", "linear-gradient(90deg,#083344,#06b6d4,#cffafe,#06b6d4,#083344)", "#22d3ee"),
+  T("the-executioner", "EXECUTIONER", "#f87171", "EPIC"),
+  F("the-mirror", "Mirror", "#cbd5e1", "#38bdf8"),
+  B("the-reckoning", "The Reckoning", "radial-gradient(ellipse at 50% 120%,rgba(244,63,94,.55),rgba(10,0,6,.96) 60%),repeating-conic-gradient(from 0deg at 50% 120%,rgba(244,63,94,.18) 0 6deg,transparent 6deg 14deg)", "#f43f5e"),
+];
+export const lootFor = (bossId: string) => BOSS_LOOT.find(l => l.boss === bossId);
+
+// ── Nemesis: the unbeaten boss that's beaten you most (at least 3 losses). Beat it for a revenge
+// bonus, and your Nemesis moves on. ──
+export const NEMESIS_MIN_LOSSES = 3;
+export const REVENGE_COINS = 50;
+export function nemesisOf(stats: Record<string, { attempts: number; wins: number }>, defeated: Set<string> | string[] = []): { bossId: string; losses: number } | null {
+  const d = defeated instanceof Set ? defeated : new Set(defeated);
+  let best: { bossId: string; losses: number } | null = null;
+  for (const b of BOSS_ROSTER) {
+    const s = stats[b.id]; if (!s || d.has(b.id) || s.wins > 0) continue;
+    const losses = s.attempts - s.wins;
+    if (losses >= NEMESIS_MIN_LOSSES && (!best || losses >= best.losses)) best = { bossId: b.id, losses };
+  }
+  return best;
 }

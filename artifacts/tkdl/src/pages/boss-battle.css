@@ -268,3 +268,28 @@
 .bb-world .bb-boss-row:last-child{grid-column:1/-1}
 .bb-boss-card:after{content:counter(boss, decimal-leading-zero)!important}
 @media (max-width:760px){.bb-world{grid-template-columns:1fr}.bb-world .bb-boss-row:last-child{grid-column:auto}}
+/* ── Perks, Nemesis, loot (Boss Battle v2 part 2) ── */
+.bb-perks{margin:14px auto 4px;max-width:520px;text-align:left}
+.bb-perks-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.bb-perks-head span{font:700 11px Oswald,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#ffd24a}
+.bb-perks-head small{font-size:11px;color:rgba(255,255,255,.5)}
+.bb-perk-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.bb-perk{flex:0 0 150px;display:flex;flex-direction:column;gap:3px;padding:9px 10px;border-radius:12px;text-align:left;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:#fff}
+.bb-perk:first-child{flex-basis:64px;justify-content:center}
+.bb-perk b{font:700 12.5px Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.bb-perk small{font-size:10.5px;line-height:1.3;color:rgba(255,255,255,.6)}
+.bb-perk.on{border-color:#ffd24a;background:rgba(255,210,74,.12);box-shadow:0 0 16px rgba(255,210,74,.25)}
+.bb-perk:disabled{opacity:.45}
+.bb-perk.locked b{color:rgba(255,255,255,.5)}
+.bb-nemesis-note{display:flex;gap:10px;align-items:flex-start;text-align:left;margin:12px auto 4px;max-width:440px;padding:11px 14px;border-radius:14px;background:linear-gradient(135deg,rgba(255,45,85,.25),rgba(40,6,14,.7));border:1px solid rgba(255,45,85,.6);color:#ffe4e9;font-size:13px;line-height:1.45}
+.bb-nemesis-note svg{flex-shrink:0;width:18px;height:18px;color:#ff6b8a;margin-top:1px}
+.bb-nemesis-note b{color:#fff}
+.bb-nemesis-tag{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:2px 8px;border-radius:999px;background:rgba(255,45,85,.2);color:#ffb3c1;font:600 10px Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.bb-pill-btn.nemesis{border-color:rgba(255,45,85,.6)!important;color:#ffb3c1!important}
+.bb-loot-card{display:flex;gap:12px;align-items:center;text-align:left;margin:12px auto 4px;max-width:440px;padding:12px 14px;border-radius:16px;
+  background:linear-gradient(120deg,rgba(255,210,74,.22),rgba(40,26,4,.7));border:1px solid rgba(255,210,74,.6);box-shadow:0 0 26px rgba(255,210,74,.2);animation:bb-loot 1s ease}
+@keyframes bb-loot{from{transform:scale(.9);opacity:0}}
+.bb-loot-card svg{flex-shrink:0;width:26px;height:26px;color:#ffd24a}
+.bb-loot-card small{display:block;font:600 10px Oswald,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#ffd24a}
+.bb-loot-card strong{display:block;font:700 18px Oswald,sans-serif;color:#fff;letter-spacing:.04em}
+.bb-loot-card span{display:block;font-size:11.5px;color:rgba(255,255,255,.6)}
