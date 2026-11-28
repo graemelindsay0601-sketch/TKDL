@@ -100,7 +100,10 @@ export type LivePayload = {
   overlays: LiveOverlayItem[];
   /** Segment ids (api-shapes.ts's `slot-N` scheme) the player must skip if it hasn't played them yet — 11.6/15.4. */
   invalidSegmentIds: string[];
+  /** The month's League Raid (Boss Battle): its name and how much health is left. */
+  raid?: LiveRaid | null;
 };
+export type LiveRaid = { name: string; health: number; killed: boolean; contributors: number };
 
 // ── Title Predictor snapshot (GET /api/broadcast/predictor/:league) ─────
 

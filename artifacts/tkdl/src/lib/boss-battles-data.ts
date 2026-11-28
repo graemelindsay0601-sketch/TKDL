@@ -406,3 +406,20 @@ export function perkEffects(perk: PerkId | null | undefined): CCEffect[] {
   const name = PERKS.find(p => p.id === perk)?.name ?? "";
   return e ? [{ ...e, cardName: name, appliedBy: 0, affectsPlayer: 0, status: "active", legDuration: true } as CCEffect] : [];
 }
+
+/** Be the Boss: a player turned into a 501 boss with three curses picked from bosses they've beaten. */
+export function customBoss(c: { id: number; fromName: string; curses: string[]; message: string | null }): Boss {
+  const move = (ref: string): BossMove => {
+    const [bossId, ph] = ref.split(":");
+    const b = getBossById(bossId);
+    return b ? moveForPhase(b, Number(ph) as 1 | 2 | 3) : { name: "Nothing", description: "No curse.", effects: [] };
+  };
+  return {
+    id: `custom-${c.id}`, name: `Boss ${c.fromName}`, tagline: c.message || "You asked for this.",
+    lore: `${c.fromName} picked these curses themselves.`, world: "arena", gameMode: "X01", botLevel: "county", order: 0, masterySeconds: 0,
+    moves: [move(c.curses[0]), move(c.curses[1])], enrageMove: move(c.curses[2]),
+    lines: L({ entrance: [`It's me. Boss ${c.fromName}.`, "Let's see what you've got."], phase2: "Right, gloves off.", phase3: "Now I'm annoyed.",
+      defeated: "...Fine. Rematch soon.", victory: "Told you I'd make a good boss." }),
+    portrait: { face: "crown", primary: "#a78bfa", secondary: "#2e1065", eye: "#fde68a" },
+  };
+}

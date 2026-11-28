@@ -93,3 +93,17 @@
   .lv-takeover .lv-scene-shell>.grid,.lv-takeover .lv-scene-shell>div:not(.lv-story-col){zoom:1.15}
 }
 .lv-tick .lv-tick-tag{font-size:9px;letter-spacing:.14em;color:#ffd24a;padding:1px 6px;border-radius:999px;border:1px solid rgba(255,210,74,.35)}
+
+/* League Raid (Boss Battle) pinned at the end of the ticker */
+.lv-raid{flex-shrink:0;display:flex;align-items:center;gap:8px;height:100%;padding:0 14px;border-left:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(90deg,rgba(255,45,85,.18),rgba(20,4,10,.9));font-family:Oswald,sans-serif;white-space:nowrap}
+.lv-raid-k{padding:2px 6px;border-radius:4px;background:#ff2d55;color:#fff;font-size:.58rem;font-weight:700;letter-spacing:.16em}
+.lv-raid-n{color:#fff;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.lv-raid-bar{position:relative;width:90px;height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+.lv-raid-bar i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#ff2d55,#ff7a45,#ffd24a);transition:width .6s ease}
+.lv-raid-p{color:#ffd24a;font-size:.7rem;font-weight:700;min-width:30px;text-align:right}
+.lv-raid-down{color:#4ade80;font-size:.66rem;font-weight:700;letter-spacing:.14em}
+.lv-raid.compact{padding:0 10px;gap:6px}
+.lv-raid.compact .lv-raid-n{display:none}
+.lv-raid.compact .lv-raid-bar{width:56px}
+@media (max-width:560px){.lv-raid{padding:0 8px;gap:5px}.lv-raid .lv-raid-n{display:none}.lv-raid .lv-raid-bar{width:44px}}

@@ -11,3 +11,4 @@ export * from "./pairs.ts";
 export * from "./drills.ts";
 export * from "./shadow.ts";
 export * from "./boss-roster.ts";
+export * from "./boss-events.ts";

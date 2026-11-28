@@ -5,7 +5,7 @@
 // kiosk board already established for this app (same @keyframes ticker
 // technique) rather than inventing a second one.
 import { useMemo } from "react";
-import type { LiveTickerItem, LeagueType } from "./types";
+import type { LiveTickerItem, LeagueType, LiveRaid } from "./types";
 import { LEAGUE_ACCENT } from "./theme";
 
 export type LiveTickerProps = {
@@ -26,13 +26,28 @@ export type LiveTickerProps = {
    */
   namesByKey: ReadonlyMap<string, string>;
   compact?: boolean;
+  /** The month's League Raid from Boss Battle: shown as a pinned health bar at the end of the strip. */
+  raid?: LiveRaid | null;
 };
+
+function RaidPill({ raid, compact }: { raid: LiveRaid; compact: boolean }) {
+  const pct = Math.round(raid.health * 100);
+  return (
+    <div className={`lv-raid${raid.killed ? " down" : ""}${compact ? " compact" : ""}`} title={`League Raid: ${raid.name}`}>
+      <span className="lv-raid-k">RAID</span>
+      <span className="lv-raid-n">{raid.name}</span>
+      {raid.killed ? <span className="lv-raid-down">DEFEATED</span> : (
+        <><span className="lv-raid-bar"><i style={{ width: `${pct}%` }} /></span><span className="lv-raid-p">{pct}%</span></>
+      )}
+    </div>
+  );
+}
 
 function displayName(leagueType: LeagueType, id: number, namesByKey: ReadonlyMap<string, string>): string {
   return namesByKey.get(`${leagueType}:${id}`) ?? `#${id}`;
 }
 
-export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerProps) {
+export function LiveTicker({ items, namesByKey, compact = false, raid = null }: LiveTickerProps) {
   // A stable render order (newest first is how the API already returns
   // them) but rendered oldest-to-newest left-to-right so the marquee reads
   // like a real news ticker advancing forward through time, not backward.
@@ -50,6 +65,7 @@ export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerPro
             Waiting on the next result…
           </span>
         </div>
+        {raid && <RaidPill raid={raid} compact={compact} />}
       </div>
     );
   }
@@ -77,6 +93,7 @@ export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerPro
           ))}
         </div>
       </div>
+      {raid && <RaidPill raid={raid} compact={compact} />}
     </div>
   );
 }

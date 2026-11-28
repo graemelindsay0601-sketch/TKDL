@@ -4,7 +4,8 @@ import { Swords, Lock, Trophy, Skull, Clock, Users, Shield, Ghost, LockKeyhole, 
 import { useCurrentPlayer } from "@/context/auth";
 import { BOSSES, WORLDS, PERKS, worldOf, type Boss, type PerkId } from "@/lib/boss-battles-data";
 import { BossPortrait } from "@/components/boss/BossPortrait";
-import { bossUnlocked, nemesisOf, unlockedPerks, REVENGE_COINS } from "@/lib/darts-rules";
+import { BossEvents, type EventFight } from "@/components/boss/BossEvents";
+import { bossUnlocked, nemesisOf, unlockedPerks, REVENGE_COINS, TWISTS } from "@/lib/darts-rules";
 import { Link } from "wouter";
 import { BookOpen, Gift, Flame } from "lucide-react";
 import { BOT_LEVELS, type ShadowProfile } from "@/lib/bot-engine";
@@ -18,8 +19,8 @@ import "./boss-battle.css";
 type Screen =
   | { kind: "ladder" }
   | { kind: "entrance"; boss: Boss; ascension?: number }
-  | { kind: "fight"; boss: Boss; rush?: boolean; ascension?: number; possessed?: boolean; perk?: PerkId | null }
-  | { kind: "result"; boss: Boss; won: boolean; elapsedSeconds?: number; cleanSweep: boolean; ascension?: number; exorcised?: boolean | null; loot?: { name: string; category: string }; revenge?: { coins: number } }
+  | { kind: "fight"; boss: Boss; rush?: boolean; ascension?: number; possessed?: boolean; perk?: PerkId | null; event?: EventFight; throwsLike?: ShadowProfile }
+  | { kind: "result"; boss: Boss; won: boolean; elapsedSeconds?: number; cleanSweep: boolean; ascension?: number; exorcised?: boolean | null; loot?: { name: string; category: string }; revenge?: { coins: number }; event?: EventFight; eventRank?: number | null }
   | { kind: "rush-break"; boss: Boss; nextBoss: Boss; lives: number; wins: number }
   | { kind: "rush-result"; cleared: boolean; wins: number; elapsedSeconds: number; lives: number };
 
@@ -161,6 +162,20 @@ export default function BossBattlePage() {
     setScreen({ kind: "fight", boss, ascension, possessed, perk: usable });
   };
 
+  // Daily / Weekly Boss and Be the Boss fights: open to everyone, don't touch the ladder.
+  const [eventsKey, setEventsKey] = useState(0);
+  const startEventFight = async (boss: Boss, event: EventFight) => {
+    let throwsLike: ShadowProfile | undefined;
+    if (event.kind === "custom") {
+      const d = await fetch(`/api/players/${event.fromId}/shadow-profile?era=current`).then(r => r.ok ? r.json() : null).catch(() => null);
+      if (d && !d.locked && !d.thin) throwsLike = toShadow(event.fromId, d.playerName ?? "", d);
+    }
+    setSaveState("idle");
+    setFightStartedAt(Date.now());
+    const usable = perk && PERKS.find(x => x.id === perk)?.modes.includes(boss.gameMode) && unlockedPerks(defeated).some(x => x.id === perk) ? perk : null;
+    setScreen({ kind: "fight", boss, event, throwsLike, perk: usable });
+  };
+
   const startRush = () => {
     const firstBoss = sortedBosses[0];
     if (!firstBoss || defeatedCount < sortedBosses.length) return;
@@ -180,6 +195,25 @@ export default function BossBattlePage() {
       });
       loadHistory();
     } catch { /* the individual boss results are still safely recorded */ }
+  };
+
+  const handleEventComplete = async (boss: Boss, result: BossFightResult, event: EventFight) => {
+    const won = result.winnerIdx === 0;
+    const elapsedSeconds = fightStartedAt ? Math.round((Date.now() - fightStartedAt) / 1000) : undefined;
+    setFightStartedAt(null);
+    let eventRank: number | null = null;
+    setSaveState("saving");
+    try {
+      const r = event.kind === "custom"
+        ? await fetch(`/api/boss-battles/custom/${event.customId}/result`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ won, elapsedSeconds }) })
+        : await fetch("/api/boss-battles/events/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: event.kind, playerId, won, elapsedSeconds }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error);
+      if (Array.isArray(j.board)) { const i = j.board.findIndex((b: { playerId: number }) => b.playerId === playerId); eventRank = i >= 0 ? i + 1 : null; }
+      setSaveState("saved");
+    } catch { setSaveState("error"); }
+    setEventsKey(k => k + 1);
+    setScreen({ kind: "result", boss, won, elapsedSeconds, cleanSweep: false, event, eventRank });
   };
 
   const handleMatchComplete = async (boss: Boss, result: BossFightResult, ascension = 0, possessed = false) => {
@@ -261,7 +295,10 @@ export default function BossBattlePage() {
         possessedBy={screen.possessed && !screen.rush && screen.boss.id === possessedId ? possessedProfile() : undefined}
         mirrorOf={mirror}
         perk={screen.perk ?? null}
-        onMatchComplete={(r) => handleMatchComplete(screen.boss, r, screen.ascension ?? 0, !!screen.possessed)}
+        twist={screen.event && screen.event.kind !== "custom" ? screen.event.twist : null}
+        throwsLike={screen.throwsLike}
+        eventLabel={!screen.event ? undefined : screen.event.kind === "custom" ? "Be the Boss" : `${screen.event.kind === "daily" ? "Daily" : "Weekly"} Boss · ${TWISTS.find(t => screen.event!.kind !== "custom" && t.id === screen.event!.twist)?.name ?? ""}`}
+        onMatchComplete={(r) => screen.event ? void handleEventComplete(screen.boss, r, screen.event) : handleMatchComplete(screen.boss, r, screen.ascension ?? 0, !!screen.possessed)}
         onAbandon={() => {
           if (rush) void saveRush(false, rush.wins, Math.max(1, Math.round((Date.now() - rush.startedAt) / 1000)));
           setRush(null);
@@ -385,6 +422,28 @@ export default function BossBattlePage() {
     );
   }
 
+  if (screen.kind === "result" && screen.event) {
+    const { boss, won, elapsedSeconds, event, eventRank } = screen;
+    return (
+      <div className="bb-shell">
+        <div className="bb-result" style={{ "--glow": won ? "#ffd24a" : "#ff6b6b" } as React.CSSProperties}>
+          <div className="bb-result-glow" />
+          <div className="bb-result-portrait"><BossPortrait spec={boss.portrait} size={120} mood={won ? "beaten" : "talk"} id={`evres-${boss.id}`} /></div>
+          <div className="bb-result-line">"{won ? boss.lines.defeated : boss.lines.victory}"</div>
+          <h1>{won ? `${boss.name} down!` : `${boss.name} won this one.`}</h1>
+          <p>{event.kind === "custom" ? "They'll get a notification with the result."
+            : won ? (eventRank ? `You're #${eventRank} fastest ${event.kind === "daily" ? "today" : "this week"}${elapsedSeconds ? ` (${formatSeconds(elapsedSeconds)})` : ""}.` : "Kill recorded.")
+            : "Have another go. Every fight still hits the League Raid."}</p>
+          <div className={`bb-save-state ${saveState}`}>{saveState === "saving" ? "Saving…" : saveState === "saved" ? "Result saved" : saveState === "error" ? "Result shown, but it could not be saved" : ""}</div>
+          <div className="bb-vs-actions">
+            <button className="bb-btn-ghost" onClick={() => setScreen({ kind: "ladder" })}>Back</button>
+            {event.kind !== "custom" && <button className="bb-btn-primary" onClick={() => void startEventFight(boss, event)}>Go again</button>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (screen.kind === "result") {
     const { boss, won, elapsedSeconds, cleanSweep, ascension = 0 } = screen;
     const next = BOSSES.find(b => b.order === boss.order + 1);
@@ -471,6 +530,9 @@ export default function BossBattlePage() {
           </div>
         </div>
       </div>
+
+      <div className="bb-events-head"><span>Events</span><small>Same boss for everyone · the whole league's raid · your own boss</small></div>
+      <BossEvents playerId={playerId} meId={currentPlayer?.playerId ?? null} defeated={defeated} onFight={(b, e) => void startEventFight(b, e)} refreshKey={eventsKey} />
 
       <div className="bb-arena-grid">
         <aside className="bb-control-rail">

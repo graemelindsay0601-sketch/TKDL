@@ -61,8 +61,8 @@ export function bossUnlocked(id: string, defeated: Set<string> | string[]): bool
 // the scores.
 
 export type FightState =
-  | { mode: "X01"; start: number; mine: number; legsWon: number }        // mine = what you have left this leg
-  | { mode: "CRICKET"; marks: number; legsWon: number }                  // marks = your closing marks this leg (max 21)
+  | { mode: "X01"; start: number; mine: number; legsWon: number; legsToWin?: number }   // mine = what you have left this leg
+  | { mode: "CRICKET"; marks: number; legsWon: number; legsToWin?: number }             // marks = your closing marks this leg (max 21)
   | { mode: "ATW"; mine: number; of: number }
   | { mode: "KILLER"; theirs: number; of: number }
   | { mode: "HALVEIT"; mine: number; theirs: number; round: number; rounds: number };
@@ -71,8 +71,8 @@ export type FightState =
 export function bossHealth(s: FightState): number {
   const clamp = (x: number) => Math.max(0, Math.min(1, x));
   switch (s.mode) {
-    case "X01": return clamp(1 - (s.legsWon * s.start + (s.start - s.mine)) / (2 * s.start));
-    case "CRICKET": return clamp(1 - (s.legsWon * 21 + Math.min(21, s.marks)) / 42);
+    case "X01": return clamp(1 - (s.legsWon * s.start + (s.start - s.mine)) / ((s.legsToWin ?? 2) * s.start));
+    case "CRICKET": return clamp(1 - (s.legsWon * 21 + Math.min(21, s.marks)) / ((s.legsToWin ?? 2) * 21));
     case "ATW": return s.of ? clamp(1 - s.mine / s.of) : 1;
     case "KILLER": return s.of ? clamp(s.theirs / s.of) : 1;
     case "HALVEIT": {

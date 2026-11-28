@@ -18,7 +18,7 @@ import { X01Scorer, CricketScorer, SequenceScorer, HalveItScorer, KillerScorer, 
 import type { GameResult } from "./game-scorer";
 import { BOT_LEVELS, type BotLevel, type ShadowProfile } from "@/lib/bot-engine";
 import { moveForPhase, effectsForMove, perkEffects, pickLine, type Boss, type PerkId } from "@/lib/boss-battles-data";
-import { bossHealth, phaseFor, visitImpact, type FightState } from "@/lib/darts-rules";
+import { bossHealth, phaseFor, visitImpact, type FightState, type TwistId } from "@/lib/darts-rules";
 import type { CCEffect } from "@/lib/card-effect-engine";
 import { BossHud, BossEntrance, PhaseBanner, type CurseState } from "./boss/BossHud";
 import { useNewScoringUI } from "@/lib/useNewScoringUI";
@@ -37,6 +37,12 @@ interface BossBattleScorerProps {
   mirrorOf?: ShadowProfile;
   /** The perk taken into this fight. */
   perk?: PerkId | null;
+  /** Daily / Weekly Boss twist. */
+  twist?: TwistId | null;
+  /** Be the Boss: the boss throws this player's shadow darts. */
+  throwsLike?: ShadowProfile;
+  /** Entrance label for event fights ("Daily Boss · Frenzy", "Be the Boss"). */
+  eventLabel?: string;
 }
 
 const LEVELS: BotLevel[] = ["beginner", "amateur", "club", "county", "pro", "elite"];
@@ -46,7 +52,7 @@ const SEQ_CONFIG: Record<string, object> = {
 };
 const KILLER_LIVES: Record<string, number> = { killer: 3, killer_1_life: 1 };
 
-export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon, ascension = 0, possessedBy, mirrorOf, perk = null }: BossBattleScorerProps) {
+export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon, ascension = 0, possessedBy, mirrorOf, perk = null, twist = null, throwsLike, eventLabel }: BossBattleScorerProps) {
   const cursed = boss.gameMode === "X01" || boss.gameMode === "CRICKET";
   // 501 / Cricket follow the New Scoring UI setting; the party-game bosses always use the new layout (the boss banner lives there).
   const newScoringUI = useNewScoringUI();
@@ -65,7 +71,8 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon,
 
   // ── Fight state ──
   const coolHead = perk === "cool-head";
-  const startPhase = phaseFor(1, ascension, coolHead);
+  const startPhase: 1 | 2 | 3 = twist === "born-angry" ? 3 : phaseFor(1, ascension, coolHead);
+  const legsToWin = twist === "sudden-death" ? 1 : 2;
   const [entered, setEntered] = useState(false);
   const [health, setHealth] = useState(1);
   const minHealth = useRef(1);
@@ -88,7 +95,10 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon,
 
   // The curse for this phase: picked once per phase (and refreshed each leg, since the scorer
   // clears leg-long effects when a leg ends). Stunned / broken switches it off without re-rolling it.
-  const phaseEffects = useMemo(() => (cursed ? effectsForMove(move) : []), [phase, legNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Double Curse (twist): both of its first two curses at once until it enrages.
+  const phaseEffects = useMemo(() => (!cursed ? []
+    : twist === "double-curse" && phase < 3 ? [...effectsForMove(moveForPhase(boss, 1)), ...effectsForMove(moveForPhase(boss, 2))]
+    : effectsForMove(move)), [phase, legNonce]); // eslint-disable-line react-hooks/exhaustive-deps
   // Iron Will: phase 1's curse can't touch you. Perks that change your darts ride along as your own
   // effects, rebuilt at the start of each of your visits (Treble Hunter's "first treble" resets per visit).
   const [visitNonce, setVisitNonce] = useState(0);
@@ -132,8 +142,8 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon,
       legs[1] = p.legs[1] + (p.marks[0] >= p.marks[1] ? 0 : 1);
     }
     const st: FightState = boss.gameMode === "X01"
-      ? { mode: "X01", start: 501, mine: s.scores[0], legsWon: legs[0] }
-      : { mode: "CRICKET", marks: marks[0], legsWon: legs[0] };
+      ? { mode: "X01", start: 501, mine: s.scores[0], legsWon: legs[0], legsToWin }
+      : { mode: "CRICKET", marks: marks[0], legsWon: legs[0], legsToWin };
     onHealth(bossHealth(st));
 
     if (p) {
@@ -149,7 +159,8 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon,
           // The visit that just ended was the stunned one: the curse comes back.
           setCurse(c => (c === "stunned" ? "on" : c));
           const impact = visitImpact(v, boss.gameMode === "X01" ? "X01" : "CRICKET", perk);
-          if (impact === "break" && cursed) {
+          if (twist === "iron-hide") { if (v <= 0) say(pickLine(boss.lines.bust)); }
+          else if (impact === "break" && cursed) {
             setCurse("broken");
             setToast({ kind: "break", text: `${move.name} broken!`, key: Date.now() });
             say(pickLine(boss.lines.hurt), "hurt");
@@ -167,7 +178,7 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon,
     const start: [number, number] = !p || legChanged ? cur : [...p.start] as [number, number];
     if (p && s.turn !== p.turn) { start[s.turn] = cur[s.turn]; if (s.turn === 0 && perk === "treble-hunter") setVisitNonce(n => n + 1); }
     prev.current = { scores: [...s.scores] as [number, number], turn: s.turn, legs, marks, start };
-  }, [boss, cursed, move.name, onHealth, say, perk]);
+  }, [boss, cursed, move.name, onHealth, say, perk, twist, legsToWin]);
 
   // ── Around the World / Halve-It / Killer: progress from the party scorer ──
   const prevProg = useRef<BossProgress | null>(null);
@@ -198,9 +209,9 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon,
 
   // ── The boss's own throwing ──
   const baseIdx = Math.max(0, LEVELS.indexOf(boss.botLevel));
-  const boost = cursed ? 0 : (move.botBoost ?? 0);
+  const boost = (cursed ? 0 : (move.botBoost ?? 0)) + (twist === "frenzy" ? 1 : 0);
   const levelConfig = BOT_LEVELS[LEVELS[Math.min(LEVELS.length - 1, baseIdx + ascension + boost)]];
-  const shadow = possessedBy ?? (boss.id === "the-mirror" ? mirrorOf : undefined);
+  const shadow = possessedBy ?? throwsLike ?? (boss.id === "the-mirror" ? mirrorOf : undefined);
   const botConfig = shadow && boss.gameMode === "X01" ? { ...levelConfig, shadowProfile: shadow } : levelConfig;
 
   const finish = (winnerIdx: 0 | 1, detail?: string) => {
@@ -222,17 +233,17 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon,
 
   return (
     <div style={{ position: "relative" }}>
-      {!entered && <BossEntrance boss={boss} line={entranceLine} onDone={() => setEntered(true)} possessedBy={possessedBy?.playerName} />}
+      {!entered && <BossEntrance boss={boss} line={entranceLine} onDone={() => setEntered(true)} possessedBy={possessedBy?.playerName} kicker={eventLabel} />}
       {banner && <PhaseBanner key={banner.key} boss={boss} phase={banner.phase} move={moveForPhase(boss, banner.phase)} line={banner.phase === 3 ? boss.lines.phase3 : boss.lines.phase2} />}
       {toast && <div key={toast.key} className={`bimp ${toast.kind}`}>{toast.text}</div>}
       {boss.gameMode === "X01" && (
         <X01Scorer p1Name={playerName} p2Name={p2Name} config={{ startingScore: 501, doubleOut: true }} botConfig={botConfig}
-          onWin={(w, d) => finish(w as 0 | 1, d)} onAbandon={onAbandon} cardEffects={cardEffects} legs={3}
+          onWin={(w, d) => finish(w as 0 | 1, d)} onAbandon={onAbandon} cardEffects={cardEffects} legs={legsToWin === 1 ? 1 : 3}
           onLegStart={() => setLegNonce(n => n + 1)} onLiveState={onLive} topBanner={hud} newScoringUI={newScoringUI} />
       )}
       {boss.gameMode === "CRICKET" && (
         <CricketScorer p1Name={playerName} p2Name={p2Name} botConfig={botConfig}
-          onWin={(w, d) => finish(w as 0 | 1, d)} onAbandon={onAbandon} cardEffects={cardEffects} legs={3}
+          onWin={(w, d) => finish(w as 0 | 1, d)} onAbandon={onAbandon} cardEffects={cardEffects} legs={legsToWin === 1 ? 1 : 3}
           onLegStart={() => setLegNonce(n => n + 1)} onLiveState={onLive} topBanner={hud} newScoringUI={newScoringUI} />
       )}
       {boss.gameMode === "ATW" && (

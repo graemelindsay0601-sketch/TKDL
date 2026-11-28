@@ -42,14 +42,14 @@ export function BossHud({ boss, health, phase, move, curse, bubble, mood, posses
 }
 
 /** Full-screen entrance before a fight: the boss slams in with a line. Tap to skip. */
-export function BossEntrance({ boss, line, onDone, possessedBy }: { boss: Boss; line: string; onDone: () => void; possessedBy?: string }) {
+export function BossEntrance({ boss, line, onDone, possessedBy, kicker }: { boss: Boss; line: string; onDone: () => void; possessedBy?: string; kicker?: string }) {
   const w = worldOf(boss.world);
   useEffect(() => { const t = setTimeout(onDone, 3400); return () => clearTimeout(t); }, [onDone]);
   return (
     <div className="be" style={{ ["--bw" as string]: w.colour, ["--bg2" as string]: w.glow }} onClick={onDone} role="dialog" aria-label={`${boss.name} enters`}>
       <div className="be-rays" />
       <div className="be-port"><BossPortrait spec={boss.portrait} size={190} mood="talk" id={`ent-${boss.id}`} /></div>
-      <div className="be-kicker">{w.name} · Boss {boss.order} of 20</div>
+      <div className="be-kicker">{kicker ?? `${w.name} · Boss ${boss.order} of 20`}</div>
       <h1 className="be-name">{boss.name}</h1>
       {possessedBy && <div className="be-poss">👻 Possessed by Shadow {possessedBy}</div>}
       <p className="be-line">"{line}"</p>

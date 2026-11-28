@@ -268,7 +268,10 @@ export type LivePayload = {
   tickerItems: LiveTickerItem[];
   overlays: LiveOverlayItem[];
   invalidSegmentIds: string[];
+  /** The month's League Raid (Boss Battle): its name and how much health is left. */
+  raid?: LiveRaid | null;
 };
+export type LiveRaid = { name: string; health: number; killed: boolean; contributors: number };
 
 // ── Throttling the one genuinely expensive case ─────────────────────────
 // This file's own header above explains why the common case (nothing new
@@ -343,5 +346,18 @@ export async function getLivePayload(now: Date = new Date()): Promise<LivePayloa
     tickerItems: recentMatches.map(m => { const tag = m.leagueType !== "singles" ? null : recordIds.has(m.matchId) ? "league record" : reports.get(m.matchId)?.ticker; return { matchId: m.matchId, leagueType: m.leagueType, winnerId: m.winnerId, loserId: m.loserId, playedAt: m.playedAt.toISOString(), ...(tag ? { tag } : {}) }; }),
     overlays: computeOverlays(freshStories, matchPlayedAtById, now),
     invalidSegmentIds,
+    raid: await liveRaid(),
   };
+}
+
+/** The League Raid strip on the ticker. Never lets a raid problem break the live feed. */
+async function liveRaid(): Promise<LiveRaid | null> {
+  try {
+    const { getSettingBool } = await import("../lib/settingsService");
+    const { getDefaultLeagueId } = await import("../lib/currentLeague");
+    if (!(await getSettingBool(await getDefaultLeagueId(), "boss_battle_enabled"))) return null;
+    const { raidState } = await import("../lib/boss-events-db");
+    const r = await raidState(null);
+    return { name: r.boss.name, health: r.health, killed: r.killed, contributors: r.contributors };
+  } catch { return null; }
 }

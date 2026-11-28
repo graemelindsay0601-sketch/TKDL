@@ -26,6 +26,7 @@ import { DailyDrill } from "@/components/DailyDrill";
 import { RecordBanner } from "@/components/RecordBanner";
 import { LeagueTargetCard } from "@/components/league-target/LeagueTargetCard";
 import { GafferCard } from "@/components/gaffer/GafferCard";
+import { RaidHubCard } from "@/components/boss/BossEvents";
 import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -773,6 +774,8 @@ export default function Dashboard() {
       <LeagueTargetCard />
 
       <GafferCard />
+
+      {appSettings?.boss_battle_enabled && <RaidHubCard />}
 
       <QuickActions liveScorerEnabled={appSettings?.live_scorer_enabled ?? false} />
 
