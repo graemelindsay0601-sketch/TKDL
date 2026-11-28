@@ -43,6 +43,8 @@ export type ModernX01Props = {
   /** Queue a whole visit of darts (Visit total). */
   onDarts: (ds: Dart[]) => void;
   topBanner?: ReactNode;
+  /** Segments that score nothing right now (Boss Battle / Board Curse effects): struck through on the pad. */
+  deadKeys?: number[];
   menu: { label: string; onClick: () => void; danger?: boolean }[];
   /** Last visit score per player, for the card. */
   lastVisit: [number | null, number | null];
@@ -206,11 +208,11 @@ export function ModernX01(p: ModernX01Props) {
               ))}
             </div>
             <div className="mx-grid">
-              {Array.from({ length: 20 }, (_, k) => 20 - k).map(n => <button key={n} disabled={p.disabled} onClick={() => fire(n)}><span>{n}</span></button>)}
+              {Array.from({ length: 20 }, (_, k) => 20 - k).map(n => <button key={n} disabled={p.disabled} className={p.deadKeys?.includes(n) ? "dead" : ""} title={p.deadKeys?.includes(n) ? "Scores 0 right now" : undefined} onClick={() => fire(n)}><span>{n}</span></button>)}
             </div>
             <div className="mx-row4">
-              <button className="bull25" disabled={p.disabled} onClick={() => fire(25)}>25</button>
-              <button className="bull50" disabled={p.disabled} onClick={bull}>Bull</button>
+              <button className={`bull25${p.deadKeys?.includes(25) ? " dead" : ""}`} disabled={p.disabled} onClick={() => fire(25)}>25</button>
+              <button className={`bull50${p.deadKeys?.includes(25) ? " dead" : ""}`} disabled={p.disabled} onClick={bull}>Bull</button>
               <button className="ghost" disabled={p.disabled} onClick={p.onMiss}>Miss</button>
               <button className="ghost" disabled={p.bust} onClick={p.onUndo}>Undo</button>
             </div>

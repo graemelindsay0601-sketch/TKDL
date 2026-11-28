@@ -147,3 +147,26 @@
 .ssp-radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3); display: flex; align-items: center; justify-content: center; flex: none; }
 .ssp-opt.is-on .ssp-radio { border-color: #ffd24a; }
 .ssp-opt.is-on .ssp-radio i { width: 11px; height: 11px; border-radius: 50%; background: #ffd24a; }
+
+/* Master 501 banner (tier, legs to win/lose, darts-left meter) */
+.m5-banner { margin: 0 0 8px; padding: 10px 12px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--m5) 45%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--m5) 16%, transparent), rgba(12,10,18,.9) 70%); font-family: Oswald, sans-serif; }
+.m5-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.m5-tier { font-weight: 700; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--m5); }
+.m5-legs { display: inline-flex; align-items: center; gap: 4px; }
+.m5-legs i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); }
+.m5-legs i.w { background: #22c55e; border-color: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,.6); }
+.m5-legs i.l { background: #ff005c; border-color: #ff005c; box-shadow: 0 0 8px rgba(255,0,92,.6); }
+.m5-legs b { margin-right: 4px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.4); font-weight: 500; }
+.m5-meter { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.m5-left { flex: none; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.55); }
+.m5-left b { font-size: 22px; color: var(--dc); margin-right: 3px; }
+.m5-left small { font-size: 10px; color: rgba(255,255,255,.3); }
+.m5-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
+.m5-bar i { display: block; height: 100%; background: var(--dc); box-shadow: 0 0 10px var(--dc); transition: width .3s; }
+.m5-flash { margin-top: 8px; text-align: center; font-size: 18px; font-weight: 700; letter-spacing: .06em; }
+.m5-flash.win { color: #22c55e; } .m5-flash.loss { color: #ff005c; }
+
+/* A segment an effect has killed: still tappable (the dart counts), but it scores 0. */
+button.dead { position: relative; opacity: .45; }
+button.dead::after { content: ""; position: absolute; left: 14%; right: 14%; top: 50%; height: 2px; background: #ff3b3b; transform: rotate(-24deg); box-shadow: 0 0 6px rgba(255,59,59,.7); pointer-events: none; }
