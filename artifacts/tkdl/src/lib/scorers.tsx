@@ -671,6 +671,9 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 }
 
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
+/** Boss Battle progress from the party-style scorers (Around the World, Halve-It, Killer). */
+export type BossProgress = { mine: number; theirs: number; of: number; round?: number; rounds?: number };
+
 export type LiveScoreState = { mode: "x01" | "cricket"; scores: [number, number]; turn: 0 | 1; detail?: [string, string]; currentPlayer?: string; lastVisit?: string; checkout?: string };
 
 /** Segments that score 0 for this player under the live effects (Boss Battle / Board Curse): shown struck through on the new pad. */
@@ -4072,11 +4075,15 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
 }
 
 // ── Killer Scorer ──────────────────────────────────────────────────────────────
-export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, topBanner, onBossProgress }: {
   p1Name: string; p2Name: string; lives?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   newScoringUI?: boolean;
+  /** Boss Battle: the boss banner shown above the pad. */
+  topBanner?: React.ReactNode;
+  /** Boss Battle: progress for the boss health bar. */
+  onBossProgress?: (p: BossProgress) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const [phase, setPhase]           = useSnapState<"assign"|"play">("KillerScorer.phase", "assign");
@@ -4176,10 +4183,13 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
   }, [turn, botConfig, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [classicKill, setClassicKill] = useState(false);
+  useEffect(() => { onBossProgress?.({ mine: playerLives[0], theirs: playerLives[1], of: lives }); }, [playerLives[0], playerLives[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (phase === "assign" && newScoringUI && !classicKill) {
     const choosing = assigning === 1 && !!botConfig;
     return (
       <ModernParty
+        topBanner={topBanner}
         heading="Killer" sub="Pick your doubles"
         names={[p1Name, p2Name]} turn={assigning}
         cards={[0, 1].map(i => ({ score: killerNums[i] !== null ? `D${killerNums[i]}` : "—", line: { label: "Status", value: killerNums[i] !== null ? "Locked in" : assigning === i ? "Picking" : "Waiting" }, stats: [{ label: "Lives", value: lives }, { label: "Killer", value: "Not yet" }] })) as [any, any]}
@@ -4243,11 +4253,13 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
     );
   }
 
+
   if (newScoringUI && !classicKill) {
     const opp = turn === 0 ? 1 : 0;
     const aim = isKiller[turn] ? killerNums[opp] : killerNums[turn];
     return (
       <ModernParty
+        topBanner={topBanner}
         heading="Killer"
         sub={`${lives} ${lives === 1 ? "life" : "lives"} each`}
         rules="Hit your own double to become a Killer. Once you are, hit your opponent's double to take a life. Hit your own double as a Killer and you lose one. Last player with lives wins."
@@ -4322,7 +4334,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI, soloMode }: {
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI, topBanner, onBossProgress, soloMode }: {
   p1Name: string; p2Name: string; config: any; gameKey: string; title?: string; rules?: string; botConfig?: BotConfig;
   /** Solo Training: one player, no opponent; the race is against the dart count. */
   soloMode?: boolean;
@@ -4330,6 +4342,10 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
   newScoringUI?: boolean;
+  /** Boss Battle: the boss banner shown above the pad. */
+  topBanner?: React.ReactNode;
+  /** Boss Battle: progress for the boss health bar. */
+  onBossProgress?: (p: BossProgress) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -4513,6 +4529,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => { onBossProgress?.({ mine: positions[0], theirs: positions[1], of: sequence.length }); }, [positions[0], positions[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (isShanghai) {
     const handleShDart = (dart: Dart) => {
       if (shanghaiDarts.length >= 3) return;
@@ -4567,6 +4585,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
       const ticks = `${shanghaiHits.s ? "S✓" : "S·"} ${shanghaiHits.d ? "D✓" : "D·"} ${shanghaiHits.t ? "T✓" : "T·"}`;
       return (
         <ModernParty
+        topBanner={topBanner}
           heading="Shanghai"
           sub={`Round ${shanghaiRound} of ${maxRounds}`}
           rules={rules ?? "Each round has a target number, starting at 1. Score what you hit on it. Hit its single, double and treble in one visit (a Shanghai) and you win on the spot. Highest score after the last round wins."}
@@ -4621,6 +4640,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   if (isStraightLine && pickedStart === null && modernSeq) {
     return (
       <ModernParty
+        topBanner={topBanner}
         heading="Straight Line"
         sub="Pick your starting number"
         rules={rules}
@@ -4696,6 +4716,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
     const lab = curTarget?.label ?? "";
     return (
       <ModernParty
+        topBanner={topBanner}
         heading={title ?? "Round the Clock"}
         rules={rules}
         names={[p1Name, p2Name]}
@@ -4990,13 +5011,17 @@ const HALVEIT_LABELS  = ["20","16","Any Double","17","Bull","18","19","Any Trebl
 const BERMUDA_TARGETS = [12,13,14,"D",15,16,17,"T",18,19,20,"Bull25","Bull50"];
 const BERMUDA_LABELS  = ["12","13","14","Any Double","15","16","17","Any Treble","18","19","20","25 (either bull)","Bullseye"];
 
-export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, soloMode }: {
+export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, topBanner, onBossProgress, soloMode }: {
   p1Name: string; p2Name: string; gameKey: string; botConfig?: BotConfig;
   /** Solo Training: one player; the game ends after the last round (or at 0 or below in Bob's 27). */
   soloMode?: boolean;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   newScoringUI?: boolean;
+  /** Boss Battle: the boss banner shown above the pad. */
+  topBanner?: React.ReactNode;
+  /** Boss Battle: progress for the boss health bar. */
+  onBossProgress?: (p: BossProgress) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const isBobs = gameKey === "bobs_27";
@@ -5125,10 +5150,13 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [classicHalve, setClassicHalve] = useState(false);
+  useEffect(() => { onBossProgress?.({ mine: scores[0], theirs: scores[1], of: 0, round, rounds: targets.length }); }, [scores[0], scores[1], round]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (newScoringUI && !classicHalve) {
     const label = String(targetLabels[round]);
     return (
       <ModernParty
+        topBanner={topBanner}
         heading={isBobs ? "Bob's 27" : isBermuda ? "Bermuda Triangle" : "Halve-It"}
         sub={`Round ${round + 1} of ${targets.length}`}
         rules={isBermuda ? "Thirteen rounds: 12, 13, 14, any double, 15, 16, 17, any treble, 18, 19, 20, the bull (either ring scores 25), then the bullseye (50). Every dart on the round's target adds what it scores. Miss it with all three and your total is halved. Highest score after round 13 wins." : isBobs ? "Twenty rounds, D1 to D20. Every double you hit adds its value; miss all three and you lose the double's value. Highest score wins." : "Hit the round's target with your three darts to add what you score. Miss it with all three and your total is halved. Highest score after the last round wins."}

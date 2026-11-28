@@ -242,3 +242,29 @@
 .bb-possessed-note svg{flex-shrink:0;width:18px;height:18px;color:#c4b5fd;margin-top:1px}
 .bb-possessed-note b{color:#fff}
 .bb-btn-possessed{display:block;width:100%;margin-top:12px;padding:14px;border-radius:14px;background:linear-gradient(135deg,#a78bfa,#6d28d9);color:#fff;font:700 14px Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 0 24px rgba(167,139,250,.45)}
+
+/* ── Worlds (Boss Battle v2) ─────────────────────────────────────── */
+.bb-world{position:relative;margin:0 0 18px;padding:14px 12px 6px;border-radius:20px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--world) 16%,transparent),color-mix(in srgb,var(--world-glow) 30%,transparent) 30%,rgba(6,4,10,.4));
+  border:1px solid color-mix(in srgb,var(--world) 35%,transparent)}
+.bb-world.locked{opacity:.55;filter:saturate(.5)}
+.bb-world-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:0 4px 10px}
+.bb-world-head small{font:600 10px Oswald,sans-serif;letter-spacing:.24em;text-transform:uppercase;color:color-mix(in srgb,var(--world) 80%,#fff)}
+.bb-world-head h3{margin:2px 0 3px;font:700 24px/1 Oswald,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:#fff;text-shadow:0 0 18px color-mix(in srgb,var(--world) 60%,transparent)}
+.bb-world-head p{margin:0;font-size:12.5px;color:rgba(255,255,255,.6)}
+.bb-world-count{flex-shrink:0;padding:4px 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--world) 55%,transparent);color:#fff;font:700 13px Oswald,sans-serif}
+.bb-boss-icon.portrait{background:radial-gradient(circle,color-mix(in srgb,var(--world) 30%,transparent),transparent 72%)!important;border-color:color-mix(in srgb,var(--world) 40%,transparent)!important;overflow:visible}
+.bb-vs.world{background:radial-gradient(120% 60% at 50% 0%,color-mix(in srgb,var(--world) 30%,transparent),color-mix(in srgb,var(--world-glow) 50%,#07050c) 55%,#07050c)!important;border-color:color-mix(in srgb,var(--world) 45%,transparent)!important}
+.bb-vs-portrait{display:flex;justify-content:center;margin:4px auto 6px;filter:drop-shadow(0 0 24px color-mix(in srgb,var(--world) 70%,transparent))}
+.bb-vs-hp{margin:12px auto 4px;max-width:520px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);font-size:12.5px;line-height:1.45;color:rgba(255,255,255,.75);text-align:left}
+.bb-vs-hp b{color:#fff}
+.bb-vs-lore{margin:14px auto 0;max-width:520px;font-size:13px;line-height:1.5;color:rgba(255,255,255,.55);font-style:italic}
+.bb-result-portrait{display:flex;justify-content:center;margin:0 auto 4px;position:relative}
+.bb-result-line{position:relative;margin:0 auto 6px;font:500 italic 17px Oswald,sans-serif;color:rgba(255,255,255,.85)}
+/* Worlds hold the boss cards: each world is its own grid, the world's last boss spans the row */
+.bb-ladder{display:block!important;padding-top:12px}
+.bb-world{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.bb-world-head{grid-column:1/-1}
+.bb-world .bb-boss-row:last-child{grid-column:1/-1}
+.bb-boss-card:after{content:counter(boss, decimal-leading-zero)!important}
+@media (max-width:760px){.bb-world{grid-template-columns:1fr}.bb-world .bb-boss-row:last-child{grid-column:auto}}
