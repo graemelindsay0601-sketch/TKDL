@@ -7,6 +7,7 @@ import type { BotConfig } from "@/lib/bot-engine";
 import { createCurseRandom, getCursePool, getTierForVisit, rollCurse, type CurseDef, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
 import type { CCEffect } from "@/lib/card-effect-engine";
 import { useNewScoringUI } from "@/lib/useNewScoringUI";
+import "./board-curse/curse-run.css";
 
 // Vivid, tier-scaled colors so the curse readout reads clearly from across
 // the room, not just up close — mild (amber) through severe (hot red).
@@ -50,11 +51,13 @@ interface BoardCurseScorerProps {
   autoWardFirst?: boolean;
   /** Spin the curse wheel when the board escalates to a new severity. */
   wheel?: boolean;
+  /** Hex Duel: each player picks the curse for their opponent's next visit (one of two). */
+  hex?: boolean;
   onMatchComplete: (result: BoardCurseResult) => void;
   onAbandon: () => void;
 }
 
-export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, legs = 1, topBanner, visitLimit, wardAvailable = false, onWardUsed, challengeSeed, extraEffects, maxTier = 3, strikeEvery = 1, wards, autoWardFirst = false, wheel = true, onMatchComplete, onAbandon }: BoardCurseScorerProps) {
+export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, legs = 1, topBanner, visitLimit, wardAvailable = false, onWardUsed, challengeSeed, extraEffects, maxTier = 3, strikeEvery = 1, wards, autoWardFirst = false, wheel = true, hex = false, onMatchComplete, onAbandon }: BoardCurseScorerProps) {
   const newScoringUI = useNewScoringUI();
   if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
@@ -83,6 +86,11 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
   const facedRef = useRef<Set<string>>(new Set());
   const lastTierRef = useRef<CurseTier | 0>(0);
   const autoWardRef = useRef(autoWardFirst);
+  // Hex Duel: the two curses on offer for each player's next visit, and the one their opponent chose.
+  type Rolled = ReturnType<typeof rollCurse>;
+  const [hexOffer, setHexOffer] = useState<{ for: 0 | 1; options: Rolled[]; picked: number | null } | null>(null);
+  const hexOfferRef = useRef<{ for: 0 | 1; options: Rolled[]; picked: number | null } | null>(null);
+  const isBot = (p: 0 | 1) => format === "bot" && p === 1;
   const visitCountRef = useRef(0);      // resets every leg — drives curse escalation tier within the current leg
   const totalVisitsRef = useRef(0);     // accumulates across the whole match — what's actually reported at the end
   const lastLegRef = useRef(0);
@@ -108,7 +116,7 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
     setStrikeBanner(null);
   };
 
-  const handleVisitStart = () => {
+  const handleVisitStart = (turn: 0 | 1 = 0) => {
     if (finishedRef.current) return;
     if (visitLimit && totalVisitsRef.current >= visitLimit) {
       finishedRef.current = true;
@@ -134,8 +142,8 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
     // A fresh curse strikes on every visit now (previously this was a
     // 15/35/55% roll by tier) — the tier still escalates how nasty the
     // curse can be as the leg drags on, just no longer whether one lands.
-    let target: 0 | 1 = format === "solo" ? 0 : randomRef.current() < 0.5 ? 0 : 1;
-    if (format !== "solo") {
+    let target: 0 | 1 = format === "solo" ? 0 : hex ? turn : randomRef.current() < 0.5 ? 0 : 1;
+    if (format !== "solo" && !hex) {
       const previous = duelTargetRef.current;
       // Random targeting stays unpredictable, but nobody can be hit more
       // than twice in succession. This removes the unfair 4–5 visit runs
@@ -145,7 +153,21 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
         ? { target, repeats: previous.repeats + 1 }
         : { target, repeats: 1 };
     }
-    const { def, effect, description } = rollCurse(gameMode, tier, recentCurseIdsRef.current, randomRef.current);
+    // Hex Duel: use the curse the opponent picked for this visit (or the first on offer if they didn't
+    // pick in time), then offer the thrower two curses for the opponent's next visit.
+    const offered = hex ? hexOfferRef.current : null;
+    const { def, effect, description } = offered && offered.for === target
+      ? offered.options[offered.picked ?? 0]
+      : rollCurse(gameMode, tier, recentCurseIdsRef.current, randomRef.current);
+    if (hex) {
+      const opp: 0 | 1 = target === 0 ? 1 : 0;
+      const nextTier = Math.min(getTierForVisit(count + 1), maxTier) as CurseTier;
+      const a = rollCurse(gameMode, nextTier, [def.id, ...recentCurseIdsRef.current], randomRef.current);
+      const b = rollCurse(gameMode, nextTier, [def.id, a.def.id, ...recentCurseIdsRef.current], randomRef.current);
+      // A CPU picks for you at random; people pick on their own turn.
+      const offer = { for: opp, options: [a, b], picked: isBot(target) ? (randomRef.current() < 0.5 ? 0 : 1) : null };
+      hexOfferRef.current = offer; setHexOffer(offer);
+    }
     recentCurseIdsRef.current = [def.id, ...recentCurseIdsRef.current].slice(0, 3);
     const spin = wheel && tier !== lastTierRef.current;
     lastTierRef.current = tier;
@@ -210,9 +232,27 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
   // real page height on top of that and pushes the whole scorer (including the pinned
   // keypad) off the bottom of the screen on mobile, forcing a scroll just to see it.
   // That's exactly what was happening to the "Active Curse" readout before this fix.
+  const pickHex = (i: number) => {
+    if (!hexOfferRef.current) return;
+    const o = { ...hexOfferRef.current, picked: i };
+    hexOfferRef.current = o; setHexOffer(o);
+  };
   const combinedTopBanner = (
     <>
       {topBanner}
+      {hex && hexOffer && !isBot(hexOffer.for === 0 ? 1 : 0) && (
+        <div className="hx-picker">
+          <div className="hx-head">{names[hexOffer.for === 0 ? 1 : 0]}: hex {names[hexOffer.for]}'s next visit</div>
+          <div className="hx-options">
+            {hexOffer.options.map((o, i) => (
+              <button key={i} type="button" className={`hx-opt t${o.def.tier} ${hexOffer.picked === i ? "on" : ""}`} onClick={() => pickHex(i)}>
+                <strong>{o.def.name}</strong>
+              </button>
+            ))}
+          </div>
+          <div className="hx-desc">{hexOffer.picked === null ? "Tap one. If you don't pick, the first is used." : hexOffer.options[hexOffer.picked].description}</div>
+        </div>
+      )}
       {activeCurse && (() => {
         const color = TIER_COLOR[activeCurse.def.tier];
         return (

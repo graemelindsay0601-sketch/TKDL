@@ -21,13 +21,23 @@ import { bossBattleRateLimit } from "../middleware/writeRateLimit";
 import { checkBoardCurseAchievements } from "../lib/board-curse-achievements";
 import { isRecentDuplicateSubmit } from "../lib/recentSubmitGuard";
 import { requireAdminSession } from "../middleware/requireAdminSession";
-import { addToCodex, codexFor, recordRun, runBoards, validRun } from "../lib/board-curse-run-db";
+import { addToCodex, codexFor, recordRun, runBoards, validRun, rewardOut } from "../lib/board-curse-run-db";
+import { afterHexWin, challengesFor, createChallenge, curseHall, finishChallenge, leagueFor } from "../lib/board-curse-social-db";
+import { authedWriteRateLimit } from "../middleware/writeRateLimit";
+
+const me = (req: any): number | null => (req.session as any)?.playerId ?? null;
 
 const router = Router();
 
 function isValidGameType(v: unknown): v is "X01" | "CRICKET" {
   return v === "X01" || v === "CRICKET";
 }
+
+/** Around the World / Halve-It (Board Curse part 2) on top of 501 and Cricket. Solo bests: 501, Cricket and ATW. */
+function isValidAnyGame(v: unknown): v is "X01" | "CRICKET" | "ATW" | "HALVEIT" {
+  return v === "X01" || v === "CRICKET" || v === "ATW" || v === "HALVEIT";
+}
+const isValidBestGame = (v: unknown): v is "X01" | "CRICKET" | "ATW" => isValidGameType(v) || v === "ATW";
 
 function isValidFormat(v: unknown): v is "bot" | "local" {
   return v === "bot" || v === "local";
@@ -37,7 +47,7 @@ router.get("/board-curse/best/:playerId/:gameType", async (req: Request, res: Re
   try {
     const playerId = parseInt(paramStr(req.params.playerId), 10);
     const gameType = req.params.gameType;
-    if (!Number.isFinite(playerId) || !isValidGameType(gameType)) {
+    if (!Number.isFinite(playerId) || !isValidBestGame(gameType)) {
       res.status(400).json({ error: "Invalid playerId or gameType" });
       return;
     }
@@ -61,7 +71,7 @@ router.post("/board-curse/best", bossBattleRateLimit, async (req: Request, res: 
     const pid = parseInt(playerId, 10);
     const v = visits !== undefined ? parseInt(visits, 10) : null;
     const s = streak !== undefined ? parseInt(streak, 10) : null;
-    if (!Number.isFinite(pid) || !isValidGameType(gameType) || (v === null && s === null)) {
+    if (!Number.isFinite(pid) || !isValidBestGame(gameType) || (v === null && s === null)) {
       res.status(400).json({ error: "playerId, gameType, and at least one of visits/streak are required" });
       return;
     }
@@ -181,7 +191,7 @@ router.get("/board-curse/record/:playerId/:format", async (req: Request, res: Re
 
 router.post("/board-curse/record", bossBattleRateLimit, async (req: Request, res: Response) => {
   try {
-    const { playerId, format, won, gameType, opponentLabel, visits } = req.body ?? {};
+    const { playerId, format, won, gameType, opponentLabel, visits, hex } = req.body ?? {};
     const pid = parseInt(playerId, 10);
     if (!Number.isFinite(pid) || !isValidFormat(format) || typeof won !== "boolean") {
       res.status(400).json({ error: "playerId, format, and won (boolean) are required" });
@@ -203,7 +213,7 @@ router.post("/board-curse/record", bossBattleRateLimit, async (req: Request, res
     const player = await db.execute(sql`SELECT name FROM players WHERE id=${pid}`);
     if (!player.rows[0]) { res.status(400).json({ error: "Player not found" }); return; }
     const playerName = String((player.rows[0] as any).name);
-    const safeGameType = isValidGameType(gameType) ? gameType : null;
+    const safeGameType = isValidAnyGame(gameType) ? gameType : null;
     const safeVisits = Number.isFinite(Number(visits)) && Number(visits) > 0 ? Math.round(Number(visits)) : null;
     const milestoneKind = firstWin ? "curse_first_win" : null;
     const milestoneLabel = firstWin ? `${playerName} recorded a first Board Curse ${format} win` : null;
@@ -216,12 +226,13 @@ router.post("/board-curse/record", bossBattleRateLimit, async (req: Request, res
           losses = board_curse_records.losses + ${won ? 0 : 1}
       `);
       await tx.execute(sql`
-        INSERT INTO arcade_runs (player_id,mode,game_type,format,opponent_label,outcome,visits,milestone_kind,milestone_label)
-        VALUES (${pid},'board_curse',${safeGameType},${format},${String(opponentLabel ?? "Opponent").slice(0,80)},${won ? "win" : "loss"},${safeVisits},${milestoneKind},${milestoneLabel})
+        INSERT INTO arcade_runs (player_id,mode,game_type,format,opponent_label,outcome,visits,milestone_kind,milestone_label,metadata)
+        VALUES (${pid},'board_curse',${safeGameType},${format},${String(opponentLabel ?? "Opponent").slice(0,80)},${won ? "win" : "loss"},${safeVisits},${milestoneKind},${milestoneLabel},${JSON.stringify(hex === true ? { hex: true } : {})}::jsonb)
       `);
     });
     const achievements = await checkBoardCurseAchievements(pid);
-    res.json({ success: true, saved: true, achievements });
+    const unlocks = won && hex === true ? rewardOut(await afterHexWin(pid).catch(() => [])) : [];
+    res.json({ success: true, saved: true, achievements, unlocks });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record board curse match result");
     res.status(500).json({ error: "Failed to record board curse match result" });
@@ -363,6 +374,31 @@ router.post("/board-curse/codex", bossBattleRateLimit, async (req: Request, res:
     (req as any).log?.error({ err }, "Failed to update Curse Codex");
     res.status(500).json({ error: "Failed to update Curse Codex" });
   }
+});
+
+// Curse a Friend (needs a login: it notifies someone else)
+router.get("/board-curse/challenges", async (req: Request, res: Response) => {
+  const id = me(req); if (!id) { res.status(401).json({ error: "Login required" }); return; }
+  try { res.json(await challengesFor(id)); } catch (err) { (req as any).log?.error({ err }, "Curse challenges failed"); res.status(500).json({ error: "Failed to load curses" }); }
+});
+router.post("/board-curse/challenges", authedWriteRateLimit, async (req: Request, res: Response) => {
+  const id = me(req); if (!id) { res.status(401).json({ error: "Login required" }); return; }
+  try { const r = await createChallenge(id, req.body); if ("error" in r) { res.status(400).json(r); return; } res.status(201).json(r); }
+  catch (err) { (req as any).log?.error({ err }, "Curse challenge create failed"); res.status(500).json({ error: "Failed to send curse" }); }
+});
+router.post("/board-curse/challenges/:id/result", authedWriteRateLimit, async (req: Request, res: Response) => {
+  const id = me(req); if (!id) { res.status(401).json({ error: "Login required" }); return; }
+  try { const r = await finishChallenge(Number(req.params.id), id, req.body); if ("error" in r) { res.status(400).json(r); return; } res.json(r); }
+  catch (err) { (req as any).log?.error({ err }, "Curse challenge result failed"); res.status(500).json({ error: "Failed to save result" }); }
+});
+
+// Weekly Curse League and the Curse Hall
+router.get("/board-curse/league", async (req: Request, res: Response) => {
+  try { const pid = parseInt(String(req.query.playerId ?? ""), 10); res.json(await leagueFor(Number.isFinite(pid) ? pid : me(req))); }
+  catch (err) { (req as any).log?.error({ err }, "Curse League failed"); res.status(500).json({ error: "Failed to load the Curse League" }); }
+});
+router.get("/board-curse/hall", async (req: Request, res: Response) => {
+  try { res.json(await curseHall()); } catch (err) { (req as any).log?.error({ err }, "Curse Hall failed"); res.status(500).json({ error: "Failed to load the Curse Hall" }); }
 });
 
 export default router;

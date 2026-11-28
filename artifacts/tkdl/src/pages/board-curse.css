@@ -244,3 +244,6 @@
 .bc-pill-btn.bc-run-btn svg{color:#ffb400}
 .bc-pill-btn.bc-run-btn b{font:800 .5rem Oswald,sans-serif;letter-spacing:.1em;padding:1px 5px;border-radius:99px;background:#ffd24a;color:#1a1200}
 .bc-hero-actions{flex-wrap:wrap}
+.bc-endless-banner.hex{border-color:rgba(179,136,255,.5);background:linear-gradient(135deg,rgba(124,58,237,.22),rgba(30,0,30,.35))}
+.bc-endless-banner.hex span{color:#d1b8ff}
+.bc-new-dot{margin-left:5px;font:800 .46rem Oswald,sans-serif;letter-spacing:.08em;padding:1px 4px;border-radius:99px;background:#ffd24a;color:#1a1200;vertical-align:2px}

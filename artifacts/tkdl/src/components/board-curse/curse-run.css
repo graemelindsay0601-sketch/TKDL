@@ -67,3 +67,59 @@
 .cx-curse-name{display:flex;align-items:center;gap:5px;font:800 .78rem Oswald,sans-serif;color:#fff}
 .cx-curse.ok .cx-curse-name svg{color:#4ade80}
 .cx-curse-desc{font:500 .64rem/1.35 Inter,system-ui,sans-serif;color:rgba(255,255,255,.55);margin-top:3px}
+
+/* Around the World / Halve-It curses */
+.dc-readout{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:4px 10px;margin-bottom:8px;padding:10px 14px;border-radius:10px;border:2px solid var(--c);
+  background:linear-gradient(135deg,color-mix(in srgb,var(--c) 16%,transparent),color-mix(in srgb,var(--c) 6%,transparent));box-shadow:0 0 14px color-mix(in srgb,var(--c) 45%,transparent);font-family:Oswald,sans-serif}
+.dc-readout>svg{color:var(--c)}
+.dc-readout small{display:block;font:700 .66rem Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--c)}
+.dc-readout strong{display:block;font:900 1.1rem/1.1 Oswald,sans-serif;color:#fff}
+.dc-readout p{grid-column:1/-1;margin:0;font:600 .82rem Oswald,sans-serif;color:rgba(255,255,255,.82)}
+.dc-flash{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);z-index:2600;width:max-content;max-width:92vw;padding:14px 24px;border-radius:14px;
+  border:2px solid var(--c);background:linear-gradient(135deg,color-mix(in srgb,var(--c) 22%,transparent),transparent 70%),#140a0a;box-shadow:0 10px 40px rgba(0,0,0,.6),0 0 24px color-mix(in srgb,var(--c) 35%,transparent);
+  text-align:center;font-family:Oswald,sans-serif;animation:curse-pulse .9s ease-in-out infinite}
+.dc-flash small{display:flex;align-items:center;justify-content:center;gap:6px;font:700 .75rem Oswald,sans-serif;letter-spacing:.15em;text-transform:uppercase;color:var(--c)}
+.dc-flash strong{display:block;font:900 1.5rem Oswald,sans-serif;color:#fff;margin-top:4px}
+.dc-flash p{margin:4px 0 0;font:600 .9rem Oswald,sans-serif;color:rgba(255,255,255,.85)}
+
+/* Hex Duel picker */
+.hx-picker{margin-bottom:8px;padding:8px 10px;border-radius:10px;border:1px solid rgba(179,136,255,.45);background:linear-gradient(135deg,rgba(124,58,237,.2),rgba(30,0,30,.4))}
+.hx-head{font:800 .66rem Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#c4a5ff;margin-bottom:6px}
+.hx-options{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.hx-opt{text-align:left;padding:7px 9px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;cursor:pointer}
+.hx-opt strong{display:block;font:800 .82rem Oswald,sans-serif}
+.hx-opt small{display:block;font:500 .64rem/1.3 Inter,system-ui,sans-serif;color:rgba(255,255,255,.62);margin-top:2px}
+.hx-opt.t2 strong{color:#ffb070}.hx-opt.t3 strong{color:#ff6b6b}
+.hx-opt.on{border-color:#b388ff;background:rgba(124,58,237,.35);box-shadow:0 0 14px rgba(124,58,237,.45)}
+
+/* Curse a Friend, Curse League */
+.cs-title{display:flex;align-items:center;gap:6px;font:800 .66rem Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#c4a5ff;margin-bottom:7px}
+.cs-curses{margin:0 0 12px;padding:12px;border-radius:14px;border:1px solid rgba(179,136,255,.35);background:linear-gradient(135deg,rgba(124,58,237,.14),rgba(20,0,20,.3))}
+.cs-curse{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06)}
+.cs-curse:first-of-type{border-top:0}
+.cs-curse strong{display:block;font:800 .88rem Oswald,sans-serif;color:#fff}
+.cs-curse small{display:block;font:500 .7rem Inter,system-ui,sans-serif;color:rgba(255,255,255,.6)}
+.cs-curse.done.held svg{color:#4ade80}.cs-curse.done.lost svg{color:#ff6b6b}
+.cs-play{display:flex;align-items:center;gap:5px;flex:none;padding:7px 12px;border-radius:999px;border:0;background:#7c3aed;color:#fff;font:800 .7rem Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.cs-send{margin:14px 0 0;padding:14px;border-radius:14px;border:1px solid rgba(179,136,255,.35);background:rgba(124,58,237,.1);text-align:left}
+.cs-send p{font:500 .76rem/1.4 Inter,system-ui,sans-serif;color:rgba(255,255,255,.65);margin:0 0 10px}
+.cs-send.sent{display:flex;align-items:center;gap:7px;font:700 .8rem Oswald,sans-serif;color:#d1b8ff}
+.cs-err{margin-top:8px;font:600 .74rem Inter,system-ui,sans-serif;color:#ff8a80}
+.cs-league{margin:0 0 12px;border-radius:14px;border:1px solid rgba(255,138,0,.3);background:linear-gradient(135deg,rgba(255,138,0,.1),rgba(40,0,0,.25));overflow:hidden}
+.cs-league.r-hexer{border-color:rgba(124,58,237,.5);background:linear-gradient(135deg,rgba(124,58,237,.18),rgba(30,0,30,.3))}
+.cs-league.r-warlock{border-color:rgba(255,23,68,.55);background:linear-gradient(135deg,rgba(255,23,68,.18),rgba(40,0,0,.4));box-shadow:0 0 20px rgba(255,23,68,.18)}
+.cs-league-head{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border:0;background:none;color:#fff;text-align:left;cursor:pointer}
+.cs-league-head>div{flex:1;min-width:0}
+.cs-rank-icon{font-size:1.8rem;line-height:1}
+.cs-league-head small{display:block;font:700 .6rem Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+.cs-league-head strong{display:block;font:900 1.25rem/1.1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.03em}
+.cs-league-head em{display:block;font:600 .7rem Oswald,sans-serif;font-style:normal;color:rgba(255,255,255,.65);margin-top:5px}
+.cs-league-body{padding:0 14px 12px}
+.cs-ranks{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.cs-ranks span{font:700 .6rem Oswald,sans-serif;letter-spacing:.05em;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.6)}
+.cs-ranks span.on{background:rgba(255,210,74,.18);color:#ffd24a}
+.cs-how{font:500 .68rem/1.45 Inter,system-ui,sans-serif;color:rgba(255,255,255,.55);margin:0 0 8px}
+.hx-picker{padding:6px 9px}
+.hx-head{margin-bottom:5px}
+.hx-opt{padding:6px 9px;text-align:center}
+.hx-desc{margin-top:5px;font:500 .66rem/1.3 Inter,system-ui,sans-serif;color:rgba(255,255,255,.65)}

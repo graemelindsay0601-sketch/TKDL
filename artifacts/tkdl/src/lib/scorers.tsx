@@ -4334,7 +4334,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI, topBanner, onBossProgress, soloMode }: {
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI, topBanner, onBossProgress, soloMode, dartFilter }: {
   p1Name: string; p2Name: string; config: any; gameKey: string; title?: string; rules?: string; botConfig?: BotConfig;
   /** Solo Training: one player, no opponent; the race is against the dart count. */
   soloMode?: boolean;
@@ -4346,6 +4346,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   topBanner?: React.ReactNode;
   /** Boss Battle: progress for the boss health bar. */
   onBossProgress?: (p: BossProgress) => void;
+  /** Board Curse: rewrites each dart as it's thrown (index 0-2 in the visit), bot darts included. */
+  dartFilter?: (dart: Dart, index: number, turn: 0 | 1) => Dart;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -4458,8 +4460,9 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   // Keeping them here, guarded internally, keeps the hook count constant
   // across every branch (isShanghai never toggles mid-lifetime, so it's
   // unaffected; on the picker screen `sequence` is [] and this all no-ops).
-  const handleDart = (dart: Dart) => {
+  const handleDart = (thrown0: Dart) => {
     if (visitDarts.length >= 3) return;
+    const dart = dartFilter ? dartFilter(thrown0, visitDarts.length, turn) : thrown0;
     const nv = [...visitDarts, dart];
     setVisitPosHist(h => [...h.slice(0, visitDarts.length), positions]);
     const seqStart = positions[turn];
@@ -5011,7 +5014,7 @@ const HALVEIT_LABELS  = ["20","16","Any Double","17","Bull","18","19","Any Trebl
 const BERMUDA_TARGETS = [12,13,14,"D",15,16,17,"T",18,19,20,"Bull25","Bull50"];
 const BERMUDA_LABELS  = ["12","13","14","Any Double","15","16","17","Any Treble","18","19","20","25 (either bull)","Bullseye"];
 
-export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, topBanner, onBossProgress, soloMode }: {
+export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, topBanner, onBossProgress, soloMode, dartFilter }: {
   p1Name: string; p2Name: string; gameKey: string; botConfig?: BotConfig;
   /** Solo Training: one player; the game ends after the last round (or at 0 or below in Bob's 27). */
   soloMode?: boolean;
@@ -5022,6 +5025,8 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
   topBanner?: React.ReactNode;
   /** Boss Battle: progress for the boss health bar. */
   onBossProgress?: (p: BossProgress) => void;
+  /** Board Curse: rewrites each dart as it's thrown (index 0-2 in the visit), bot darts included. */
+  dartFilter?: (dart: Dart, index: number, turn: 0 | 1) => Dart;
 }) {
   const safeTimeout = useSafeTimeout();
   const isBobs = gameKey === "bobs_27";
@@ -5060,8 +5065,9 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
   // What a dart on target adds: face value, except Bermuda's round 12 where either bull is 25.
   const hitValue = (dart: Dart) => (curTarget === "Bull25" ? 25 : dart.value);
 
-  const handleDart = (dart: Dart) => {
+  const handleDart = (thrown0: Dart) => {
     if (visitDarts.length >= 3) return;
+    const dart = dartFilter ? dartFilter(thrown0, visitDarts.length, turn) : thrown0;
     const nv = [...visitDarts, dart];
     setVisitDarts(nv);
     if (dartHitsTarget(dart)) {

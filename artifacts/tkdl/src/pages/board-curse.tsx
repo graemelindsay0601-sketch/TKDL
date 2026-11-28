@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
-import { Flame, Swords, User, Users, Bot, Trophy, Skull, Crown, Square, Infinity as InfinityIcon, BookOpen, CalendarDays } from "lucide-react";
+import { Flame, Swords, User, Users, Bot, Trophy, Skull, Crown, Square, Infinity as InfinityIcon, BookOpen, CalendarDays, Ghost } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
 import { useListPlayers } from "@workspace/api-client-react";
 import { BoardCurseScorer, type BoardCurseResult } from "@/components/BoardCurseScorer";
@@ -10,6 +10,9 @@ import { AchievementRewardModal, type AchievementRewardData } from "@/components
 import { dailyVisitLimit, endlessVisitLimit } from "@/lib/board-curse-survival";
 import { CurseRun, logCodex } from "@/components/board-curse/CurseRun";
 import { CurseCodex } from "@/components/board-curse/CurseCodex";
+import { DartCurseScorer } from "@/components/board-curse/DartCurseScorer";
+import { CurseHall, CurseLeagueCard, IncomingCurses, SendCurse, type CurseChallenge } from "@/components/board-curse/CurseSocial";
+import type { DartCurseMode } from "@/lib/board-curse-dart";
 import "./board-curse.css";
 
 type RosterPlayer = { id: number; name: string; status: string; isActive: boolean };
@@ -17,16 +20,21 @@ const GUEST_OPTION = "__guest__";
 
 type Format = "solo" | "bot" | "local";
 type MatchLegs = 1 | 3 | 5;
+type PlayMode = CurseGameMode | DartCurseMode;
+const isDartMode = (m: PlayMode): m is DartCurseMode => m === "ATW" || m === "HALVEIT";
+const MODE_NAME: Record<PlayMode, string> = { X01: "501", CRICKET: "Cricket", ATW: "Around the World", HALVEIT: "Halve-It" };
+type Challenge = { id: number; fromName: string; fromVisits: number };
 
 type Screen =
   | { kind: "setup" }
-  | { kind: "fight"; gameMode: CurseGameMode; format: Format; p1Name: string; p2Name: string; botLevel?: BotLevel; legs: MatchLegs; endless: boolean; daily: boolean }
-  | { kind: "result"; gameMode: CurseGameMode; format: Format; p1Name: string; p2Name: string; result: BoardCurseResult }
+  | { kind: "fight"; gameMode: PlayMode; format: Format; p1Name: string; p2Name: string; botLevel?: BotLevel; legs: MatchLegs; endless: boolean; daily: boolean; hex: boolean; seed?: string; challenge?: Challenge }
+  | { kind: "result"; gameMode: PlayMode; format: Format; p1Name: string; p2Name: string; result: BoardCurseResult & { finalScore?: number }; seed?: string; challenge?: Challenge & { won: boolean } }
   | { kind: "endless-result"; streak: number; bestStreak: number | null; failed: boolean; visitLimit: number; decisiveCurse?: string }
   | { kind: "leaderboard"; gameMode: CurseGameMode }
   | { kind: "compendium"; gameMode: CurseGameMode }
   | { kind: "curse-run" }
-  | { kind: "codex" };
+  | { kind: "codex" }
+  | { kind: "hall" };
 
 const TIER_LABEL: Record<CurseTier, string> = { 1: "Mild — early visits", 2: "Medium — mid-leg", 3: "Severe — late leg" };
 // Escalating severity ramp (amber → flame orange → red) — distinct from
@@ -46,7 +54,10 @@ export default function BoardCursePage() {
   // never a requirement to play.
   const currentPlayer = useCurrentPlayer();
   const [screen, setScreen] = useState<Screen>({ kind: "setup" });
-  const [gameMode, setGameMode] = useState<CurseGameMode>("X01");
+  const [gameMode, setGameMode] = useState<PlayMode>("X01");
+  // Archive / Survivors boards are 501 and Cricket only.
+  const curseMode: CurseGameMode = isDartMode(gameMode) ? "X01" : gameMode;
+  const [hexMode, setHexMode] = useState(false);
   const [format, setFormat] = useState<Format>("solo");
   const [botLevel, setBotLevel] = useState<BotLevel>("club");
   const { data: playersData } = useListPlayers();
@@ -95,8 +106,8 @@ export default function BoardCursePage() {
   };
   useEffect(loadHistory, [playerId]);
 
-  const loadBest = (mode: CurseGameMode) => {
-    if (!playerId) return;
+  const loadBest = (mode: PlayMode) => {
+    if (!playerId || mode === "HALVEIT") { setBestVisits(null); setBestStreak(null); return; }
     fetch(`/api/board-curse/best/${playerId}/${mode}`)
       .then(r => r.ok ? r.json() : { bestVisits: null, bestStreak: null })
       .then((d: { bestVisits: number | null; bestStreak: number | null }) => { setBestVisits(d.bestVisits); setBestStreak(d.bestStreak); })
@@ -118,8 +129,9 @@ export default function BoardCursePage() {
   }, [format, playerId]);
 
   useEffect(() => {
-    if (format !== "solo") { setEndlessMode(false); setDailyMode(false); }
-  }, [format]);
+    if (format !== "solo" || isDartMode(gameMode)) { setEndlessMode(false); setDailyMode(false); }
+    if (format === "solo" || isDartMode(gameMode)) setHexMode(false);
+  }, [format, gameMode]);
 
   const handleStart = () => {
     setSaveState("idle");
@@ -134,10 +146,19 @@ export default function BoardCursePage() {
       legs: format === "solo" ? 1 : matchLegs,
       endless: format === "solo" && endlessMode,
       daily: format === "solo" && dailyMode,
+      hex: format !== "solo" && hexMode && !isDartMode(gameMode),
+      // Plain solo legs are seeded so the exact same cursed leg can be sent to a friend.
+      seed: format === "solo" && !endlessMode && !dailyMode && !isDartMode(gameMode) ? `cf:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}` : undefined,
     });
   };
 
-  const reportBest = async (mode: CurseGameMode, opts: { visits?: number; streak?: number; outcome?: "win" | "loss" }) => {
+  const playChallenge = (c: CurseChallenge) => {
+    setSaveState("idle"); setWardAvailable(true); setEndlessKey(k => k + 1);
+    setScreen({ kind: "fight", gameMode: c.gameType, format: "solo", p1Name: playerName, p2Name: "The Board", legs: 1, endless: false, daily: false, hex: false,
+      seed: c.seed, challenge: { id: c.id, fromName: c.fromName, fromVisits: c.fromVisits } });
+  };
+
+  const reportBest = async (mode: PlayMode, opts: { visits?: number; streak?: number; outcome?: "win" | "loss" }) => {
     if (!playerId) return false;
     try {
       setSaveState("saving");
@@ -155,9 +176,44 @@ export default function BoardCursePage() {
     } catch { setSaveState("error"); return false; }
   };
 
-  const handleMatchComplete = async (s: Extract<Screen, { kind: "fight" }>, result: BoardCurseResult) => {
+  const toResult = (s: Extract<Screen, { kind: "fight" }>, result: BoardCurseResult & { finalScore?: number }, challengeWon?: boolean): Screen =>
+    ({ kind: "result", gameMode: s.gameMode, format: s.format, p1Name: s.p1Name, p2Name: s.p2Name, result, seed: s.seed,
+      challenge: s.challenge ? { ...s.challenge, won: !!challengeWon } : undefined });
+
+  const handleMatchComplete = async (s: Extract<Screen, { kind: "fight" }>, result: BoardCurseResult & { finalScore?: number }) => {
     // Curse Codex: curses that hit you in a game you won.
     const wonIt = s.format === "solo" ? !result.endedByVisitLimit : result.winnerIdx === 0;
+    if (s.challenge) {
+      // A friend's curse: beat their visits on the same seeded leg.
+      setSaveState("saving");
+      let won = false;
+      try {
+        const r = await fetch(`/api/board-curse/challenges/${s.challenge.id}/result`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cleared: wonIt, visits: result.visitsTaken }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error();
+        won = !!d.won; setSaveState("saved");
+      } catch { setSaveState("error"); }
+      if (wonIt) void logCodex(playerId, s.gameMode as CurseGameMode, result.cursesFaced);
+      setScreen(toResult(s, result, won));
+      return;
+    }
+    if (isDartMode(s.gameMode)) {
+      // Around the World / Halve-It: solo ATW keeps a fewest-visits best; duels go on your record.
+      if (s.format === "solo") {
+        if (s.gameMode === "ATW") await reportBest("ATW", { visits: result.visitsTaken }); else setSaveState("idle");
+      } else if (playerId) {
+        try {
+          setSaveState("saving");
+          const response = await fetch("/api/board-curse/record", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ playerId, format: s.format, won: result.winnerIdx === 0, gameType: s.gameMode, opponentLabel: s.p2Name }) });
+          if (!response.ok) throw new Error();
+          setSaveState("saved"); loadRecord(s.format); loadHistory();
+        } catch { setSaveState("error"); }
+      }
+      setScreen(toResult(s, result));
+      return;
+    }
     if (wonIt) void logCodex(playerId, s.gameMode, result.cursesFaced).then(c => {
       if (c?.rewards.length) setRewardQueue(q => [...q, ...c.rewards.map(r => ({ key: r.id, name: r.name, icon: "🔥", description: "Exclusive Board Curse unlock, now in your cosmetics.", rarity: "Epic" }))]);
     });
@@ -170,7 +226,7 @@ export default function BoardCursePage() {
           setSaveState("saved"); loadHistory();
         } catch { setSaveState("error"); }
       }
-      setScreen({ kind: "result", gameMode: s.gameMode, format: s.format, p1Name: s.p1Name, p2Name: s.p2Name, result });
+      setScreen(toResult(s, result));
       return;
     }
     if (s.endless) {
@@ -193,22 +249,24 @@ export default function BoardCursePage() {
           setSaveState("saving");
           const response = await fetch("/api/board-curse/record", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ playerId, format: s.format, won: result.winnerIdx === 0, gameType: s.gameMode, opponentLabel: s.p2Name, visits: result.visitsTaken }),
+            body: JSON.stringify({ playerId, format: s.format, won: result.winnerIdx === 0, gameType: s.gameMode, opponentLabel: s.p2Name, visits: result.visitsTaken, hex: s.hex }),
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(data?.error ?? "Result could not be saved");
           setSaveState("saved");
           if (Array.isArray(data.achievements) && data.achievements.length) setRewardQueue(queue => [...queue, ...data.achievements]);
+          if (Array.isArray(data.unlocks) && data.unlocks.length) setRewardQueue(q => [...q, ...data.unlocks.map((r: { id: string; name: string }) => ({ key: r.id, name: r.name, icon: "🔥", description: "Exclusive Board Curse unlock, now in your cosmetics.", rarity: "Epic" }))]);
           loadRecord(s.format);
           loadHistory();
         } catch { setSaveState("error"); }
       }
     }
-    setScreen({ kind: "result", gameMode: s.gameMode, format: s.format, p1Name: s.p1Name, p2Name: s.p2Name, result });
+    setScreen(toResult(s, result));
   };
 
   const handleStopEndless = async () => {
     if (screen.kind !== "fight") return;
+    if (isDartMode(screen.gameMode)) return;
     if (endlessStreak > 0) await reportBest(screen.gameMode, { streak: endlessStreak });
     setScreen({ kind: "endless-result", streak: endlessStreak, bestStreak, failed: false, visitLimit: endlessVisitLimit(screen.gameMode, endlessStreak) });
   };
@@ -222,18 +280,32 @@ export default function BoardCursePage() {
   };
 
   const openLeaderboard = () => {
-    setScreen({ kind: "leaderboard", gameMode });
-    loadLeaderboard(gameMode);
+    setScreen({ kind: "leaderboard", gameMode: curseMode });
+    loadLeaderboard(curseMode);
   };
 
+  if (screen.kind === "fight" && isDartMode(screen.gameMode)) {
+    const fight = screen;
+    return (
+      <DartCurseScorer key={endlessKey} gameMode={fight.gameMode as DartCurseMode} format={fight.format} p1Name={fight.p1Name} p2Name={fight.p2Name}
+        botConfig={fight.botLevel ? BOT_LEVELS[fight.botLevel] : undefined}
+        onMatchComplete={r => handleMatchComplete(fight, r)} onAbandon={() => setScreen({ kind: "setup" })} />
+    );
+  }
+
   if (screen.kind === "fight") {
-    const visitLimit = screen.daily ? dailyVisitLimit(screen.gameMode) : screen.endless ? endlessVisitLimit(screen.gameMode, endlessStreak) : undefined;
+    const fightMode = screen.gameMode as CurseGameMode;
+    const visitLimit = screen.daily ? dailyVisitLimit(fightMode) : screen.endless ? endlessVisitLimit(fightMode, endlessStreak) : undefined;
     const challengeDate = new Date().toISOString().slice(0, 10);
     // Passed in as topBanner rather than rendered as a sibling above BoardCurseScorer —
     // the scorer's own layout claims the full screen height for itself on mobile, so
     // anything rendered outside/above it here would push it (and the curse readout)
     // off the bottom of the screen, forcing a scroll to reach either one.
-    const endlessBanner = screen.daily ? (
+    const endlessBanner = screen.challenge ? (
+      <div className="bc-endless-banner hex"><span><Ghost size={16} />{screen.challenge.fromName}'s curse</span><small>Beat {screen.challenge.fromVisits} visits</small></div>
+    ) : screen.hex ? (
+      <div className="bc-endless-banner hex"><span><Ghost size={16} />Hex Duel</span><small>You pick their curses</small></div>
+    ) : screen.daily ? (
       <div className="bc-endless-banner daily"><span><CalendarDays size={16} />Daily Curse · {visitLimit} visits</span><small>Same curses for everyone</small></div>
     ) : screen.endless ? (
       <div className="bc-endless-banner">
@@ -244,7 +316,7 @@ export default function BoardCursePage() {
     return (
       <BoardCurseScorer
         key={endlessKey}
-        gameMode={screen.gameMode}
+        gameMode={fightMode}
         format={screen.format}
         p1Name={screen.p1Name}
         p2Name={screen.p2Name}
@@ -254,7 +326,8 @@ export default function BoardCursePage() {
         visitLimit={visitLimit}
         wardAvailable={wardAvailable}
         onWardUsed={() => setWardAvailable(false)}
-        challengeSeed={screen.daily ? `${challengeDate}:${screen.gameMode}` : undefined}
+        challengeSeed={screen.daily ? `${challengeDate}:${fightMode}` : screen.seed}
+        hex={screen.hex}
         onMatchComplete={(r) => handleMatchComplete(screen, r)}
         onAbandon={() => screen.endless ? handleStopEndless() : setScreen({ kind: "setup" })}
       />
@@ -263,6 +336,7 @@ export default function BoardCursePage() {
 
   if (screen.kind === "curse-run") return <CurseRun playerId={playerId} playerName={playerName} onExit={() => setScreen({ kind: "setup" })} />;
   if (screen.kind === "codex") return <CurseCodex playerId={playerId} onBack={() => setScreen({ kind: "setup" })} />;
+  if (screen.kind === "hall") return <CurseHall onBack={() => setScreen({ kind: "setup" })} />;
 
   if (screen.kind === "endless-result") {
     const isNewBest = screen.bestStreak === null || screen.streak >= screen.bestStreak;
@@ -380,7 +454,8 @@ export default function BoardCursePage() {
   }
 
   if (screen.kind === "result") {
-    const { format: f, p1Name, p2Name, result } = screen;
+    const { format: f, p1Name, p2Name, result, gameMode: gm, challenge } = screen;
+    const canSend = f === "solo" && !result.endedByVisitLimit && !!screen.seed && !challenge && !isDartMode(gm) && playerId !== null;
     const won = result.winnerIdx === 0;
     const glow = (f === "solo" || won) ? "#ffd24a" : "#ff6b6b";
     return (
@@ -388,7 +463,16 @@ export default function BoardCursePage() {
       <div className="bc-shell">
         <div className="bc-result" style={{ "--glow": glow } as React.CSSProperties}>
           <div className="bc-result-glow" />
-          {f === "solo" && result.endedByVisitLimit ? (
+          {challenge ? (
+            <><div className="bc-result-icon">{challenge.won ? <Trophy /> : <Skull />}</div>
+              <h1>{challenge.won ? `You broke ${challenge.fromName}'s curse` : `${challenge.fromName}'s curse held`}</h1>
+              <p>{result.endedByVisitLimit ? "You couldn't clear the leg." : `${result.visitsTaken} visits to their ${challenge.fromVisits}.`}{!challenge.won && !result.endedByVisitLimit && result.visitsTaken === challenge.fromVisits ? " A tie goes to whoever set it." : ""}</p></>
+          ) : f === "solo" && gm === "HALVEIT" ? (
+            <><div className="bc-result-icon"><Trophy /></div><h1>{result.finalScore ?? 0} points</h1><p>Cursed Halve-It, all eight rounds. Solo Halve-It scores aren't saved yet.</p></>
+          ) : f === "solo" && gm === "ATW" ? (
+            <><div className="bc-result-icon"><Trophy /></div><h1>Round the board in {result.visitsTaken} visit{result.visitsTaken === 1 ? "" : "s"}</h1>
+              {bestVisits !== null && <p>{result.visitsTaken <= bestVisits ? "New personal best!" : `Personal best: ${bestVisits} visits`}</p>}</>
+          ) : f === "solo" && result.endedByVisitLimit ? (
             <><div className="bc-result-icon"><Skull /></div><h1>The board survived</h1><p>The visit limit expired after {result.visitsTaken} visits{result.decisiveCurse ? ` under ${result.decisiveCurse}` : ""}.</p></>
           ) : f === "solo" ? (
             <>
@@ -409,6 +493,7 @@ export default function BoardCursePage() {
             </>
           )}
           <div className={`bc-save-state ${saveState}`}>{saveState === "saving" ? "Saving match…" : saveState === "saved" ? "Match saved · records and rewards updated" : saveState === "error" ? "Match shown, but it could not be saved" : "Arcade match"}</div>
+          {canSend && <SendCurse gameType={gm as CurseGameMode} seed={screen.seed!} visits={result.visitsTaken} players={opponents} />}
           {playerId && <div style={{ margin: "14px 0", textAlign: "left" }}><NearlyThere players={[{ id: playerId }]} areas={["MODES"]} /></div>}
           <div className="bc-result-actions">
             <button className="bc-btn-ghost" onClick={() => setScreen({ kind: "setup" })}>Back to setup</button>
@@ -432,13 +517,14 @@ export default function BoardCursePage() {
             <button className="bc-pill-btn bc-run-btn" onClick={() => setScreen({ kind: "curse-run" })}><Flame className="w-3.5 h-3.5" />Curse Run<b>NEW</b></button>
             <button className="bc-pill-btn" onClick={() => setScreen({ kind: "codex" })}><BookOpen className="w-3.5 h-3.5" style={{ color: "#ff8a00" }} />Curse Codex</button>
             <button className="bc-pill-btn" onClick={openLeaderboard}><Crown className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />Survivors</button>
-            <button className="bc-pill-btn" onClick={() => setScreen({ kind: "compendium", gameMode })}><BookOpen className="w-3.5 h-3.5" />Curse Archive</button>
+            <button className="bc-pill-btn" onClick={() => setScreen({ kind: "hall" })}><Trophy className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />Curse Hall</button>
+            <button className="bc-pill-btn" onClick={() => setScreen({ kind: "compendium", gameMode: curseMode })}><BookOpen className="w-3.5 h-3.5" />Curse Archive</button>
           </div>
         </div>
         <div className="bc-signal-card">
           <div className="bc-signal-head"><span>Curse Signal</span><b>LIVE</b></div>
           <div className="bc-signal-orb"><Flame /><i /><i /><i /></div>
-          <strong>{gameMode === "X01" ? "501 BOARD ONLINE" : "CRICKET BOARD ONLINE"}</strong>
+          <strong>{MODE_NAME[gameMode].toUpperCase()} BOARD ONLINE</strong>
           <small>Severity escalates from mild interference to a full board takeover.</small>
           <div className="bc-severity-track"><i /><i /><i /></div>
           {(bestVisits !== null || bestStreak !== null) && (
@@ -462,10 +548,12 @@ export default function BoardCursePage() {
           </div>
           <div className="bc-contract-card">
             <span>Active Contract</span>
-            <strong>{format === "solo" ? (dailyMode ? "Daily Curse" : endlessMode ? "Endless Survival" : "Solo Survival") : format === "bot" ? `CPU Duel · ${BOT_LEVELS[botLevel].label}` : "Local Duel"}</strong>
-            <p>{gameMode === "X01" ? "501" : "Cricket"} · {format === "solo" ? (dailyMode ? `Today's shared ${dailyVisitLimit(gameMode)}-visit challenge` : endlessMode ? `Survive ${endlessVisitLimit(gameMode, 0)} visits, then the limit tightens` : "One leg") : `Best of ${matchLegs}`}</p>
+            <strong>{format === "solo" ? (dailyMode ? "Daily Curse" : endlessMode ? "Endless Survival" : "Solo Survival") : `${hexMode ? "Hex " : ""}${format === "bot" ? `CPU Duel · ${BOT_LEVELS[botLevel].label}` : "Local Duel"}`}</strong>
+            <p>{MODE_NAME[gameMode]} · {format === "solo" ? (dailyMode ? `Today's shared ${dailyVisitLimit(curseMode)}-visit challenge` : endlessMode ? `Survive ${endlessVisitLimit(curseMode, 0)} visits, then the limit tightens` : isDartMode(gameMode) ? "One game" : "One leg") : isDartMode(gameMode) ? "One game" : `Best of ${matchLegs}`}</p>
             <div><i /><small>No Elo or league points at risk</small></div>
           </div>
+          <CurseLeagueCard playerId={playerId} />
+          <IncomingCurses loggedIn={!!currentPlayer} onPlay={playChallenge} />
           {history.length > 0 && <div className="bc-history"><div className="bc-lb-title">Recent Curses</div>{history.slice(0,4).map(run => <div className="bc-history-row" key={run.id}><i className={run.outcome}/><span>{run.mode === "board_curse_daily" ? `Daily · ${run.visits ?? "—"} visits` : run.format === "solo" ? run.streak ? `${run.streak} leg streak` : `${run.visits ?? "—"} visits` : run.opponentLabel}</span><b>{run.outcome === "win" ? "W" : "L"}</b></div>)}</div>}
         </aside>
 
@@ -474,9 +562,9 @@ export default function BoardCursePage() {
       <div className="bc-field">
         <span className="bc-field-label">Game</span>
         <div className="bc-tabs tkdl-tab-rail tkdl-tab-rail--amber">
-          {(["X01", "CRICKET"] as CurseGameMode[]).map(m => (
+          {(["X01", "CRICKET", "ATW", "HALVEIT"] as PlayMode[]).map(m => (
             <button key={m} type="button" className={`bc-tab tkdl-tab-trigger ${gameMode === m ? "active" : ""}`} aria-pressed={gameMode === m} onClick={() => setGameMode(m)}>
-              {m === "X01" ? "501" : "Cricket"}
+              {m === "ATW" ? "ATW" : MODE_NAME[m]}{isDartMode(m) && <b className="bc-new-dot">NEW</b>}
             </button>
           ))}
         </div>
@@ -498,7 +586,18 @@ export default function BoardCursePage() {
         </div>
       </div>
 
-      {format === "solo" && (
+      {isDartMode(gameMode) && <div className="bc-note">{gameMode === "ATW" ? "Hit 1 to 20 then the bull, in order." : "Eight rounds; miss the target and your score is halved."} A new curse each visit rewrites your darts: drifts, dead numbers, lost darts. These curses aren't in the Codex.</div>}
+
+      {format !== "solo" && !isDartMode(gameMode) && (
+        <div className="bc-field">
+          <button onClick={() => setHexMode(v => !v)} className={`bc-toggle-row ${hexMode ? "active" : ""}`}>
+            <span className="bc-toggle-left"><Ghost size={18} /><span><div className="bc-format-name">Hex Duel</div><div className="bc-format-desc">No random curses. On your turn you pick one of two curses for your opponent's next visit{format === "bot" ? "; the CPU picks yours" : ""}.</div></span></span>
+            <span className={`bc-switch ${hexMode ? "on" : ""}`}><i /></span>
+          </button>
+        </div>
+      )}
+
+      {format === "solo" && !isDartMode(gameMode) && (
         <div className="bc-field">
           <button onClick={() => { setEndlessMode(v => !v); setDailyMode(false); }} className={`bc-toggle-row ${endlessMode ? "active" : ""}`}>
             <span className="bc-toggle-left">
@@ -514,7 +613,7 @@ export default function BoardCursePage() {
         </div>
       )}
 
-      {(format === "bot" || format === "local") && (
+      {(format === "bot" || format === "local") && !isDartMode(gameMode) && (
         <div className="bc-field">
           <span className="bc-field-label">Match Length</span>
           <div className="bc-pill-row">

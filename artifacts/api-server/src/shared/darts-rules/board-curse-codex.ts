@@ -25,6 +25,8 @@ export const CURSE_REWARDS: CurseReward[] = [
   { id: "name-bc-cursebound", category: "NAME_STYLE", name: "Cursebound", rarity: "LEGENDARY", gradient: "linear-gradient(90deg,#3b0a0a,#ff1744,#ffb400,#ff1744,#3b0a0a)", glow: "#ff6a00", earnedBy: "Complete the whole Curse Codex" },
   { id: "tag-bc-pact-keeper", category: "LEADERBOARD_TAG", name: "PACT KEEPER", rarity: "RARE", color: "#b388ff", earnedBy: "Clear a Curse Run leg with 3 Dark Pacts active" },
   { id: "tag-bc-run-king", category: "LEADERBOARD_TAG", name: "CURSE RUN KING", rarity: "LEGENDARY", color: "#ffd24a", earnedBy: "Set the all-time Curse Run record" },
+  { id: "tag-bc-warlock-supreme", category: "LEADERBOARD_TAG", name: "WARLOCK SUPREME", rarity: "LEGENDARY", color: "#b388ff", earnedBy: "Top the Weekly Curse League as a Warlock" },
+  { id: "frame-bc-hex-master", category: "FRAME", name: "Hex Master", rarity: "EPIC", color: "#7c3aed", glow: "#c4a5ff", earnedBy: "Win 10 Hex Duels in Board Curse" },
 ];
 export const CURSE_EARNED_BY: Record<string, string> = Object.fromEntries(CURSE_REWARDS.map(r => [r.id, r.earnedBy]));
 
@@ -43,3 +45,15 @@ export function maxRunScore(legs: number): number {
   for (let leg = 1; leg <= legs; leg++) total += (200 + (24 + leg) * 100) * (1 + leg * 0.5 + leg * 0.25);
   return Math.round(total);
 }
+
+// ── Weekly Curse League: points for playing Board Curse this week (Monday to Sunday, UK time) ──
+export const CURSE_RANKS = [
+  { id: "apprentice", name: "Apprentice", min: 0, coins: 0 },
+  { id: "hexer", name: "Hexer", min: 100, coins: 15 },
+  { id: "warlock", name: "Warlock", min: 250, coins: 40 },
+] as const;
+export type CurseRank = (typeof CURSE_RANKS)[number];
+export const rankFor = (points: number): CurseRank => [...CURSE_RANKS].reverse().find(r => points >= r.min)!;
+export const nextRank = (points: number): CurseRank | null => CURSE_RANKS.find(r => r.min > points) ?? null;
+/** What each thing is worth. Arcade games are capped per day so grinding solo legs can't run away with it. */
+export const LEAGUE_POINTS = { win: 10, loss: 2, dailyClear: 15, runLeg: 5, codexCurse: 5, challengeWon: 15, challengeLost: 3, dailyArcadeCap: 80 } as const;
