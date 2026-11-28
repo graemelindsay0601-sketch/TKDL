@@ -3,7 +3,7 @@
 // still come from the PostCard they sit in.
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Swords, Trophy, Flame, Zap, Crown, Target, Skull, TrendingUp, Award, CalendarDays, ChevronRight, Check, X, Crosshair, Coins, Star } from "lucide-react";
+import { Swords, Trophy, Flame, Zap, Crown, Target, Skull, TrendingUp, Award, CalendarDays, ChevronRight, Check, X, Crosshair, Coins, Star, Ghost } from "lucide-react";
 import { useFetch } from "@/hooks/use-fetch";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBounties } from "./WantedChip";
@@ -41,6 +41,7 @@ const KIND: Record<string, { icon: typeof Trophy; colour: string; tag: string }>
   motm:           { icon: Star,       colour: "#ffd24a", tag: "Moment of the Month" },
   bounty_on:      { icon: Crosshair,  colour: "#ff3b3b", tag: "Bounty" },
   bounty_claimed: { icon: Coins,      colour: "#ffd24a", tag: "Bounty" },
+  shadow_cup:     { icon: Ghost,      colour: "#a78bfa", tag: "Shadow Cup" },
 };
 
 const ago = (iso: string) => {

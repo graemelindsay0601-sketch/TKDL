@@ -1,6 +1,7 @@
 import { PageHero, Chapter } from "@/components/premium/Premium";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
+import { ShadowCup } from "@/components/shadow/ShadowCup";
 import { Lock, CircuitBoard, Trophy, Star, Ghost, Shield, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 type BotLeaderboardRow = {
@@ -133,6 +134,10 @@ export default function ShadowBot() {
           </div>
         </>
       )}
+
+      {/* ══ SHADOW CUP ══ */}
+      <Chapter title="Shadow Cup" accent="#a78bfa" aside={<span className="pm-chip">Weekly</span>} />
+      <ShadowCup />
 
       {/* ══ BOT ROSTER ══ */}
       <Chapter title="Full roster" accent="#22d3ee" aside={<span className="pm-chip">{onlineCount} / {roster.length} online</span>} />

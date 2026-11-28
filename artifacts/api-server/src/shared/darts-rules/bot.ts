@@ -211,3 +211,6 @@ const BOARD_ORDER_SHARED = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8,
 export function corkThrowers(starter: PlayerIdx, throws: readonly BullThrow[]): PlayerIdx[] {
   return throws.map((_, i) => resolveBullUp(starter, throws.slice(0, i)).nextThrower!);
 }
+
+// For the Shadow Bot planner (shadow.ts): the same dart maker and checkout routes.
+export { makeDart as makeBotDart, checkoutDarts as botCheckoutPlan };

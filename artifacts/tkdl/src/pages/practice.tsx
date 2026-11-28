@@ -259,15 +259,17 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   }, []);
 
   // Deep link from the daily drill: ?game=<key>&solo=1 picks the game (and solo mode) once the games have loaded.
-  const [linkedGameDone, setLinkedGameDone] = useState(false);
+  // A ?game= link (e.g. a Shadow Bot "Work on it" drill) picks that game, once per link,
+  // including when it's followed from this page itself.
+  const [linkedFor, setLinkedFor] = useState<string | null>(null);
   useEffect(() => {
-    if (linkedGameDone || !gameTypes.length) return;
+    if (linkedFor === search || !gameTypes.length) return;
     const params = new URLSearchParams(search), key = params.get("game");
-    setLinkedGameDone(true);
+    setLinkedFor(search);
     if (!key) return;
     const gt = gameTypes.find(g => g.key === key);
     if (gt) { setGame(gt); if (params.get("solo") === "1") setMode("solo"); }
-  }, [gameTypes, search, linkedGameDone]);
+  }, [gameTypes, search, linkedFor]);
 
   useEffect(() => {
     const key = selectedGame?.key;

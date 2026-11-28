@@ -36,7 +36,8 @@ export type NotificationType =
   | "achievement_unlocked"
   | "post_mentioned"
   | "top_post_reward"
-  | "callout";
+  | "callout"
+  | "shadow_duel";
 
 // A short, generic title per type — the old pipeline never had a title at
 // all (message-only), so this is new, not a behavior change to preserve.
@@ -51,6 +52,7 @@ const TITLE_BY_TYPE: Record<NotificationType, string> = {
   post_mentioned:        "You Were Mentioned",
   top_post_reward:       "Top of the Board!",
   callout:               "Call-out",
+  shadow_duel:           "Your shadow",
 };
 
 // ── Create an in-app notification + fire push ────────────────────────────────

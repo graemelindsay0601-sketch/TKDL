@@ -148,22 +148,31 @@ export function buildProfile(all: LoggedDart[], era: Era = "all", now = new Date
 }
 
 /** Where your shadow drops points: what share of your scoring darts land where, against a 60/20/20 "on the treble" ideal. */
-export function scoutingReport(p: ShadowProfileV2): { label: string; value: string; tone: "good" | "bad" | "neutral" }[] {
+export type ScoutLine = { label: string; value: string; tone: "good" | "bad" | "neutral"; drill?: { key: string; name: string; solo: boolean } };
+/** Practice games that work on each weak spot (solo-playable). */
+const DRILLS = {
+  trebles: { key: "high_score", name: "High Score", solo: true },
+  accuracy: { key: "round_the_clock", name: "Round the Clock", solo: true },
+  doubles: { key: "bobs_27", name: "Bob's 27", solo: true },
+  double: { key: "pick_a_double", name: "Pick a Double", solo: false },
+  pressure: { key: "checkout_challenge", name: "Checkout Challenge", solo: false },
+};
+export function scoutingReport(p: ShadowProfileV2): ScoutLine[] {
   const total = p.scoringDist.reduce((s, d) => s + d.n, 0) || 1;
   const share = (f: (d: { seg: number; mult: number }) => boolean) => Math.round((p.scoringDist.filter(f).reduce((s, d) => s + d.n, 0) / total) * 100);
   const trebles = share(d => d.mult === 3), misses = share(d => d.seg === 0), onPrimary = share(d => d.seg === p.primarySeg);
   const doubles = Object.entries(p.doubleRates).sort((a, b) => b[1] - a[1]);
-  const out: { label: string; value: string; tone: "good" | "bad" | "neutral" }[] = [
+  const out: ScoutLine[] = [
     { label: `On ${p.primarySeg === 25 ? "the bull" : p.primarySeg}`, value: `${onPrimary}% of scoring darts`, tone: onPrimary >= 50 ? "good" : "neutral" },
-    { label: "Trebles", value: `${trebles}% of scoring darts`, tone: trebles >= 20 ? "good" : trebles < 10 ? "bad" : "neutral" },
-    { label: "Off the board", value: `${misses}%`, tone: misses >= 5 ? "bad" : "neutral" },
-    { label: "Finishing", value: `${Math.round(p.doubleHitPct * 100)}% of darts at a double`, tone: p.doubleHitPct >= 0.3 ? "good" : p.doubleHitPct < 0.15 ? "bad" : "neutral" },
+    { label: "Trebles", value: `${trebles}% of scoring darts`, tone: trebles >= 20 ? "good" : trebles < 10 ? "bad" : "neutral", ...(trebles < 10 ? { drill: DRILLS.trebles } : {}) },
+    { label: "Off the board", value: `${misses}%`, tone: misses >= 5 ? "bad" : "neutral", ...(misses >= 5 ? { drill: DRILLS.accuracy } : {}) },
+    { label: "Finishing", value: `${Math.round(p.doubleHitPct * 100)}% of darts at a double`, tone: p.doubleHitPct >= 0.3 ? "good" : p.doubleHitPct < 0.15 ? "bad" : "neutral", ...(p.doubleHitPct < 0.15 ? { drill: DRILLS.doubles } : {}) },
   ];
   if (doubles.length) out.push({ label: "Best double", value: `D${doubles[0][0]} (${Math.round(doubles[0][1] * 100)}%)`, tone: "good" });
-  if (doubles.length > 1) out.push({ label: "Worst double", value: `D${doubles[doubles.length - 1][0]} (${Math.round(doubles[doubles.length - 1][1] * 100)}%)`, tone: "bad" });
+  if (doubles.length > 1) out.push({ label: "Worst double", value: `D${doubles[doubles.length - 1][0]} (${Math.round(doubles[doubles.length - 1][1] * 100)}%)`, tone: "bad", drill: DRILLS.double });
   if (p.pressureDoubleHitPct != null) {
     const diff = Math.round((p.pressureDoubleHitPct - p.doubleHitPct) * 100);
-    out.push({ label: "Under pressure", value: diff === 0 ? "Finishes the same in league matches" : `${Math.abs(diff)} points ${diff > 0 ? "better" : "worse"} finishing in league matches`, tone: diff >= 0 ? "good" : "bad" });
+    out.push({ label: "Under pressure", value: diff === 0 ? "Finishes the same in league matches" : `${Math.abs(diff)} points ${diff > 0 ? "better" : "worse"} finishing in league matches`, tone: diff >= 0 ? "good" : "bad", ...(diff < 0 ? { drill: DRILLS.pressure } : {}) });
   }
   return out;
 }
