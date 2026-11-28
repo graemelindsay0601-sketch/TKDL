@@ -917,88 +917,33 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
   try {
     const playerId = parseInt(req.params.id, 10);
     if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
-    const THRESHOLD = 250;
-
-    const [playerQ, dartLogQ, coQ, avgQ] = await Promise.all([
-      db.execute(sql`SELECT name FROM players WHERE id = ${playerId}`),
-      db.execute(sql`
-        WITH dart_data AS (
-          SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult, dart->>'phase' AS phase
-          FROM practice_sessions, jsonb_array_elements(session_data->'dartLog') AS dart
-          WHERE player1_id = ${playerId} AND session_data ? 'dartLog' AND NOT (dart ? 'typed')
-        )
-        SELECT seg, mult, phase, COUNT(*)::int AS throws
-        FROM dart_data WHERE seg IS NOT NULL AND mult IS NOT NULL
-        GROUP BY seg, mult, phase ORDER BY throws DESC
-      `),
-      db.execute(sql`
-        SELECT COALESCE(SUM(p1_checkout_hits),0)::int AS co_hits,
-               COALESCE(SUM(p1_checkout_attempts),0)::int AS co_attempts
-        FROM practice_sessions WHERE player1_id = ${playerId}
-      `),
-      db.execute(sql`
-        SELECT COALESCE(SUM(p1_score),0)::int AS total_score,
-               COALESCE(SUM(p1_darts),0)::int  AS total_darts
-        FROM practice_sessions WHERE player1_id = ${playerId}
-      `),
-    ]);
-
-    const playerName     = (playerQ.rows[0] as { name: string } | undefined)?.name ?? "";
-    const totalDarts     = Number(avgQ.rows[0]?.total_darts ?? 0);
-
-    if (totalDarts < THRESHOLD) {
-      res.json({ locked: true, totalDarts, needed: THRESHOLD, playerName });
+    const { UNLOCK_DARTS, buildProfile, eraOptions, scoutingReport } = await import("../lib/shadow-profile");
+    const { loggedDarts, unlockDarts } = await import("../lib/shadow-profile-db");
+    const playerName = ((await db.execute(sql`SELECT name FROM players WHERE id = ${playerId}`)).rows[0] as { name: string } | undefined)?.name ?? "";
+    const counts = await unlockDarts(playerId);
+    if (counts.total < UNLOCK_DARTS) {
+      res.json({ locked: true, totalDarts: counts.total, practiceDarts: counts.practice, leagueDarts: counts.league, needed: UNLOCK_DARTS, playerName });
       return;
     }
-
-    // Compute profile from dart logs
-    const raw = dartLogQ.rows as { seg: number; mult: number; phase: string; throws: number }[];
-    type SC = { treble: number; single: number; double: number };
-    const bySeg: Record<number, SC> = {};
-    for (const r of raw.filter(r => r.phase === "scoring")) {
-      const seg = Number(r.seg); const mult = Number(r.mult); const n = Number(r.throws);
-      if (!bySeg[seg]) bySeg[seg] = { treble: 0, single: 0, double: 0 };
-      if (mult === 3) bySeg[seg].treble += n;
-      else if (mult === 1) bySeg[seg].single += n;
-      else if (mult === 2) bySeg[seg].double += n;
-    }
-    const segTotals = Object.entries(bySeg)
-      .map(([s, c]) => { const seg = Number(s); const total = c.treble + c.single + c.double; return { seg, total, treble: c.treble, single: c.single }; })
-      .sort((a, b) => b.total - a.total);
-
-    const primary    = segTotals[0];
-    const primarySeg = primary?.seg ?? 20;
-    const treblePct  = primary && primary.total > 0 ? Math.round((primary.treble / primary.total) * 100) / 100 : 0.15;
-    const singlePct  = primary && primary.total > 0 ? Math.round((primary.single / primary.total) * 100) / 100 : 0.55;
-
-    const coDarts      = raw.filter(r => r.phase === "checkout" && Number(r.mult) === 2);
-    const checkoutSegs = coDarts.length > 0 ? coDarts.slice(0, 6).map(r => Number(r.seg)) : [16, 8, 4, 2];
-
-    const coHits          = Number(coQ.rows[0]?.co_hits ?? 0);
-    const coAttempts      = Number(coQ.rows[0]?.co_attempts ?? 0);
-    const rawDoubleHitPct = coAttempts > 0 ? Math.round((coHits / coAttempts) * 100) / 100 : 0.18;
-    const doubleHitPct    = Math.max(0.05, Math.min(0.95, rawDoubleHitPct));
-
-    const totalScore  = Number(avgQ.rows[0]?.total_score ?? 0);
-    // Pure practice average — no Elo blending. Default 45 if session data somehow missing.
-    const computedAvg = totalDarts > 0
-      ? Math.round((totalScore / totalDarts) * 3 * 10) / 10
-      : 45;
-
+    const all = await loggedDarts(playerId);
+    const eraParam = String(req.query.era ?? "all");
+    const era = (["all", "current", "peak"].includes(eraParam) || /^month:\d{4}-\d{2}$/.test(eraParam) ? eraParam : "all") as any;
+    const p = buildProfile(all, era);
+    // Unlocked mostly on typed totals (no dart-by-dart data yet): the shadow plays at your
+    // average instead of replaying darts, and says so.
+    const thin = p.scoringDist.reduce((n, x) => n + x.n, 0) < 60;
+    if (thin && counts.practiceAvg) p.computedAvg = counts.practiceAvg;
     res.json({
       locked: false,
-      totalDarts,
-      needed: THRESHOLD,
-      playerName,
-      playerId,
-      primarySeg,
-      treblePct,
-      singlePct,
-      checkoutSegs,
-      doubleHitPct,
-      computedAvg,
-      primaryTarget: primary ? { seg: primarySeg, treblePct: Math.round(treblePct * 100) } : null,
-      logDartsCount: raw.reduce((s, r) => s + Number(r.throws), 0),
+      totalDarts: counts.total,
+      needed: UNLOCK_DARTS, playerName, playerId,
+      ...p,
+      // Old fields kept for anything still reading them.
+      primaryTarget: thin ? null : { seg: p.primarySeg, treblePct: Math.round(p.treblePct * 100) },
+      logDartsCount: p.darts,
+      thin,
+      eras: thin ? [] : eraOptions(all),
+      scouting: thin ? [] : scoutingReport(p),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get shadow profile");
@@ -1019,7 +964,9 @@ router.get("/bots/leaderboard", async (req, res): Promise<void> => {
         p.id   AS player_id,
         p.name AS player_name,
         p.status,
-        COALESCE((SELECT SUM(p1_darts)::int FROM practice_sessions WHERE player1_id = p.id), 0) AS total_darts,
+        COALESCE((SELECT SUM(p1_darts)::int FROM practice_sessions WHERE player1_id = p.id), 0)
+          + COALESCE((SELECT SUM(CASE WHEN m.winner_id = p.id THEN COALESCE(m.winner_darts,0) ELSE COALESCE(m.loser_darts,0) END)::int
+                      FROM matches m WHERE m.winner_id = p.id OR m.loser_id = p.id), 0) AS total_darts,
         COALESCE((SELECT COUNT(*)::int      FROM practice_sessions WHERE player1_id = p.id), 0) AS total_sessions,
         COUNT(DISTINCT sw.game_type_key)::int                                                   AS game_modes,
         COALESCE(

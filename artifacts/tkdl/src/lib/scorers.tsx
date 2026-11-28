@@ -1768,7 +1768,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (!botConfig || turn !== 1 || bust || cork) return;
     const [d1, d2, d3] = botVisitPlanner
       ? botVisitPlanner({ remaining: scores[1], opened: started[1] }) as [Dart, Dart, Dart]
-      : botX01Visit(scores[1], !!doubleOut, botConfig, { opened: started[1] });
+      : botX01Visit(scores[1], !!doubleOut, botConfig, { opened: started[1], pressure: !soloMode && scores[0] <= 170 });
     const t1 = safeTimeout(() => handleDartRef.current(d1), 700);
     const t2 = safeTimeout(() => handleDartRef.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRef.current(d3), 2100);

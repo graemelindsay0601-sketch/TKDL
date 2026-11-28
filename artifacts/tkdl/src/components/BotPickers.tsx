@@ -17,6 +17,10 @@ export type ShadowProfileData = ShadowProfile & {
   playerName: string;
   primaryTarget: { seg: number; treblePct: number } | null;
   logDartsCount: number;
+  era?: string;
+  eras?: { era: string; label: string; darts: number; avg: number }[];
+  scouting?: { label: string; value: string; tone: "good" | "bad" | "neutral" }[];
+  leagueDarts?: number;
 };
 export type ShadowProfileLocked = { locked: true; totalDarts: number; needed: number; playerName: string };
 export type ShadowProfileResult = ShadowProfileData | ShadowProfileLocked;
@@ -147,15 +151,18 @@ export function PersonaCard({ persona, selected, onSelect, locked, price, onUnlo
 }
 
 // ── Shadow Player Picker ──────────────────────────────────────────────────────
-export function ShadowPlayerPicker({ players, profiles, selected, onSelect }: {
+export function ShadowPlayerPicker({ players, profiles, selected, onSelect, era, onEra }: {
   players: BotPickerPlayer[];
   profiles: Record<number, ShadowProfileResult>;
   selected: number | null;
   onSelect: (id: number) => void;
+  /** Which version of the player to play (all / current / peak / month:YYYY-MM). */
+  era?: string;
+  onEra?: (era: string) => void;
 }) {
   const NEEDED = 250;
   return (
-    <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+    <div className="space-y-2">
       {players.length === 0 && (
         <div className="text-center py-8 text-sm" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Loading players…</div>
       )}
@@ -206,12 +213,14 @@ export function ShadowPlayerPicker({ players, profiles, selected, onSelect }: {
                     {data?.primaryTarget && (
                       <span style={{ color: "#a78bfa" }}>T{data.primaryTarget.seg} · {data.primaryTarget.treblePct}% treble</span>
                     )}
+                    {data?.thin && <span style={{ color: "rgba(167,139,250,.7)" }}>Plays at their average for now</span>}
                     <span style={{ color: "rgba(255,255,255,0.25)" }}>{darts} darts</span>
                   </div>
                 )}
               </div>
               {data && (
                 <div className="text-right shrink-0">
+                  {data.eraLabel && data.era !== "all" && <div className="text-[0.55rem] uppercase tracking-widest mb-0.5" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>{data.eraLabel}</div>}
                   <div className="text-lg font-black leading-none" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>
                     {Number(data.computedAvg).toFixed(0)}
                   </div>
@@ -219,6 +228,37 @@ export function ShadowPlayerPicker({ players, profiles, selected, onSelect }: {
                 </div>
               )}
             </div>
+            {/* Selected shadow: pick which version of them to play, and how they play. */}
+            {isSel && data && (
+              <div className="mt-3 space-y-2" onClick={e => e.stopPropagation()}>
+                {data.eras && data.eras.length > 1 && onEra && (
+                  <div className="flex gap-1.5 flex-wrap">
+                    {data.eras.map(e => (
+                      <span key={e.era} role="button" tabIndex={0} onClick={() => onEra(e.era)} onKeyDown={k => k.key === "Enter" && onEra(e.era)}
+                        className="px-2 py-1 rounded-full text-[0.65rem] cursor-pointer"
+                        style={{ fontFamily: "Oswald, sans-serif", letterSpacing: ".04em",
+                          color: (era ?? "all") === e.era ? "#1a1200" : "rgba(255,255,255,.7)",
+                          background: (era ?? "all") === e.era ? "linear-gradient(180deg,#d9c8ff,#a78bfa)" : "rgba(255,255,255,.05)",
+                          border: `1px solid ${(era ?? "all") === e.era ? "#a78bfa" : "rgba(255,255,255,.12)"}` }}>
+                        {e.label} · {e.avg.toFixed(0)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {data.scouting && data.scouting.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {data.scouting.slice(0, 6).map(r => (
+                      <div key={r.label} className="rounded-lg px-2 py-1.5" style={{ background: "rgba(255,255,255,.03)", border: `1px solid ${r.tone === "good" ? "rgba(34,197,94,.3)" : r.tone === "bad" ? "rgba(255,0,92,.3)" : "rgba(255,255,255,.08)"}` }}>
+                        <div className="text-[0.55rem] uppercase tracking-widest" style={{ color: "rgba(255,255,255,.4)", fontFamily: "Oswald, sans-serif" }}>{r.label}</div>
+                        <div className="text-xs" style={{ color: r.tone === "good" ? "#86efac" : r.tone === "bad" ? "#ff8fb3" : "rgba(255,255,255,.8)" }}>{r.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {data.thin && <div className="text-[0.65rem]" style={{ color: "rgba(255,255,255,.45)" }}>Not enough dart-by-dart data yet (most of their darts were entered as visit totals), so this shadow plays at their average. It starts throwing like them once they score more darts one at a time.</div>}
+                {(data.leagueDarts ?? 0) > 0 && <div className="text-[0.6rem]" style={{ color: "rgba(255,255,255,.35)" }}>Learns from {data.leagueDarts} league darts as well as practice.</div>}
+              </div>
+            )}
           </button>
         );
       })}

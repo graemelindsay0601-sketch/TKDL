@@ -123,6 +123,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [selectedPersona, setPersona] = useState<BotPersona | null>(null);
   const [selectedShadowId, setShadowId] = useState<number | null>(null);
   const [shadowProfiles, setShadowProfiles] = useState<Record<number, ShadowProfileResult>>({});
+  const [shadowEra, setShadowEra] = useState("all");
+  // Picking an era (current / peak / a month) reloads that shadow's profile for it.
+  useEffect(() => {
+    if (selectedShadowId == null) return;
+    let live = true;
+    fetch(`/api/players/${selectedShadowId}/shadow-profile?era=${encodeURIComponent(shadowEra)}`).then(r => r.json())
+      .then((d: ShadowProfileResult) => { if (live && d) setShadowProfiles(prev => ({ ...prev, [selectedShadowId]: d })); }).catch(() => {});
+    return () => { live = false; };
+  }, [selectedShadowId, shadowEra]);
   const [p1Id, setP1Id]           = useState("");
   const [p2Id, setP2Id]           = useState("");
   const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
@@ -396,11 +405,16 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         checkoutSegs: prof.checkoutSegs,
         doubleHitPct: prof.doubleHitPct,
         computedAvg: prof.computedAvg,
+        scoringDist: prof.scoringDist,
+        doubleRates: prof.doubleRates,
+        pressureDoubleHitPct: prof.pressureDoubleHitPct,
+        thin: prof.thin,
+        eraLabel: prof.eraLabel,
       };
       return {
         p1: p1!, p2: null, gameType: selectedGame!, solo: true, bullUp,
         botName: `Shadow ${shadowPlayer.name}`,
-        botSubtitle: `Player Clone · ${Number(prof.computedAvg).toFixed(1)} avg`,
+        botSubtitle: `${prof.era && prof.era !== "all" ? prof.eraLabel : "Player Clone"} · ${Number(prof.computedAvg).toFixed(1)} avg`,
         botFlag: "👻",
         botColor: "#a78bfa",
         botConfig: { ...getBotConfig("club"), shadowProfile: sp },
@@ -650,13 +664,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           ) : (
             <div>
               <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                Play against a bot that mirrors how a real player actually throws — same target, same miss pattern, same preferred doubles. Unlocks at 250 combined darts.
+                Play a bot that throws like a real player: it replays their actual darts, their real hit rate on each double, and how they finish under pressure in league matches. Pick a version of them, like their peak month. Unlocks at 250 darts (practice and league).
               </p>
               <ShadowPlayerPicker
                 players={players}
                 profiles={shadowProfiles}
                 selected={selectedShadowId}
-                onSelect={setShadowId}
+                onSelect={id => { setShadowEra("all"); setShadowId(id); }}
+                era={shadowEra}
+                onEra={setShadowEra}
               />
             </div>
           )}
