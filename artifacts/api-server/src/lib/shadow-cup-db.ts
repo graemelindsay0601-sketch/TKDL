@@ -31,7 +31,7 @@ export const ensureShadowCup = () => (ready ??= (async () => {
     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, rarity = EXCLUDED.rarity, color = EXCLUDED.color, purchasable = false`);
 })().catch(e => { ready = null; throw e; }));
 
-async function entrants(): Promise<CupEntrant[]> {
+export async function entrants(): Promise<CupEntrant[]> {
   const players = await rows(sql`SELECT id, name FROM players WHERE status <> 'INACTIVE' ORDER BY id`);
   const out: CupEntrant[] = [];
   for (const p of players) {

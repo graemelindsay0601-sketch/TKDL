@@ -327,6 +327,7 @@ export default function PlayerDetail() {
   // blanks out the others.
   const [master501, setMaster501] = useState<any>(null);
   const [shadowStats, setShadowStats] = useState<any>(null);
+  const [hauntRec, setHauntRec] = useState<{ won: number; lost: number } | null>(null);
   const [bossBattle, setBossBattle] = useState<{ defeated: string[]; stats?: Record<string, { bestSeconds: number | null; cleanSweep: boolean }> } | null>(null);
   const [boardCurseRecord, setBoardCurseRecord] = useState<{ wins: number; losses: number; bestStreak: number | null; bestVisits: number | null } | null>(null);
   const [cardClashStats, setCardClashStats] = useState<any>(null);
@@ -341,6 +342,7 @@ export default function PlayerDetail() {
     setTourRuns([]);
     fetch(`/api/master501/progress/${playerId}`).then(r => r.ok ? r.json() : null).then(setMaster501).catch(() => setMaster501(null));
     fetch(`/api/players/${playerId}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadowStats).catch(() => setShadowStats(null));
+    fetch(`/api/players/${playerId}/haunt-record`).then(r => r.ok ? r.json() : null).then(setHauntRec).catch(() => setHauntRec(null));
     fetch(`/api/boss-battles/progress/${playerId}`).then(r => r.ok ? r.json() : null).then(setBossBattle).catch(() => setBossBattle(null));
     if (!CARD_CLASH_BENCHED) fetch(`/api/card-clash/player/${playerId}/stats`).then(r => r.ok ? r.json() : null).then(setCardClashStats).catch(() => setCardClashStats(null));
     fetch(`/api/tour/runs/${playerId}`).then(r => r.ok ? r.json() : []).then(d => setTourRuns(Array.isArray(d) ? d : [])).catch(() => setTourRuns([]));
@@ -684,6 +686,7 @@ export default function PlayerDetail() {
             {shadowStats?.locked === false || (shadowStats && !shadowStats.locked)
               ? `${shadowStats.totalMatches ?? 0} matches · ${shadowStats.matchWinRate ?? 0}% win`
               : shadowStats?.locked ? "Locked — keep practicing" : "Not started"}
+            {hauntRec && hauntRec.won + hauntRec.lost > 0 && <span style={{ display: "block", color: "#c4b5fd" }}>👻 Hauntings {hauntRec.won}-{hauntRec.lost}</span>}
           </ModeTile>
           {!CARD_CLASH_BENCHED && <ModeTile href="/card-clash" icon={<Layers className="w-3.5 h-3.5" />} accent="#f97316" label="Card Clash">
             {cardClashStats ? `${cardClashStats.cardsOwned} cards · ${cardClashStats.wins}-${cardClashStats.losses}` : "Not started"}

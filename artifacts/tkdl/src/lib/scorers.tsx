@@ -9,7 +9,7 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize, Shuffle, Grid3X3, Dices, Rabbit, Lock, Swords, Ship, EyeOff, Footprints, Award, PawPrint, ArrowDownToLine, LayoutGrid, Flame } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHareHoundsVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart, botHighLowVisit, getOppositeSeg, botPickADoubleVisit, botNoughtsCrossesDart, botOcheRouletteVisit, botOneEightyVisit, botFivesVisit, botTennisVisit, botBattleshipShot, botBlindKillerVisit, botDonkeyDerbyVisit, botLimboVisit, botSnakesLaddersDart, botQuackshotVisit, botFightGameVisit, BOARD_ORDER } from "./bot-engine";
-import { type PracticeStats, type DartThrow } from "./stats-types";
+import { type PracticeStats, type DartThrow, type LegLog } from "./stats-types";
 import { starterFor, opensLeg, resolveBullUp, corkDart, botBullThrow, type BullThrow } from "./darts-rules";
 import type { X01StatsAccumulator, X01RecoveryState, CricketMarks, CricketUndoSnapshot, CricketRecoveryState, TeamX01RecoveryState, TeamCricketRecoveryState } from "./scorer-recovery";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
@@ -786,6 +786,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [bustMsg, setBustMsg]       = useState("");
   const [freeRetriesUsed, setFreeRetriesUsed] = useSnapState<[number, number]>("X01Scorer.freeRetriesUsed", [0, 0]); // Track free retries per player this turn
   const [history, setHistory]       = useSnapState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[]; leg?: number; openedBefore?: boolean }[]>("X01Scorer.history", () => initialRecovery?.history ?? []);
+  // Every leg's visits for both players, kept for the end-of-game breakdown (shadow coach).
+  const historyRef = useRef(history); historyRef.current = history;
+  const legLogRef = useRef<LegLog[]>([]);
+  // Darts made up from a typed visit total, so the breakdown doesn't read made-up darts as real ones.
+  const typedDartsRef = useRef(new WeakSet<Dart>());
   useEffect(() => {
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     const liveScores: [number, number] = [...scores] as [number, number];
@@ -961,11 +966,19 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     botTimersRef.current = [];
     matchLoggerRef.current.log("leg_won", { winner: winnerIdx, finishingDarts: darts.map(d => d.label) });
     setVisitDarts(darts);
+    {
+      const visits = historyRef.current.filter(h => (h.leg ?? legNo) === legNo)
+        .map(h => ({ p: h.turn, score: h.score, left: h.left, darts: h.darts.map(d => d.value), typed: h.darts.some(d => typedDartsRef.current.has(d)) }));
+      if (darts.length) visits.push({ p: winnerIdx, score: scores[winnerIdx], left: 0, darts: darts.map(d => d.value), typed: darts.some(d => typedDartsRef.current.has(d)) });
+      const firstLeft = (p: 0 | 1) => { const v = visits.find(x => x.p === p); return v ? v.left + v.score : scores[p]; };
+      legLogRef.current.push({ winner: winnerIdx, start: [firstLeft(0), firstLeft(1)], visits });
+    }
     const getStats = () => ({
       p1Darts: p1StatsRef.current.darts, p1Score: p1StatsRef.current.score,
       p1_100s: p1StatsRef.current.s100s, p1_140s: p1StatsRef.current.s140s, p1_170s: p1StatsRef.current.s170s,
       p1_180s: p1StatsRef.current.s180s, p1CheckoutAttempts: p1StatsRef.current.coAttempts,
       p1CheckoutHits: p1StatsRef.current.coHits, dartLog: [...p1StatsRef.current.dartLog],
+      legLog: [...legLogRef.current],
       ...(isHumanVsHuman ? {
         p2Darts: p2StatsRef.current.darts, p2Score: p2StatsRef.current.score,
         p2_100s: p2StatsRef.current.s100s, p2_140s: p2StatsRef.current.s140s, p2_170s: p2StatsRef.current.s170s,
@@ -1172,7 +1185,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // close to tautologically true for any win and blind to a Chaos-mode
   // Perfect Game drawn mid-leg. Matches the deps CricketScorer's equivalent
   // resetForLeg already correctly includes for the same check.
-  }, [legs, legsNeeded, setsNeeded, setsToWin, legStarter, startingScores, doubleIn, onWin, onPracticeStats, setWins, isCardClash, scores, p1Cards, p2Cards, activeEffects, legInSet, firstThrower, soloMode]);
+  }, [legs, legsNeeded, setsNeeded, setsToWin, legStarter, startingScores, doubleIn, onWin, onPracticeStats, setWins, isCardClash, scores, p1Cards, p2Cards, activeEffects, legInSet, firstThrower, soloMode, legNo]);
 
   const handleDart = useCallback((dart: Dart) => {
     // Checkout Confidence grants one bonus 4th dart for the visit after a
@@ -1208,7 +1221,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // stats log keeps the flag so per-segment stats (treble/double rates,
     // favourite doubles) can leave them out: nobody actually threw them.
     const typedDart = !!(dart as Dart & { typed?: boolean }).typed;
-    if (typedDart) { const { typed: _t, ...plain } = dart as Dart & { typed?: boolean }; dart = plain; }
+    if (typedDart) { const { typed: _t, ...plain } = dart as Dart & { typed?: boolean }; dart = plain; typedDartsRef.current.add(plain); }
     pushDartLog([...dartLogRef.current, dart]);
 
     // Double-in: before started, only doubles open the scoring. A dart that

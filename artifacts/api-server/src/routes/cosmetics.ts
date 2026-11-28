@@ -7,6 +7,7 @@ import { EARNED_BY } from "../lib/achievements-v2/rewards.ts";
 import { LADDER_EARNED_BY } from "../lib/league-target.ts";
 import { OO_EARNED_BY } from "../lib/oche-extras.ts";
 import { CUP_EARNED_BY } from "../lib/shadow-cup.ts";
+import { EXTRAS_EARNED_BY } from "../lib/shadow-extras.ts";
 import { GAFFER_EARNED_BY } from "../lib/gaffer.ts";
 import { isFeatureAvailable } from "../services/feature-flags-service";
 
@@ -37,7 +38,7 @@ router.get("/cosmetics/catalog", async (req, res): Promise<void> => {
     const showGaffer = await isFeatureAvailable("gaffer", (req.session as any)?.isAdmin === true);
     // award-only cosmetics from achievements and the League Target ladder say how they're earned
     res.json(rows.filter(r => (showTarget || !(r.id in LADDER_EARNED_BY)) && (showGaffer || !(r.id in GAFFER_EARNED_BY))).map(r => {
-      const earnedBy = EARNED_BY[r.id] ?? LADDER_EARNED_BY[r.id] ?? GAFFER_EARNED_BY[r.id] ?? OO_EARNED_BY[r.id] ?? CUP_EARNED_BY[r.id];
+      const earnedBy = EARNED_BY[r.id] ?? LADDER_EARNED_BY[r.id] ?? GAFFER_EARNED_BY[r.id] ?? OO_EARNED_BY[r.id] ?? CUP_EARNED_BY[r.id] ?? EXTRAS_EARNED_BY[r.id];
       return earnedBy ? { ...r, earnedBy } : r;
     }));
   } catch (err) {

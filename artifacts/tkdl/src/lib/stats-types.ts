@@ -32,4 +32,9 @@ export type PracticeStats = {
   p2DartLog?: DartThrow[];
   // Mode-specific stats stored as JSON — e.g. Cricket marks, Golf strokes, etc.
   sessionData?: Record<string, unknown>;
+  /** X01: every visit of every leg, both players (used by the shadow coach breakdown). */
+  legLog?: LegLog[];
 };
+
+/** One leg of an X01 game: who won, and each visit's darts (values), score and what was left after it. */
+export type LegLog = { winner: 0 | 1; start: [number, number]; visits: { p: 0 | 1; score: number; left: number; darts: number[]; typed?: boolean }[] };

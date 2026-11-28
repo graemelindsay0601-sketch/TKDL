@@ -1,6 +1,7 @@
 import { PageHero } from "@/components/premium/Premium";
 import { DailyDrill } from "@/components/DailyDrill";
 import { GhostBanner, type GhostLeg } from "@/components/GhostRace";
+import { ShadowCoach } from "@/components/shadow/ShadowCoach";
 import { useState, useEffect, useRef } from "react";
 import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { createPortal } from "react-dom";
@@ -20,7 +21,7 @@ import {
   type BotPersona, type BotConfig, type ShadowProfile,
 } from "@/lib/bot-engine";
 import {
-  LevelBotPicker, PersonaCard, ShadowPlayerPicker,
+  LevelBotPicker, PersonaCard, ShadowPlayerPicker, LegendPicker,
   type SoloBotMode, type ShadowProfileData, type ShadowProfileLocked, type ShadowProfileResult,
 } from "@/components/BotPickers";
 import { useWakeLock, useZoomLock, useExitGuard, readMatchSnapshot, writeMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
@@ -46,6 +47,8 @@ type SetupData = {
   legsToWinSet?: number;
   bullUp?: boolean;
   shadowPlayerId?: number;
+  /** Playing a Legend shadow (a past season's top 3, frozen). */
+  shadowLegendId?: number;
 };
 
 const TABS = [
@@ -266,6 +269,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     if (linkedFor === search || !gameTypes.length) return;
     const params = new URLSearchParams(search), key = params.get("game");
     setLinkedFor(search);
+    // ?shadow=<playerId> (from a haunt): straight to playing that player's shadow.
+    const sh = Number(params.get("shadow"));
+    if (sh) { setMode("bot"); setBotMode("shadow"); setShadowEra("all"); setShadowId(sh); }
     if (!key) return;
     const gt = gameTypes.find(g => g.key === key);
     if (gt) { setGame(gt); if (params.get("solo") === "1") setMode("solo"); }
@@ -415,12 +421,13 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       };
       return {
         p1: p1!, p2: null, gameType: selectedGame!, solo: true, bullUp,
-        botName: `Shadow ${shadowPlayer.name}`,
+        botName: `${shadowEra.startsWith("legend:") ? "Legend" : "Shadow"} ${shadowPlayer.name}`,
         botSubtitle: `${prof.era && prof.era !== "all" ? prof.eraLabel : "Player Clone"} · ${Number(prof.computedAvg).toFixed(1)} avg`,
         botFlag: "👻",
         botColor: "#a78bfa",
         botConfig: { ...getBotConfig("club"), shadowProfile: sp },
         shadowPlayerId: selectedShadowId,
+        shadowLegendId: shadowEra.startsWith("legend:") ? Number(shadowEra.slice(7)) : undefined,
         ...fmt,
       };
     }
@@ -668,10 +675,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
                 Play a bot that throws like a real player: it replays their actual darts, their real hit rate on each double, and how they finish under pressure in league matches. Pick a version of them, like their peak month. Unlocks at 250 darts (practice and league).
               </p>
+              <LegendPicker
+                selected={shadowEra.startsWith("legend:") ? Number(shadowEra.slice(7)) : null}
+                meId={currentPlayer?.playerId ?? null}
+                onSelect={l => { setShadowEra(`legend:${l.id}`); setShadowId(l.playerId); }}
+              />
               <ShadowPlayerPicker
                 players={players}
                 profiles={shadowProfiles}
-                selected={selectedShadowId}
+                selected={shadowEra.startsWith("legend:") ? null : selectedShadowId}
                 onSelect={id => { setShadowEra("all"); setShadowId(id); }}
                 era={shadowEra}
                 onEra={setShadowEra}
@@ -1079,6 +1091,7 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
       if (stats.dartLog?.length)    sd.dartLog        = stats.dartLog;
       if (stats.p2DartLog?.length)  sd.p2DartLog      = stats.p2DartLog;
       if (data.shadowPlayerId)      sd.shadowPlayerId  = data.shadowPlayerId;
+      if (data.shadowLegendId)      sd.shadowLegendId  = data.shadowLegendId;
       if (Object.keys(sd).length)   body.sessionData  = sd;
     }
     fetch("/api/practice/sessions", {
@@ -1118,6 +1131,11 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
           winnerIdx={result.winnerIdx as 0|1}
           accentColor={themeColor}
         />
+      )}
+
+      {data.shadowPlayerId && stats?.legLog && stats.legLog.length > 0 && (
+        <ShadowCoach legs={stats.legLog} shadow={data.botName ?? "the shadow"}
+          doubleOut={(() => { try { return JSON.parse(data.gameType.config ?? "{}").doubleOut !== false; } catch { return true; } })()} />
       )}
 
       <div className="pdc-card p-4 text-left space-y-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>

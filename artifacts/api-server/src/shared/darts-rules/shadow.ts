@@ -81,3 +81,9 @@ export function planShadowX01Visit(remaining: number, p: ShadowDarts, options: {
   }
   return out as [Dart, Dart, Dart];
 }
+
+/** Which boss the latest Shadow Cup champion possesses: picked from the cup week so it stays put all week. */
+export function possessedBossIndex(week: string, bossCount: number): number {
+  let h = 0; for (const c of week) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return bossCount ? h % bossCount : 0;
+}

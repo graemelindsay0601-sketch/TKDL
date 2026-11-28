@@ -30,6 +30,8 @@ export interface NotificationPayload {
     | "callout"
     // Someone played your Shadow Bot (beat it, or it held them off).
     | "shadow_duel"
+    // Someone's shadow challenged you (Haunt a friend).
+    | "shadow_haunt"
     // Interview Desk (test/preview — see routes/interview-desk.ts's header).
     // Time-boxed like threat_alert: the request expires once the live
     // window it was asked for has passed, so it needs to actually reach the
@@ -193,6 +195,7 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
     top_post_reward:       "community_activity",
     callout:               "community_activity",
     shadow_duel:           "match_results",
+    shadow_haunt:          "community_activity",
     career_reminder:       "career_reminders",
     league_challenge:      "league_challenges",
   };

@@ -124,11 +124,18 @@ router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promis
     if (!inserted) return;
 
     // Fire-and-forget: tell a shadow's owner how it got on against this player.
+    // A Legend shadow game goes to the legend record instead; a haunt settles the haunt (and says so instead).
     const shadowId = Number((body.sessionData as any)?.shadowPlayerId ?? 0);
-    if (shadowId && body.player1Id) {
-      import("../lib/shadow-duels").then(m => m.afterShadowSession({ player1Id: body.player1Id!, shadowPlayerId: shadowId,
-        winnerIdx: body.winnerIdx ?? null, detail: body.detail ?? null, gameName: body.gameTypeName ?? null }))
-        .catch(err => req.log.error({ err }, "Shadow duel notify error"));
+    const legendId = Number((body.sessionData as any)?.shadowLegendId ?? 0);
+    if (shadowId && body.player1Id && body.winnerIdx != null) {
+      (async () => {
+        const x = await import("../lib/shadow-extras-db");
+        if (legendId) { await x.recordLegendWin(body.player1Id!, legendId, body.winnerIdx!); return; }
+        if (await x.settleHaunt(body.player1Id!, shadowId, body.winnerIdx!, body.detail ?? null)) return;
+        const m = await import("../lib/shadow-duels");
+        await m.afterShadowSession({ player1Id: body.player1Id!, shadowPlayerId: shadowId,
+          winnerIdx: body.winnerIdx ?? null, detail: body.detail ?? null, gameName: body.gameTypeName ?? null });
+      })().catch(err => req.log.error({ err }, "Shadow session follow-up error"));
     }
 
     // Fire-and-forget: a solo session may knock someone down today's daily drill board.
@@ -925,7 +932,7 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
   try {
     const playerId = parseInt(req.params.id, 10);
     if (!playerId) { res.status(400).json({ error: "Invalid player id" }); return; }
-    const { UNLOCK_DARTS, buildProfile, eraOptions, scoutingReport } = await import("../lib/shadow-profile");
+    const { UNLOCK_DARTS, buildProfile, eraOptions, scoutingReport, shadowTraits } = await import("../lib/shadow-profile");
     const { loggedDarts, unlockDarts } = await import("../lib/shadow-profile-db");
     const playerName = ((await db.execute(sql`SELECT name FROM players WHERE id = ${playerId}`)).rows[0] as { name: string } | undefined)?.name ?? "";
     const counts = await unlockDarts(playerId);
@@ -933,8 +940,18 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
       res.json({ locked: true, totalDarts: counts.total, practiceDarts: counts.practice, leagueDarts: counts.league, needed: UNLOCK_DARTS, playerName });
       return;
     }
-    const all = await loggedDarts(playerId);
     const eraParam = String(req.query.era ?? "all");
+    // A Legend shadow: the frozen season profile, not today's darts.
+    if (/^legend:\d+$/.test(eraParam)) {
+      const { legendProfile } = await import("../lib/shadow-extras-db");
+      const lp = await legendProfile(Number(eraParam.slice(7)), playerId);
+      if (!lp) { res.status(404).json({ error: "Legend not found" }); return; }
+      res.json({ locked: false, totalDarts: counts.total, needed: UNLOCK_DARTS, playerName, playerId, ...lp,
+        primaryTarget: lp.thin ? null : { seg: lp.primarySeg, treblePct: Math.round(lp.treblePct * 100) }, logDartsCount: lp.darts,
+        eras: [], scouting: lp.thin ? [] : scoutingReport(lp), traits: lp.thin ? [] : shadowTraits(lp) });
+      return;
+    }
+    const all = await loggedDarts(playerId);
     const era = (["all", "current", "peak"].includes(eraParam) || /^month:\d{4}-\d{2}$/.test(eraParam) ? eraParam : "all") as any;
     const p = buildProfile(all, era);
     // Unlocked mostly on typed totals (no dart-by-dart data yet): the shadow plays at your
@@ -952,6 +969,7 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
       thin,
       eras: thin ? [] : eraOptions(all),
       scouting: thin ? [] : scoutingReport(p),
+      traits: thin ? [] : shadowTraits(p),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get shadow profile");
