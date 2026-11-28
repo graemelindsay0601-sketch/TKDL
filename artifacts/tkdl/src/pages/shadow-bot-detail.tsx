@@ -1,6 +1,7 @@
 import { Glow, DartboardBackdrop, Chapter, PmCard, Ring } from "@/components/premium/Premium";
 import { useState, useEffect } from "react";
 import { Link, useParams } from "wouter";
+import { TraitChips, type ShadowTrait } from "@/components/BotPickers";
 import { ArrowLeft, CircuitBoard, Lock, Dumbbell, Target, Zap, Trophy, ChevronRight, Ghost, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 type GameModeRow = { gameTypeKey: string; gameTypeName: string; sessions: number; darts: number };
@@ -99,6 +100,13 @@ export default function ShadowBotDetail() {
   const [error, setError]         = useState(false);
   const [timeline, setTimeline]   = useState<TimelinePoint[]>([]);
   const [rivalry, setRivalry]     = useState<RivalryRow[]>([]);
+  const [traits, setTraits]       = useState<ShadowTrait[]>([]);
+  const [haunts, setHaunts]       = useState<{ won: number; lost: number; victims: string[] } | null>(null);
+  useEffect(() => {
+    if (!playerId) return;
+    fetch(`/api/players/${playerId}/shadow-profile`).then(r => r.json()).then(d => setTraits(Array.isArray(d?.traits) ? d.traits : [])).catch(() => setTraits([]));
+    fetch(`/api/players/${playerId}/haunt-record`).then(r => r.json()).then(setHaunts).catch(() => setHaunts(null));
+  }, [playerId]);
 
   useEffect(() => {
     if (!playerId) return;
@@ -253,6 +261,27 @@ export default function ShadowBotDetail() {
               </div>
             );
           })()}
+
+          {/* ══ TRAITS + HAUNTS ══ */}
+          {(traits.length > 0 || (haunts && haunts.won + haunts.lost > 0)) && (
+            <>
+              <Chapter title="Traits" accent="#a78bfa" aside={<Ghost className="w-4 h-4" style={{ color: "#a78bfa" }} />} />
+              <PmCard accent="#a78bfa">
+                <div className="p-4 space-y-3">
+                  <TraitChips traits={traits} size="md" />
+                  {traits.length > 0 && <div className="space-y-1">{traits.map(t => (
+                    <div key={t.key} className="text-xs" style={{ color: "rgba(255,255,255,.6)" }}><b style={{ color: "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: ".04em" }}>{t.label}:</b> {t.why}</div>
+                  ))}</div>}
+                  {haunts && haunts.won + haunts.lost > 0 && (
+                    <div className="text-xs pt-2" style={{ borderTop: "1px solid rgba(255,255,255,.07)", color: "rgba(255,255,255,.6)" }}>
+                      <b style={{ color: "#c4b5fd", fontFamily: "Oswald, sans-serif", letterSpacing: ".06em" }}>👻 HAUNTINGS {haunts.won}-{haunts.lost}</b>
+                      {haunts.victims.length > 0 && <> · beat {haunts.victims.join(", ")}</>}
+                    </div>
+                  )}
+                </div>
+              </PmCard>
+            </>
+          )}
 
           {/* ══ DART PROFILE ══ */}
           {!stats.locked && (stats.primarySeg != null || (stats.checkoutSegs && stats.checkoutSegs.length > 0)) && (

@@ -147,6 +147,8 @@ import { initializeCommunityTopPostScheduler } from "./services/communityTopPost
 import { initializeRoundupScheduler } from "./lib/community-roundup";
 import { initializeOcheExtrasScheduler } from "./lib/oche-extras-db";
 import { initializeShadowCupScheduler } from "./lib/shadow-cup-db";
+import { initializeShadowLadderScheduler } from "./lib/shadow-ladder-db";
+import { initializeShadowLegendsScheduler } from "./lib/shadow-extras-db";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
@@ -1879,6 +1881,8 @@ async function initRuntime() {
   await runInitStep("initializeRoundupScheduler", initializeRoundupScheduler);
   await runInitStep("initializeOcheExtrasScheduler", initializeOcheExtrasScheduler);
   await runInitStep("initializeShadowCupScheduler", initializeShadowCupScheduler);
+  await runInitStep("initializeShadowLadderScheduler", initializeShadowLadderScheduler);
+  await runInitStep("initializeShadowLegendsScheduler", initializeShadowLegendsScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
   await runInitStep("initializeLeagueTargetScheduler", async () => {
     const { initializeLeagueTargetScheduler } = await import("./lib/league-target-db");

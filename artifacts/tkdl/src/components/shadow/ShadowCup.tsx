@@ -30,8 +30,8 @@ function call(name: string, v: CupVisit): string | null {
   return null;
 }
 
-function Replay({ id, onClose }: { id: number; onClose: () => void }) {
-  const { data } = useFetch<MatchView>(`/api/shadow-cup/matches/${id}`);
+export function Replay({ id, onClose, src = "/api/shadow-cup/matches", tag = "Shadow Cup" }: { id: number; onClose: () => void; src?: string; tag?: string }) {
+  const { data } = useFetch<MatchView>(`${src}/${id}`);
   const steps = useMemo(() => {
     if (!data) return [];
     const out: { leg: number; v: CupVisit; legs: [number, number] }[] = [];
@@ -62,7 +62,7 @@ function Replay({ id, onClose }: { id: number; onClose: () => void }) {
   return (
     <div className="sc-overlay" role="dialog" aria-label="Shadow Cup replay">
       <div className="sc-replay">
-        <div className="sc-top"><span className="sc-tag"><Ghost size={12} /> Shadow Cup · replay</span><button className="sc-x" onClick={onClose} aria-label="Close"><X size={18} /></button></div>
+        <div className="sc-top"><span className="sc-tag"><Ghost size={12} /> {tag} · replay</span><button className="sc-x" onClick={onClose} aria-label="Close"><X size={18} /></button></div>
         <div className="sc-board">
           {[0, 1].map(p => (
             <div key={p} className={`sc-side${s.v.p === p && !done ? " on" : ""}${done && data.result.winner === p ? " won" : ""}`}>

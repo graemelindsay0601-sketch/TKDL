@@ -11,7 +11,7 @@
 export type HighlightKind =
   | "max" | "big_finish" | "upset" | "record" | "streak" | "elimination"
   | "target_hit" | "gaffer" | "callout_result"
-  | "motm" | "callout_streak" | "bounty_on" | "bounty_claimed" | "shadow_cup";
+  | "motm" | "callout_streak" | "bounty_on" | "bounty_claimed" | "shadow_cup" | "legend_slain";
 
 export type Highlight = {
   /** Unique forever: the same moment can never be posted twice. */

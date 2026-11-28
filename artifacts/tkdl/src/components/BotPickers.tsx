@@ -6,6 +6,7 @@
 
 import { Cpu, Ghost } from "lucide-react";
 import { useLocation } from "wouter";
+import { useEffect, useState } from "react";
 import {
   BOT_LEVELS, numLevelConfig, numLevelLabel, numLevelColor,
   type BotPersona, type ShadowProfile,
@@ -22,7 +23,79 @@ export type ShadowProfileData = ShadowProfile & {
   eras?: { era: string; label: string; darts: number; avg: number }[];
   scouting?: { label: string; value: string; tone: "good" | "bad" | "neutral"; drill?: { key: string; name: string; solo: boolean } }[];
   leagueDarts?: number;
+  traits?: ShadowTrait[];
 };
+export type ShadowTrait = { key: string; label: string; tone: "good" | "bad" | "neutral"; why: string };
+
+/** Shadow traits as chips: earned from the real darts, good and bad, and they change as you play. */
+export function TraitChips({ traits, size = "sm" }: { traits?: ShadowTrait[]; size?: "sm" | "md" }) {
+  if (!traits?.length) return null;
+  return (
+    <div className="flex gap-1.5 flex-wrap">
+      {traits.map(t => (
+        <span key={t.key} title={t.why} className="inline-flex items-center gap-1 rounded-full uppercase"
+          style={{ fontFamily: "Oswald, sans-serif", letterSpacing: ".08em", fontSize: size === "md" ? "0.7rem" : "0.6rem", padding: size === "md" ? "4px 10px" : "3px 8px",
+            color: t.tone === "good" ? "#86efac" : t.tone === "bad" ? "#ff8fb3" : "#d9c8ff",
+            background: t.tone === "good" ? "rgba(34,197,94,.12)" : t.tone === "bad" ? "rgba(255,0,92,.12)" : "rgba(167,139,250,.12)",
+            border: `1px solid ${t.tone === "good" ? "rgba(34,197,94,.35)" : t.tone === "bad" ? "rgba(255,0,92,.35)" : "rgba(167,139,250,.35)"}` }}>
+          {t.tone === "good" ? "▲" : t.tone === "bad" ? "▼" : "◆"} {t.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export type LegendShadow = { id: number; playerId: number; name: string; seasonName: string; position: number; label: string; avg: number; thin: boolean; beatenBy: number; beatenByMe: boolean };
+
+/** Legend shadows: each finished season's top 3, frozen at that season's darts. Beat one for the Legend Slayer tag. */
+export function LegendPicker({ selected, onSelect, meId }: { selected: number | null; onSelect: (l: LegendShadow) => void; meId: number | null }) {
+  const [legends, setLegends] = useState<LegendShadow[] | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => { fetch("/api/shadow-legends", { credentials: "include" }).then(r => r.json()).then(setLegends).catch(() => setLegends([])); }, []);
+  if (!legends?.length) return null;
+  const shown = open ? legends : legends.slice(0, 3);
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline justify-between mb-2">
+        <div className="text-xs uppercase tracking-widest font-bold" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>👑 Legend shadows</div>
+        <div className="text-[0.6rem]" style={{ color: "rgba(255,255,255,.4)" }}>Past seasons' top 3, frozen at their best</div>
+      </div>
+      <div className="space-y-2">
+        {shown.map(l => {
+          const isSel = selected === l.id, mine = meId === l.playerId;
+          return (
+            <button key={l.id} onClick={() => onSelect(l)} className="w-full pdc-card p-3 text-left relative overflow-hidden"
+              style={{ borderColor: isSel ? "#ffd24a" : "rgba(255,210,74,.22)", background: isSel ? "linear-gradient(90deg,rgba(255,210,74,.16),rgba(255,210,74,.03))" : "linear-gradient(90deg,rgba(255,210,74,.07),rgba(255,255,255,.015))" }}>
+              {isSel && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: "#ffd24a" }} />}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(255,210,74,.14)", fontSize: "1rem" }}>{l.position === 1 ? "👑" : l.position === 2 ? "🥈" : "🥉"}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>Legend {l.name}</div>
+                  <div className="text-[0.65rem] mt-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", letterSpacing: ".04em" }}>
+                    {l.label}{l.thin ? " · plays at their average" : ""}
+                  </div>
+                  <div className="text-[0.6rem] mt-0.5" style={{ color: "rgba(255,255,255,.4)" }}>
+                    {mine ? "Your own legend (no tag for beating yourself)" : l.beatenByMe ? "✓ You've beaten this legend" : l.beatenBy ? `Beaten by ${l.beatenBy} player${l.beatenBy === 1 ? "" : "s"}` : "Unbeaten"}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-lg font-black leading-none" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{l.avg.toFixed(0)}</div>
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>avg</div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {legends.length > 3 && (
+        <button onClick={() => setOpen(o => !o)} className="w-full mt-2 text-[0.65rem] uppercase tracking-widest" style={{ color: "rgba(255,210,74,.8)", fontFamily: "Oswald, sans-serif" }}>
+          {open ? "Show fewer" : `All ${legends.length} legends`}
+        </button>
+      )}
+      <div className="text-xs uppercase tracking-widest font-bold mt-4 mb-2" style={{ color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>👻 Player shadows</div>
+    </div>
+  );
+}
 export type ShadowProfileLocked = { locked: true; totalDarts: number; needed: number; playerName: string };
 export type ShadowProfileResult = ShadowProfileData | ShadowProfileLocked;
 
@@ -247,6 +320,7 @@ export function ShadowPlayerPicker({ players, profiles, selected, onSelect, era,
                     ))}
                   </div>
                 )}
+                <TraitChips traits={data.traits} />
                 {data.scouting && data.scouting.length > 0 && (
                   <div className="grid grid-cols-2 gap-1.5">
                     {data.scouting.slice(0, 6).map(r => (

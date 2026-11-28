@@ -176,3 +176,26 @@ export function scoutingReport(p: ShadowProfileV2): ScoutLine[] {
   }
   return out;
 }
+
+/** Shadow traits: short labels earned from the real darts, good and bad, that change as you play. */
+export type ShadowTrait = { key: string; label: string; tone: "good" | "bad" | "neutral"; why: string };
+export function shadowTraits(p: ShadowProfileV2): ShadowTrait[] {
+  const total = p.scoringDist.reduce((n, x) => n + x.n, 0);
+  if (total < 60) return [];
+  const share = (f: (x: { seg: number; mult: number }) => boolean) => p.scoringDist.filter(f).reduce((n, x) => n + x.n, 0) / total;
+  const pc = (x: number) => `${Math.round(x * 100)}%`;
+  const trebles = share(x => x.mult === 3), off = share(x => x.seg === 0);
+  const attempts = Object.keys(p.doubleRates).length > 0;
+  const out: ShadowTrait[] = [];
+  if (trebles >= 0.14) out.push({ key: "big_scorer", label: "Big Scorer", tone: "good", why: `${pc(trebles)} of scoring darts are trebles` });
+  if (attempts && p.doubleHitPct >= 0.3) out.push({ key: "sharpshooter", label: "Sharpshooter", tone: "good", why: `Hits ${pc(p.doubleHitPct)} of darts at a double` });
+  if (attempts && p.doubleHitPct < 0.12) out.push({ key: "double_trouble", label: "Double Trouble", tone: "bad", why: `Only ${pc(p.doubleHitPct)} of darts at a double go in` });
+  if (p.pressureDoubleHitPct != null && p.pressureDoubleHitPct >= p.doubleHitPct + 0.03) out.push({ key: "ice_cold", label: "Ice Cold", tone: "good", why: `Better on doubles in league matches (${pc(p.pressureDoubleHitPct)})` });
+  if (p.pressureDoubleHitPct != null && p.pressureDoubleHitPct <= p.doubleHitPct - 0.05) out.push({ key: "bottler", label: "Bottler", tone: "bad", why: `Doubles drop to ${pc(p.pressureDoubleHitPct)} in league matches` });
+  if (off >= 0.06) out.push({ key: "wild", label: "Wild Thrower", tone: "bad", why: `${pc(off)} of scoring darts miss the board` });
+  else if (total >= 200 && off <= 0.015) out.push({ key: "metronome", label: "Metronome", tone: "good", why: "Hardly ever misses the board" });
+  const best = Object.entries(p.doubleRates).sort((a, b) => b[1] - a[1])[0];
+  if (best && best[1] >= 0.35) out.push({ key: "specialist", label: `${best[0] === "25" ? "Bull" : `D${best[0]}`} Specialist`, tone: "good", why: `Hits ${pc(best[1])} on ${best[0] === "25" ? "the bull" : `double ${best[0]}`}` });
+  if (p.primarySeg !== 20) out.push({ key: "off_20", label: `Lives on the ${p.primarySeg}s`, tone: "neutral", why: `Throws more at ${p.primarySeg} than anything else` });
+  return out.slice(0, 5);
+}

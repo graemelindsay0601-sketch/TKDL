@@ -16,7 +16,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X01Scorer, CricketScorer } from "@/lib/scorers";
 import type { GameResult } from "./game-scorer";
-import { BOT_LEVELS } from "@/lib/bot-engine";
+import { BOT_LEVELS, type ShadowProfile } from "@/lib/bot-engine";
 import { getBossEffectsForLeg, type Boss, type BossMove } from "@/lib/boss-battles-data";
 import type { CCEffect } from "@/lib/card-effect-engine";
 import { useNewScoringUI } from "@/lib/useNewScoringUI";
@@ -27,9 +27,11 @@ interface BossBattleScorerProps {
   onMatchComplete: (result: GameResult) => void;
   onAbandon: () => void;
   ascension?: number;
+  /** This week's possession: the boss throws this shadow's real darts instead of its own level (X01 only). */
+  possessedBy?: ShadowProfile;
 }
 
-export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon, ascension = 0 }: BossBattleScorerProps) {
+export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon, ascension = 0, possessedBy }: BossBattleScorerProps) {
   const newScoringUI = useNewScoringUI();
   if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
@@ -76,7 +78,8 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon,
 
   const botOrder = ["amateur", "club", "county", "pro", "elite"] as const;
   const baseIndex = Math.max(0, botOrder.indexOf(boss.botLevel as typeof botOrder[number]));
-  const botConfig = BOT_LEVELS[botOrder[Math.min(botOrder.length - 1, baseIndex + ascension)]];
+  const levelConfig = BOT_LEVELS[botOrder[Math.min(botOrder.length - 1, baseIndex + ascension)]];
+  const botConfig = possessedBy && boss.gameMode === "X01" ? { ...levelConfig, shadowProfile: possessedBy } : levelConfig;
 
   return (
     <div style={{ position: "relative" }}>
@@ -113,7 +116,7 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon,
       {boss.gameMode === "X01" ? (
         <X01Scorer
           p1Name={playerName}
-          p2Name={boss.name}
+          p2Name={possessedBy && boss.gameMode === "X01" ? `👻 ${boss.name}` : boss.name}
           config={{ startingScore: 501, doubleOut: true }}
           botConfig={botConfig}
           onWin={handleMatchComplete}

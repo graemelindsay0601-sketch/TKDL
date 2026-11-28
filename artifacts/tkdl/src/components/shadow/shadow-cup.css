@@ -49,3 +49,39 @@
 .sc-tab{flex:1 0 auto;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:#bdb7d0;font:600 11px Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
 .sc-tab.later{opacity:.55}
 .sc-tab.on{background:#a78bfa;border-color:#a78bfa;color:#140f22;opacity:1;box-shadow:0 0 14px rgba(167,139,250,.5)}
+.sc-coach-head{margin:10px 0 12px;font:600 16px/1.35 Oswald,sans-serif;color:#fff;letter-spacing:.01em}
+.sc-coach-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:6px 10px;padding:10px 12px;border-radius:14px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.07);font:600 14px Oswald,sans-serif;color:#e9e4ff}
+.sc-coach-grid b{font:600 10.5px Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#c4b5fd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-coach-grid small{font-size:11px;color:#8f8aa3}
+.sc-coach-grid .sc-dim{font:500 11px Oswald,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.sc-coach-legs{margin-top:10px;display:grid;gap:6px}
+.sc-coach-leg{display:grid;grid-template-columns:48px 1fr;gap:8px;align-items:baseline;padding:8px 10px;border-radius:12px;font-size:13px;line-height:1.4;color:#d8d3e8;background:rgba(255,255,255,.03);border-left:3px solid rgba(255,255,255,.15)}
+.sc-coach-leg.w{border-left-color:#22c55e}
+.sc-coach-leg.l{border-left-color:#ff5c8a}
+.sc-coach-n{font:700 11px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#a78bfa}
+.sc-lad{border-top:1px solid rgba(255,255,255,.06)}
+.sc-lad:first-of-type{margin-top:8px}
+.sc-lad.me{background:linear-gradient(90deg,rgba(167,139,250,.16),transparent);border-radius:10px}
+.sc-lad-row{width:100%;display:grid;grid-template-columns:24px 34px 1fr auto 42px;align-items:center;gap:8px;padding:9px 4px;text-align:left}
+.sc-mv{display:inline-flex;align-items:center;font:700 11px Oswald,sans-serif;color:#8f8aa3}
+.sc-mv.up{color:#4ade80}.sc-mv.down{color:#ff6b8f}
+.sc-new{font-size:8.5px;letter-spacing:.1em;padding:1px 4px;border-radius:4px;background:rgba(167,139,250,.25);color:#d9c8ff}
+.sc-form{display:flex;gap:3px}
+.sc-form i{width:7px;height:7px;border-radius:50%;background:#ff5c8a}
+.sc-form i.w{background:#4ade80}
+.sc-rt{font:700 16px Oswald,sans-serif;text-align:right;color:#fff}
+.sc-lad-more{padding:2px 8px 10px 34px;display:grid;gap:6px}
+.sc-lad-res{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:8px;font-size:13px;color:#d8d3e8}
+.sc-w{color:#4ade80;font:700 12px Oswald,sans-serif}.sc-l{color:#ff6b8f;font:700 12px Oswald,sans-serif}
+.sc-mini{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:999px;background:rgba(167,139,250,.18);color:#c4b5fd;font:600 10px Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.sc-more{width:100%;margin-top:8px;padding:8px;color:#c4b5fd;font:600 11px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase}
+.sc-haunt-in{display:grid;gap:6px;margin:10px 0}
+.sc-haunt-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.04);font-size:13px;color:#d8d3e8;margin-top:6px}
+.sc-haunt-row.in{background:linear-gradient(90deg,rgba(167,139,250,.28),rgba(167,139,250,.06));border:1px solid rgba(167,139,250,.5);animation:sc-haunt 2.6s ease-in-out infinite}
+@keyframes sc-haunt{50%{box-shadow:0 0 18px rgba(167,139,250,.45)}}
+.sc-go{font:700 11px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#fff;white-space:nowrap}
+.sc-haunt-send{display:flex;gap:8px;margin-top:10px}
+.sc-haunt-send select{flex:1;min-width:0;padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.14);color:#fff;font:500 14px Oswald,sans-serif}
+.sc-send{display:inline-flex;align-items:center;gap:5px;padding:0 14px;border-radius:12px;background:#a78bfa;color:#140f22;font:700 12px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase}
+.sc-send:disabled{opacity:.4}
+.sc-msg{margin-top:8px;font-size:12.5px}.sc-msg.ok{color:#86efac}.sc-msg.bad{color:#ff8fb3}

@@ -234,3 +234,11 @@
 .bb-boss-card { border-radius: 16px !important; }
 .bb-hero h1 { white-space: normal !important; overflow-wrap: normal; word-break: keep-all; font-size: clamp(2.3rem, 10.5vw, 6rem) !important; }
 .bb-hero, .bb-hero-copy { min-width: 0; }
+/* Possession: this week's Shadow Cup champion's shadow has taken over a boss */
+.bb-boss-card.possessed{border-color:rgba(167,139,250,.7)!important;box-shadow:0 0 0 1px rgba(167,139,250,.35) inset,0 0 26px rgba(167,139,250,.35);animation:bb-possess 3s ease-in-out infinite}
+@keyframes bb-possess{50%{box-shadow:0 0 0 1px rgba(167,139,250,.5) inset,0 0 40px rgba(167,139,250,.55)}}
+.bb-possessed-tag{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:2px 8px;border-radius:999px;background:rgba(167,139,250,.18);color:#d9c8ff;font:600 10px Oswald,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.bb-possessed-note{display:flex;gap:10px;align-items:flex-start;text-align:left;margin:14px auto 4px;max-width:440px;padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,rgba(167,139,250,.24),rgba(30,20,50,.6));border:1px solid rgba(167,139,250,.55);color:#e9e4ff;font-size:13px;line-height:1.45}
+.bb-possessed-note svg{flex-shrink:0;width:18px;height:18px;color:#c4b5fd;margin-top:1px}
+.bb-possessed-note b{color:#fff}
+.bb-btn-possessed{display:block;width:100%;margin-top:12px;padding:14px;border-radius:14px;background:linear-gradient(135deg,#a78bfa,#6d28d9);color:#fff;font:700 14px Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 0 24px rgba(167,139,250,.45)}

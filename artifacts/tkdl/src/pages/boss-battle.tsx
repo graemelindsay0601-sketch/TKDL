@@ -3,7 +3,8 @@ import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { Swords, Lock, Trophy, Skull, Clock, Users, Shield, Ghost, LockKeyhole, Zap, Sparkles, CheckCircle2, Heart, Gauge } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
 import { BOSSES, type Boss } from "@/lib/boss-battles-data";
-import { BOT_LEVELS } from "@/lib/bot-engine";
+import { BOT_LEVELS, type ShadowProfile } from "@/lib/bot-engine";
+import { possessedBossIndex } from "@/lib/darts-rules";
 import { BossBattleScorer } from "@/components/BossBattleScorer";
 import type { GameResult } from "@/components/game-scorer";
 import { useCosmeticsCatalog, glowRowStyle } from "@/lib/cosmetics";
@@ -13,8 +14,8 @@ import "./boss-battle.css";
 type Screen =
   | { kind: "ladder" }
   | { kind: "entrance"; boss: Boss; ascension?: number }
-  | { kind: "fight"; boss: Boss; rush?: boolean; ascension?: number }
-  | { kind: "result"; boss: Boss; won: boolean; elapsedSeconds?: number; cleanSweep: boolean; ascension?: number }
+  | { kind: "fight"; boss: Boss; rush?: boolean; ascension?: number; possessed?: boolean }
+  | { kind: "result"; boss: Boss; won: boolean; elapsedSeconds?: number; cleanSweep: boolean; ascension?: number; exorcised?: boolean | null }
   | { kind: "rush-break"; boss: Boss; nextBoss: Boss; lives: number; wins: number }
   | { kind: "rush-result"; cleared: boolean; wins: number; elapsedSeconds: number; lives: number };
 
@@ -91,6 +92,9 @@ export default function BossBattlePage() {
   // already highlights via `p.playerId === playerId`.
   const cosmeticsCatalog = useCosmeticsCatalog();
   const [myGlowId, setMyGlowId] = useState<string | null>(null);
+  // Possession: the latest Shadow Cup champion's shadow takes over one boss for the week.
+  const [possession, setPossession] = useState<{ week: string; playerId: number; name: string; profile: any } | null>(null);
+  useEffect(() => { fetch("/api/shadow-possession").then(r => r.ok ? r.json() : null).then(setPossession).catch(() => setPossession(null)); }, []);
   useEffect(() => {
     if (!playerId) { setMyGlowId(null); return; }
     fetch(`/api/players/${playerId}/cosmetics`)
@@ -152,10 +156,10 @@ export default function BossBattlePage() {
     return prev ? defeated.has(prev.id) : true;
   };
 
-  const startFight = (boss: Boss, ascension = 0) => {
+  const startFight = (boss: Boss, ascension = 0, possessed = false) => {
     setSaveState("idle");
     setFightStartedAt(Date.now());
-    setScreen({ kind: "fight", boss, ascension });
+    setScreen({ kind: "fight", boss, ascension, possessed });
   };
 
   const startRush = () => {
@@ -179,7 +183,7 @@ export default function BossBattlePage() {
     } catch { /* the individual boss results are still safely recorded */ }
   };
 
-  const handleMatchComplete = async (boss: Boss, result: GameResult, ascension = 0) => {
+  const handleMatchComplete = async (boss: Boss, result: GameResult, ascension = 0, possessed = false) => {
     const won = result.winnerIdx === 0;
     const elapsedSeconds = fightStartedAt ? Math.round((Date.now() - fightStartedAt) / 1000) : undefined;
     const cleanSweep = won && /^2[–-]0 legs$/i.test(result.detail ?? "");
@@ -219,11 +223,27 @@ export default function BossBattlePage() {
       }
       return;
     }
-    setScreen({ kind: "result", boss, won, elapsedSeconds, cleanSweep, ascension });
+    let exorcised: boolean | null = null;
+    if (won && possessed && possession && boss.id === possessedId) {
+      exorcised = await fetch("/api/shadow-possession/exorcise", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week: possession.week, boss: boss.name }) }).then(r => r.ok ? r.json() : null).then(j => !!j?.unlocked).catch(() => null);
+    }
+    setScreen({ kind: "result", boss, won, elapsedSeconds, cleanSweep, ascension, exorcised });
   };
 
   const sortedBosses = [...BOSSES].sort((a, b) => a.order - b.order);
   const defeatedCount = sortedBosses.filter(b => defeated.has(b.id)).length;
+  // Picked from the bosses you've unlocked, so it's always one you can actually fight. Not your own shadow.
+  const possessable = sortedBosses.filter(b => b.gameMode === "X01" && isUnlocked(b));
+  const possessedId = possession && possession.playerId !== playerId && possessable.length
+    ? possessable[possessedBossIndex(possession.week, possessable.length)].id : null;
+  const possessedProfile = (): ShadowProfile | undefined => {
+    if (!possession) return undefined;
+    const p = possession.profile;
+    return { playerId: possession.playerId, playerName: possession.name, totalDarts: p.darts, primarySeg: p.primarySeg, treblePct: p.treblePct,
+      singlePct: p.singlePct, checkoutSegs: p.checkoutSegs, doubleHitPct: p.doubleHitPct, computedAvg: p.computedAvg, scoringDist: p.scoringDist,
+      doubleRates: p.doubleRates, pressureDoubleHitPct: p.pressureDoubleHitPct, thin: p.thin, eraLabel: p.eraLabel } as ShadowProfile;
+  };
   const masteryTotal = sortedBosses.reduce((sum, boss) => sum + masteryCount(boss, defeated, stats[boss.id]), 0);
 
   if (loading) {
@@ -236,7 +256,8 @@ export default function BossBattlePage() {
         boss={screen.boss}
         playerName={playerName}
         ascension={screen.ascension}
-        onMatchComplete={(r) => handleMatchComplete(screen.boss, r, screen.ascension ?? 0)}
+        possessedBy={screen.possessed && !screen.rush && screen.boss.id === possessedId ? possessedProfile() : undefined}
+        onMatchComplete={(r) => handleMatchComplete(screen.boss, r, screen.ascension ?? 0, !!screen.possessed)}
         onAbandon={() => {
           if (rush) void saveRush(false, rush.wins, Math.max(1, Math.round((Date.now() - rush.startedAt) / 1000)));
           setRush(null);
@@ -291,6 +312,11 @@ export default function BossBattlePage() {
           <div className="bb-vs-kicker">{ascension ? `Ascension ${ascension}` : `Boss ${boss.order} of ${sortedBosses.length}`}</div>
           <h1>{boss.name}</h1>
           <div className="bb-vs-tagline">"{boss.tagline}"</div>
+          {boss.id === possessedId && possession && (
+            <div className="bb-possessed-note">
+              <Ghost /> <span><b>Possessed by Shadow {possession.name}</b> this week. Take on the possessed version and it throws {possession.name}'s real darts ({Number(possession.profile.computedAvg).toFixed(0)} avg) instead of its own, still using its moves. Beat it for the Exorcist tag. The normal fight is still there.</span>
+            </div>
+          )}
           <div className="bb-vs-meta">
             <span>{boss.gameMode === "X01" ? "501, double out" : "Cricket"}</span>
             <span><b>{BOT_LEVELS[boss.botLevel]?.label ?? boss.botLevel}</b> tier</span>
@@ -323,6 +349,9 @@ export default function BossBattlePage() {
             <button className="bb-btn-ghost" onClick={() => setScreen({ kind: "ladder" })}>Back</button>
             <button className="bb-btn-primary" onClick={() => startFight(boss, ascension)}><Swords className="inline w-3.5 h-3.5 mr-1.5" />{ascension ? `Fight Ascension ${ascension}` : "Fight"}</button>
           </div>
+          {boss.id === possessedId && possession && (
+            <button className="bb-btn-possessed" onClick={() => startFight(boss, ascension, true)}><Ghost className="inline w-4 h-4 mr-1.5" />Fight the possessed version</button>
+          )}
         </div>
       </div>
     );
@@ -347,6 +376,9 @@ export default function BossBattlePage() {
                 <span className={cleanSweep ? "earned" : ""}><Sparkles /> 2–0 sweep</span>
                 <span className={elapsedSeconds !== undefined && elapsedSeconds <= boss.masterySeconds ? "earned" : ""}><Clock /> Under {formatSeconds(boss.masterySeconds)}</span>
               </div>
+              {screen.exorcised != null && possession && (
+                <div className="bb-possessed-note"><Ghost /> <span><b>Shadow {possession.name} driven out.</b>{screen.exorcised ? " Unlocked: the Exorcist tag." : " You already have the Exorcist tag."}</span></div>
+              )}
               {next && !ascension && (
                 <div className="bb-unlock-card">
                   <CheckCircle2 size={22} />
@@ -488,11 +520,12 @@ export default function BossBattlePage() {
               style={tierVar(boss)}
             >
               <span className={`bb-node ${won ? "won" : ""}`} />
-              <div className={`bb-boss-card ${won ? "won" : ""} ${!unlocked ? "locked" : ""} ${isFinal ? "final" : ""}`}>
+              <div className={`bb-boss-card ${won ? "won" : ""} ${!unlocked ? "locked" : ""} ${isFinal ? "final" : ""} ${boss.id === possessedId ? "possessed" : ""}`}>
                 <div className="bb-boss-icon">{!unlocked ? <Lock size={16} style={{ color: "rgba(255,255,255,0.3)" }} /> : <Icon size={18} />}</div>
                 <div className="bb-boss-body">
                   <div className="bb-boss-name">{boss.name}</div>
                   <div className="bb-boss-tag">{unlocked ? boss.tagline : "Beat the previous boss to unlock"}</div>
+                  {boss.id === possessedId && possession && <div className="bb-possessed-tag"><Ghost size={11} /> Possessed by Shadow {possession.name} this week</div>}
                   {unlocked && bossStats && bossStats.attempts > 0 && (
                     <div className="bb-boss-stats">
                       {won && <CheckCircle2 size={11} style={{ color: "#ffd24a" }} />}
